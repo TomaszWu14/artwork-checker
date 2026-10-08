@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Push PalViz — panel admina{% endblock %}
+{% block page_title %}Push do PalViz — dostawy{% endblock %}
+
+{% block content %}
+<div x-data="palvizPushApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>Push do PalViz — dostawy</h1>
+    <p class="sub">Ostatnie próby wypchnięcia renderów 3D do PalViz: status, detal błędu, ręczne ponowienie (ADMIN-01).</p>
+  </div>
+
+  {% if not push_enabled %}
+  <div class="card" style="padding:12px;margin-bottom:12px;border-color:#fde68a;background:#fffbeb">
+    ⚠ Push jest <strong>wyłączony</strong> — brak <code>PALVIZ_PUSH_URL</code> w env. Rendery zostają w stanie <code>pending</code>, żadne wywołania sieciowe nie są wykonywane. Ustaw <code>PALVIZ_PUSH_URL</code> i <code>PALVIZ_API_KEY</code>, aby włączyć dostawy.
+  </div>
+  {% endif %}
+
+  <div class="filter-bar">
+    <select class="filter-sel" x-model="status" @change="load()">
+      <option value="">— status (wszystkie) —</option>
+      <option value="pending">oczekuje</option>
+      <option value="sent">wysłane</option>
+      <option value="failed">błąd</option>
+    </select>
+    <button type="button" class="btn btn-sm btn-primary" @click="load()">Odśwież</button>
+  </div>
+
+  <div class="card overflow-hidden">
+  <div class="overflow-x-auto scroll-thin">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th scope="col">REF</th>
+        <th scope="col">Wariant</th>
+        <th scope="col">Status</th>
+        <th scope="col">Prób</th>
+        <th scope="col">Ostatnia próba</th>
+        <th scope="col">Błąd</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <template x-if="!loaded">
+        <tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:16px">Ładowanie…</td></tr>
+      </template>
+      <template x-if="loaded && !err && items.length===0">
+        <tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:16px">Brak dostaw</td></tr>
+      </template>
+      <template x-if="err">
+        <tr><td colspan="7" style="text-align:center;color:#b91c1c;padding:16px">
+          ⚠ Nie udało się pobrać listy (<span x-text="err"></span>).
+        </td></tr>
+      </template>
+      <template x-for="r in items" :key="r.id">
+        <tr>
+          <td class="mono" x-text="r.ref_norm || '—'"></td>
+          <td x-text="enumPL('variant', r.variant)"></td>
+          <td>
+            <span class="badge"
+                  :class="r.push_status==='sent'?'badge-ok':(r.push_status==='failed'?'badge-err':'badge-neutral')"
+                  x-text="enumPL('push', r.push_status || 'pending')"></span>
+          </td>
+          <td class="mono" x-text="r.push_attempts ?? 0"></td>
+          <td class="mono" x-text="dataPL(r.push_at, true)"></td>
+          <td :title="r.push_error" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              x-text="r.push_error || '—'"></td>
+          <td style="white-space:nowrap">
+            <button type="button" class="btn btn-sm btn-ghost" x-show="r.push_status==='failed'"
+                    :disabled="busy[r.id]" @click="retry(r.id)" title="Ponów push do PalViz">Ponów</button>
+          </td>
+        </tr>
+      </template>
+    </tbody>
+  </table>
+  </div>
+  </div>
+</div>
+
+<script>
+function palvizPushApp(){
+  return {
+    status: '', items: [], loaded: false, err: '', busy: {},
+    async load(){
+      this.err = '';
+      try{
+        const p = new URLSearchParams({status: this.status, limit: 100});
+        const r = await fetch('/api/admin/palviz-push?' + p.toString());
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        this.items = d.items || [];
+      }catch(e){
+        this.err = e.message || 'błąd sieci';
+      }finally{
+        this.loaded = true;
+      }
+    },
+    async retry(id){
+      this.busy[id] = true;
+      try{
+        const r = await fetch('/api/artwork/render/' + id + '/push-retry', {method: 'POST'});
+        const d = await r.json().catch(() => ({}));
+        if(d.status === 'backoff') alert('Odczekaj chwilę przed kolejnym ponowieniem (bounded backoff).');
+        else if(d.status === 'disabled') alert('Push do PalViz nie jest skonfigurowany (PALVIZ_PUSH_URL).');
+        await this.load();
+      }catch(e){
+        alert('Nie udało się ponowić: ' + (e.message || 'błąd sieci'));
+      }finally{
+        this.busy[id] = false;
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

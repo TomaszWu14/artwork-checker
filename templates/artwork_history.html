@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% block title %}Historia porównań artworków — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1280px;margin:28px auto;padding:0 20px}
+
+
+.filters{background:#fff;border-radius:8px;padding:14px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.filters label{font-size:12px;font-weight:600;color:#374151}
+.filters select,.filters input{padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:13px;background:#fff;color:#111}
+
+.hist-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.hist-table th{background:#1e3a5f;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:10px 14px;text-align:left}
+.hist-table td{padding:10px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle;font-size:12.5px}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-table tr:hover td{background:#f0f7ff}
+.hist-table .fname{font-weight:600;color:#1a1a2e;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;cursor:pointer}
+.fname-preview{position:fixed;z-index:999;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;box-shadow:0 4px 18px rgba(0,0,0,.15);font-size:12px;min-width:180px;max-width:300px;pointer-events:none;display:none}
+.fname-preview .fpv-label{color:#6b7280;font-size:11px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+.fname-preview .fpv-value{color:#111;font-weight:600;word-break:break-all}
+.hist-table .user-badge{background:#e0e7ff;color:#3730a3;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:600}
+
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700}
+.badge-ok{background:#dcfce7;color:#166534}
+.badge-warn{background:#fef3c7;color:#92400e}
+.badge-err{background:#fee2e2;color:#991b1b}
+.badge-crit{background:#fecaca;color:#7f1d1d}
+
+/* .btn / .btn-sm — z app.css; poniżej tylko warianty tego ekranu. */
+.btn-report{background:#1d4ed8;color:#fff}
+.btn-report:hover{background:#1e40af}
+.btn-vis{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}
+.btn-vis:hover{background:#e5e7eb}
+.btn-del{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.btn-del:hover{background:#fca5a5}
+
+.empty{text-align:center;padding:48px 20px;color:#9ca3af;font-size:15px}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat-card{background:#fff;border-radius:8px;padding:14px 16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.stat-num{font-size:26px;font-weight:700;color:#1d4ed8}
+.stat-lbl{font-size:11px;color:#6b7280;margin-top:3px;text-transform:uppercase}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;overflow-y:auto}
+.modal-overlay.on{display:block}
+.modal-box{background:#fff;border-radius:12px;max-width:1100px;margin:40px auto;padding:0;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
+.modal-hdr{background:#1e3a5f;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:12px}
+.modal-hdr-info{flex:1;min-width:0}
+.modal-hdr-title{font-size:15px;font-weight:700;margin-bottom:3px}
+.modal-hdr-meta{font-size:12px;opacity:.75}
+.modal-hdr-risk{flex-shrink:0}
+.modal-close{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:600}
+.modal-close:hover{background:rgba(255,255,255,.25)}
+.modal-body{padding:20px 22px;background:#f9fafb;max-height:calc(100vh - 180px);overflow-y:auto}
+
+.risk-banner{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:10px;margin-bottom:16px;border:1.5px solid}
+.risk-ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+.risk-warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.risk-err{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+.risk-crit{background:#fecaca;color:#7f1d1d;border-color:#f87171}
+.risk-icon{font-size:22px;flex-shrink:0}
+.risk-text{flex:1}
+.risk-title{font-size:15px;font-weight:700}
+.risk-sub{font-size:12px;margin-top:3px;opacity:.8}
+.risk-stats{display:flex;gap:16px;flex-shrink:0}
+.risk-stat{text-align:center}
+.risk-num{font-size:20px;font-weight:700}
+.risk-lbl{font-size:10px;text-transform:uppercase;opacity:.7}
+
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin:16px 0 8px}
+.field-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.field-table th{background:#f3f4f6;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280;padding:8px 12px;text-align:left}
+.field-table td{padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:12.5px;vertical-align:middle}
+.field-table tr:last-child td{border-bottom:none}
+.field-table tr.fdiff td{background:#fff7f7}
+.field-table tr.fdiff td:first-child{border-left:3px solid #ef4444}
+.field-table tr.fok td:first-child{border-left:3px solid #22c55e}
+.field-table tr.fwarn td:first-child{border-left:3px solid #f59e0b}
+.val-diff{color:#dc2626;font-weight:600}
+.val-ok{color:#166534}
+
+.text-diffs-box{background:#fff;border-radius:8px;padding:14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.text-diff-item{border-bottom:1px solid #f3f4f6;padding:8px 0;font-size:12.5px}
+.text-diff-item:last-child{border-bottom:none}
+.td-page{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px}
+.td-vals{display:flex;gap:10px;align-items:flex-start}
+.td-a{flex:1;background:#eff6ff;border-radius:5px;padding:6px 9px;color:#1d4ed8;font-size:12px;word-break:break-word}
+.td-b{flex:1;background:#fef2f2;border-radius:5px;padding:6px 9px;color:#dc2626;font-size:12px;word-break:break-word}
+
+.summary-box{background:#fff;border-radius:8px;padding:14px;font-size:13px;color:#374151;line-height:1.6;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:14px}
+
+.modal-footer{padding:14px 22px;background:#fff;border-top:1px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.btn-full-report{background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
+.btn-full-report:hover{background:#1e40af}
+
+.loading-spinner{text-align:center;padding:48px;color:#9ca3af}
+.spinner{width:28px;height:28px;border:2px solid #e5e7eb;border-top-color:#1d4ed8;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media print{.filters,.stat-row,.modal-overlay{display:none}}
+</style>{% endblock %}
+
+{% block page_title %}Historia artwork{% endblock %}
+
+{% block content %}
+<!-- ── REPORT MODAL ── -->
+<div class="modal-overlay" id="reportModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div class="modal-hdr-info">
+        <div class="modal-hdr-title" id="modalTitle">Raport porównania artworku</div>
+        <div class="modal-hdr-meta" id="modalMeta"></div>
+      </div>
+      <div class="modal-hdr-risk" id="modalRiskBadge"></div>
+      <button type="button" class="modal-close" onclick="closeModal()" aria-label="Zamknij raport">✕ Zamknij</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="loading-spinner"><div class="spinner"></div>Ładowanie raportu…</div>
+    </div>
+    <div class="modal-footer">
+      <a class="btn-full-report" id="modalFullLink" href="#" target="_blank" rel="noopener noreferrer">📄 Pełny raport</a>
+      <span id="modalFooterInfo" style="font-size:12px;color:#9ca3af;margin-left:auto"></span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="page-header">
+    <h1>📁 Historia porównań artworków</h1>
+    <p>Wszystkie porównania artworków przeprowadzone w systemie</p>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-num">{{ stats.total }}</div><div class="stat-lbl">Wszystkie</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#c0392b">{{ stats.critical }}</div><div class="stat-lbl">Z błędami krytycznymi</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#1e8449">{{ stats.ok }}</div><div class="stat-lbl">Bez błędów</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#7c3aed">{{ stats.users }}</div><div class="stat-lbl">Użytkowników</div></div>
+  </div>
+
+  <div class="filters">
+    <label for="filterText">Filtruj:</label>
+    <input type="search" id="filterText" placeholder="Szukaj pliku lub użytkownika..." oninput="filterRows()" style="width:220px" autocomplete="off">
+    <select id="filterStatus" onchange="filterRows()">
+      <option value="">Wszystkie statusy</option>
+      <option value="ok">OK</option>
+      <option value="warning">Ostrzeżenie</option>
+      <option value="error">Błąd</option>
+      <option value="critical">Krytyczny</option>
+    </select>
+    {% if can_see_all %}
+    <select id="filterUser" onchange="filterRows()">
+      <option value="">Wszyscy użytkownicy</option>
+      {% for u in all_users %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <select id="filterVis" onchange="filterRows()">
+      <option value="">Widoczność: wszystkie</option>
+      <option value="public">Publiczne</option>
+      <option value="private">Prywatne</option>
+    </select>
+    <button type="button" onclick="clearFilters()" style="padding:6px 12px;background:#e5e7eb;border:none;border-radius:5px;cursor:pointer;font-size:12px">Wyczyść</button>
+  </div>
+
+  {% if rows %}
+  <table class="hist-table" id="histTable">
+    <thead>
+      <tr>
+        <th scope="col">Data</th>
+        <th scope="col">Użytkownik</th>
+        <th scope="col">Plik A (master)</th>
+        <th scope="col">Plik B (fabryczny)</th>
+        <th scope="col">Status</th>
+        <th scope="col">Błędy</th>
+        <th scope="col">Widoczność</th>
+        <th scope="col">Akcje</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      {% set rl = (r.status or '')|lower %}
+      {% set badge_cls = 'badge-ok' if rl == 'ok' else 'badge-crit' if rl == 'critical' else 'badge-err' if rl == 'error' else 'badge-warn' %}
+      {% set is_own = (r.user_id == current_uid) %}
+      {% set is_pub = r.is_public %}
+      <tr data-status="{{ rl }}"
+          data-user="{{ r.username|lower }}"
+          data-files="{{ ((r.file_a or '') + ' ' + (r.file_b or ''))|lower }}"
+          data-vis="{{ 'public' if is_pub else 'private' }}">
+        <td style="white-space:nowrap;color:#555"><span class="ts-rel" data-ts="{{ r.created_at or '' }}" title="{{ r.created_at[:16] if r.created_at else '—' }}">{{ r.created_at[:16] if r.created_at else '—' }}</span></td>
+        <td><span class="user-badge">{{ r.username }}</span></td>
+        <td><span class="fname" data-fname="{{ r.file_a or '' }}" data-flabel="Wzorzec (A)">{{ r.file_a or '—' }}</span></td>
+        <td><span class="fname" data-fname="{{ r.file_b or '' }}" data-flabel="Fabryczna (B)">{{ r.file_b or '—' }}</span></td>
+        <td><span class="badge {{ badge_cls }}">{{ (r.status or 'unknown')|upper }}</span></td>
+        <td style="text-align:center;font-weight:600;color:{% if r.diff_count and r.diff_count > 0 %}#c0392b{% else %}#1e8449{% endif %}">
+          {{ r.diff_count if r.diff_count else 0 }}
+        </td>
+        <td>
+          {% if is_own or can_see_all %}
+          <button type="button" class="btn btn-sm btn-vis"
+                  id="vis-btn-{{ r.db_id }}"
+                  onclick="toggleVisibility({{ r.db_id }}, this)"
+                  title="Przełącz widoczność">
+            {{ '🌐 Publiczny' if is_pub else '🔒 Prywatny' }}
+          </button>
+          {% else %}
+          <span style="font-size:11px;color:#9ca3af">{{ '🌐 Publiczny' if is_pub else '🔒 Prywatny' }}</span>
+          {% endif %}
+        </td>
+        <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm btn-report" onclick="openReport({{ r.db_id }}, this)">🔍 Otwórz</button>
+          {% if is_own or can_see_all %}
+          <button type="button" class="btn btn-sm btn-del" onclick="deleteReport({{ r.db_id }}, this)" title="Usuń raport" aria-label="Usuń raport">🗑</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:64px 20px;color:#9ca3af">
+    <div style="font-size:48px;margin-bottom:16px;opacity:.5">🎨</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#374151">Brak historii porównań artworków</div>
+    <div style="font-size:13px;margin-bottom:20px">Wykonaj pierwsze porównanie artworku, aby zobaczyć historię.</div>
+    <a href="/artwork" style="display:inline-block;background:#1d4ed8;color:#fff;padding:9px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px">Porównaj artworki →</a>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function filterRows(){
+  var txt=(document.getElementById('filterText').value||'').toLowerCase();
+  var sta=(document.getElementById('filterStatus').value||'').toLowerCase();
+  var usr=document.getElementById('filterUser')?((document.getElementById('filterUser').value||'').toLowerCase()):'';
+  var vis=(document.getElementById('filterVis').value||'').toLowerCase();
+  document.querySelectorAll('#histTable tbody tr').forEach(function(tr){
+    var ok=true;
+    if(txt&&!tr.dataset.files.includes(txt)&&!tr.dataset.user.includes(txt))ok=false;
+    if(sta&&!tr.dataset.status.includes(sta))ok=false;
+    if(usr&&!tr.dataset.user.includes(usr))ok=false;
+    if(vis&&tr.dataset.vis!==vis)ok=false;
+    tr.style.display=ok?'':'none';
+  });
+}
+function clearFilters(){
+  document.getElementById('filterText').value='';
+  document.getElementById('filterStatus').value='';
+  if(document.getElementById('filterUser'))document.getElementById('filterUser').value='';
+  document.getElementById('filterVis').value='';
+  filterRows();
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────────────
+var _modalTrigger = null;
+function openModal(triggerEl){
+  _modalTrigger = triggerEl || document.activeElement;
+  var modal = document.getElementById('reportModal');
+  modal.classList.add('on');
+  document.body.style.overflow='hidden';
+  // Move focus into the modal so screen readers announce the dialog
+  var closeBtn = modal.querySelector('.modal-close');
+  if(closeBtn) setTimeout(function(){ closeBtn.focus(); }, 50);
+}
+function closeModal(){
+  document.getElementById('reportModal').classList.remove('on');
+  document.body.style.overflow='';
+  // Return focus to the element that opened the modal
+  if(_modalTrigger && _modalTrigger.focus) _modalTrigger.focus();
+  _modalTrigger = null;
+}
+document.getElementById('reportModal').addEventListener('click',function(e){
+  if(e.target===this)closeModal();
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+async function openReport(id, triggerEl){
+  document.getElementById('modalTitle').textContent='Raport #'+id;
+  document.getElementById('modalMeta').textContent='';
+  document.getElementById('modalRiskBadge').textContent='';
+  document.getElementById('modalBody').innerHTML='<div class="loading-spinner"><div class="spinner"></div>Ładowanie raportu…</div>';
+  document.getElementById('modalFullLink').href='/artwork/report?id='+id;
+  document.getElementById('modalFooterInfo').textContent='';
+  openModal(triggerEl);
+
+  try{
+    const resp=await fetch('/api/artwork/report/'+id);
+    if(!resp.ok){
+      const e=await resp.json();
+      document.getElementById('modalBody').innerHTML='<div style="color:#991b1b;padding:20px">Błąd: '+esc(e.error||'Nieznany błąd')+'</div>';
+      return;
+    }
+    const d=await resp.json();
+    renderArtworkModal(d, id);
+  }catch(ex){
+    document.getElementById('modalBody').innerHTML='<div style="color:#991b1b;padding:20px">Błąd połączenia: '+esc(ex.message)+'</div>';
+  }
+}
+
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderArtworkModal(d, id){
+  // Header
+  var fa=d.file_a||'—', fb=d.file_b||'—';
+  document.getElementById('modalTitle').textContent='Raport #'+id+': '+fa+' vs '+fb;
+  var ts=(d.created_at||'').slice(0,16).replace('T',' ');
+  document.getElementById('modalMeta').textContent=ts+'  ·  👤 '+(d.username||'?');
+
+  // Risk badge in header
+  var rl=(d.risk_level||d.status||'').toLowerCase();
+  var riskMap={
+    ok:{label:'OK',cls:'badge-ok'},
+    warning:{label:'Ostrzeżenie',cls:'badge-warn'},
+    error:{label:'Błąd',cls:'badge-err'},
+    critical:{label:'Krytyczny',cls:'badge-crit'}
+  };
+  var rm=riskMap[rl]||{label:esc((rl||'?').toUpperCase()),cls:'badge-warn'};
+  document.getElementById('modalRiskBadge').innerHTML='<span class="badge '+esc(rm.cls)+'" style="font-size:13px;padding:4px 12px">'+rm.label+'</span>';
+
+  // Build body HTML
+  var html='';
+
+  // Risk banner
+  var bannerCls='risk-'+( rl==='ok'?'ok': rl==='warning'?'warn': rl==='critical'?'crit':'err' );
+  var bannerIcon=rl==='ok'?'✅': rl==='warning'?'⚠️': '❌';
+  var critCnt=d.critical_count||0, impCnt=d.important_count||0, okCnt=d.ok_count||0;
+  var diffCnt=d.diff_count||(critCnt+impCnt)||0;
+  html+='<div class="risk-banner '+bannerCls+'">';
+  html+='<div class="risk-icon">'+bannerIcon+'</div>';
+  html+='<div class="risk-text"><div class="risk-title">Poziom ryzyka: '+(rl||'?').toUpperCase()+'</div>';
+  if(d.summary)html+='<div class="risk-sub">'+esc(d.summary)+'</div>';
+  html+='</div>';
+  html+='<div class="risk-stats">';
+  html+='<div class="risk-stat"><div class="risk-num">'+critCnt+'</div><div class="risk-lbl">Krytyczne</div></div>';
+  html+='<div class="risk-stat"><div class="risk-num">'+impCnt+'</div><div class="risk-lbl">Ważne</div></div>';
+  html+='<div class="risk-stat"><div class="risk-num">'+okCnt+'</div><div class="risk-lbl">OK</div></div>';
+  html+='</div></div>';
+
+  // Field report
+  var fr=d.field_report||[];
+  if(fr.length){
+    html+='<div class="section-title">Porównanie pól ('+fr.length+')</div>';
+    html+='<table class="field-table"><thead><tr><th scope="col">Pole</th><th scope="col">Wartość A (master)</th><th scope="col">Wartość B (fabryczny)</th><th scope="col">Status</th></tr></thead><tbody>';
+    fr.forEach(function(f){
+      var changed=f.changed||false;
+      var sev=(f.severity||'info').toLowerCase();
+      var st=changed?(sev==='critical'?'error':'warning'):'ok';
+      var rowCls=st==='ok'?'fok': st==='warning'?'fwarn': 'fdiff';
+      var valCls=rowCls==='fdiff'?'val-diff': rowCls==='fok'?'val-ok': '';
+      var statusBadge=st==='ok'?'<span class="badge badge-ok">OK</span>':
+                      st==='warning'?'<span class="badge badge-warn">Ostrzeż.</span>':
+                      '<span class="badge badge-err">Różnica</span>';
+      html+='<tr class="'+rowCls+'">';
+      html+='<td><strong>'+esc(f.field||f.label||f.name||'?')+'</strong></td>';
+      html+='<td class="'+valCls+'">'+esc(f.val_a!=null?String(f.val_a):f.value_a!=null?String(f.value_a):'—')+'</td>';
+      html+='<td class="'+valCls+'">'+esc(f.val_b!=null?String(f.val_b):f.value_b!=null?String(f.value_b):'—')+'</td>';
+      html+='<td>'+statusBadge+'</td>';
+      html+='</tr>';
+    });
+    html+='</tbody></table>';
+  }
+
+  // Text diffs from page_diffs
+  var pageDiffs=d.page_diffs||[];
+  var allTextDiffs=[];
+  pageDiffs.forEach(function(pg,pi){
+    var tds=pg.text_diffs||[];
+    tds.forEach(function(td){
+      allTextDiffs.push({page:pi+1,td:td});
+    });
+  });
+  if(allTextDiffs.length){
+    html+='<div class="section-title">Różnice tekstowe ('+allTextDiffs.length+')</div>';
+    html+='<div class="text-diffs-box">';
+    allTextDiffs.slice(0,50).forEach(function(item){
+      var td=item.td;
+      html+='<div class="text-diff-item">';
+      html+='<div class="td-page">Strona '+item.page+(td.label?' — '+esc(td.label):'')+'</div>';
+      html+='<div class="td-vals">';
+      html+='<div class="td-a"><strong>A:</strong> '+esc(td.text_a||td.val_a||'—')+'</div>';
+      html+='<div class="td-b"><strong>B:</strong> '+esc(td.text_b||td.val_b||'—')+'</div>';
+      html+='</div></div>';
+    });
+    if(allTextDiffs.length>50)html+='<div style="font-size:12px;color:#9ca3af;padding:6px 0">… i '+(allTextDiffs.length-50)+' więcej w pełnym raporcie</div>';
+    html+='</div>';
+  }
+
+  // Summary
+  if(d.summary){
+    html+='<div class="section-title">Podsumowanie</div>';
+    html+='<div class="summary-box">'+esc(d.summary)+'</div>';
+  }
+
+  if(!fr.length&&!allTextDiffs.length&&!d.summary){
+    html+='<div style="text-align:center;padding:32px;color:#9ca3af;font-size:14px">Brak szczegółowych danych w tym raporcie.<br>Użyj przycisku "Pełny raport" poniżej.</div>';
+  }
+
+  document.getElementById('modalBody').innerHTML=html;
+  document.getElementById('modalFooterInfo').textContent='ID raportu: #'+id+' · Pliki: '+fa+' / '+fb;
+}
+
+// ── VISIBILITY TOGGLE ───────────────────────────────────────────────────────────
+async function toggleVisibility(id, btn){
+  btn.disabled=true;
+  try{
+    const resp=await fetch('/api/artwork/report/'+id+'/visibility',{method:'POST'});
+    if(!resp.ok){const e=await resp.json();toast(e.error||'Błąd','error');return;}
+    const d=await resp.json();
+    btn.textContent=d.is_public?'🌐 Publiczny':'🔒 Prywatny';
+    var tr=btn.closest('tr');
+    if(tr)tr.dataset.vis=d.is_public?'public':'private';
+    toast(d.is_public?'Raport upubliczniony':'Raport ukryty','ok');
+  }catch(ex){toast('Błąd: '+ex.message,'error');}
+  finally{btn.disabled=false;}
+}
+
+// ── DELETE ─────────────────────────────────────────────────────────────────────
+async function deleteReport(id, btn){
+  confirmModal('Usunąć raport #'+id+'? Operacja jest nieodwracalna.', async()=>{
+    btn.disabled=true;
+    try{
+      const resp=await fetch('/api/comparison/'+id,{method:'DELETE'});
+      if(!resp.ok){const e=await resp.json();toast(e.error||'Błąd','error');btn.disabled=false;return;}
+      var tr=btn.closest('tr');
+      if(tr)tr.remove();
+      toast('Raport usunięty','ok');
+    }catch(ex){toast('Błąd: '+ex.message,'error');btn.disabled=false;}
+  },{okLabel:'Usuń',danger:true});
+}
+
+// ── File name hover preview ────────────────────────────────────────────────
+(function(){
+  var tip = document.createElement('div');
+  tip.className = 'fname-preview';
+  document.body.appendChild(tip);
+  document.querySelectorAll('.fname[data-fname]').forEach(function(el){
+    el.addEventListener('mouseenter', function(e){
+      var fn = el.dataset.fname || '';
+      if(!fn) return;
+      var label = el.dataset.flabel || 'Plik';
+      var parts = fn.split('/'); var base = parts[parts.length-1];
+      tip.innerHTML = '<div class="fpv-label">'+esc(label)+'</div><div class="fpv-value">'+esc(base)+'</div>';
+      tip.style.display = 'block';
+      _moveTip(e);
+    });
+    el.addEventListener('mousemove', _moveTip);
+    el.addEventListener('mouseleave', function(){ tip.style.display='none'; });
+  });
+  function _moveTip(e){
+    var x = e.clientX + 14, y = e.clientY - 10;
+    if(x + 300 > window.innerWidth) x = e.clientX - 310;
+    tip.style.left = x + 'px'; tip.style.top = (y + window.scrollY) + 'px';
+  }
+})();
+</script>
+{% endblock %}

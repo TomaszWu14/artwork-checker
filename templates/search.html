@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Szukaj{% endblock %}
+{% block page_title %}Wyszukiwarka globalna{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4 md:p-6">
+
+  <form action="/search" method="get" class="mb-6">
+    <div class="relative">
+      <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" style="width:18px;height:18px;" aria-hidden="true"></i>
+      <input type="search" name="q" value="{{ q }}" autofocus
+             placeholder="Szukaj: dostawca, plik porównania, numer, LOT…"
+             class="w-full pl-11 pr-4 py-3 text-[15px] rounded-xl border border-slate-300 bg-white focus:border-slate-500 focus:outline-none shadow-sm"
+             aria-label="Szukaj globalnie">
+    </div>
+  </form>
+
+  {% if q %}
+    <p class="text-[13px] text-slate-500 mb-4">
+      Znaleziono <strong>{{ total }}</strong> wyników dla „{{ q }}".
+    </p>
+
+    {% if total == 0 %}
+      <div class="text-center text-slate-400 py-16">
+        <i data-lucide="search-x" style="width:40px;height:40px;" class="mx-auto mb-3" aria-hidden="true"></i>
+        <p>Brak wyników. Spróbuj innej frazy (np. fragment nazwy pliku lub kodu dostawcy).</p>
+      </div>
+    {% endif %}
+
+    {% macro card(title, icon, count) %}
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="{{ icon }}" style="width:16px;height:16px;" class="text-slate-500" aria-hidden="true"></i>
+          <h2 class="text-[13px] font-bold uppercase tracking-wide text-slate-600">{{ title }}</h2>
+          <span class="text-[11px] text-slate-400 font-mono">{{ count }}</span>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+          {{ caller() }}
+        </div>
+      </div>
+    {% endmacro %}
+
+    {# ── Dostawcy ── #}
+    {% if results.suppliers %}
+      {% call card('Dostawcy', 'truck', results.suppliers|length) %}
+        {% for s in results.suppliers %}
+        <a href="/suppliers" class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition">
+          <span class="font-mono font-semibold text-slate-800 text-[14px]">{{ s.code or '—' }}</span>
+          <span class="text-[13px] text-slate-700 flex-1 truncate">{{ s.name }}</span>
+          {% if s.country %}<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{{ s.country }}</span>{% endif %}
+        </a>
+        {% endfor %}
+      {% endcall %}
+    {% endif %}
+
+    {# ── Porównania ── #}
+    {% if results.comparisons %}
+      {% call card('Porównania dokumentów', 'files', results.comparisons|length) %}
+        {% for c in results.comparisons %}
+        <a href="/history?q={{ (c.po_number or c.supplier_code or c.file_a or '')|urlencode }}"
+           class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition">
+          <span class="font-mono font-semibold text-slate-800 text-[13px]">{{ c.po_number or ('#' ~ c.id) }}</span>
+          <span class="text-[13px] text-slate-500 flex-1 truncate">
+            {{ (c.file_a or '')[:32] }}{% if c.file_b %} ↔ {{ (c.file_b or '')[:32] }}{% endif %}
+          </span>
+          {% if c.status %}<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{{ c.status }}</span>{% endif %}
+        </a>
+        {% endfor %}
+      {% endcall %}
+    {% endif %}
+
+  {% else %}
+    <div class="text-center text-slate-400 py-16">
+      <i data-lucide="search" style="width:40px;height:40px;" class="mx-auto mb-3" aria-hidden="true"></i>
+      <p>Wpisz frazę, aby przeszukać dostawców i porównania artworków.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

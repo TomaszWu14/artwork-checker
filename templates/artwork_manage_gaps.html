@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Luki i duplikaty — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.gp-tabs{display:flex;gap:6px;margin-bottom:14px}
+.gp-tab{border:1px solid var(--border);background:var(--card,#fff);border-radius:8px;padding:7px 14px;
+  font-size:13px;font-weight:700;cursor:pointer;color:var(--muted)}
+.gp-tab.active{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.gp-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.gp-input{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;min-width:240px}
+table.gp{width:100%;border-collapse:collapse;font-size:13px}
+table.gp th,table.gp td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+table.gp th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.gp-mono{font-family:var(--mono);font-size:12px}
+.gp-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+.gp-loading{color:var(--muted);font-style:italic;font-size:12px}
+.gp-group{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.gp-group h4{margin:0 0 8px;font-size:13px}
+.gp-file{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px dashed var(--border);flex-wrap:wrap}
+.gp-file:first-of-type{border-top:none}
+.gp-status{font-size:10px;font-weight:700;border-radius:10px;padding:1px 7px}
+.gp-status.active{background:#dcfce7;color:#15803d}
+.gp-status.ignored,.gp-status.archived{background:#f1f5f9;color:#64748b}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Luki i duplikaty{% endblock %}
+
+{% block content %}
+<div x-data="gapsApp()" x-init="switchTab('gaps')" x-cloak>
+  <div class="page-header">
+    <h1>⚠️ Luki i duplikaty</h1>
+    <p>Produkty bez żadnego artworku oraz pliki-duplikaty (ten sam REF, poziom i rewizja). <a href="/artwork/manage">← pulpit</a></p>
+  </div>
+
+  <div class="gp-tabs">
+    <button class="gp-tab" :class="tab==='gaps'?'active':''" @click="switchTab('gaps')">Produkty bez artworku</button>
+    <button class="gp-tab" :class="tab==='dups'?'active':''" @click="switchTab('dups')">Duplikaty</button>
+  </div>
+
+  <!-- LUKI -->
+  <div x-show="tab==='gaps'">
+    <div class="gp-bar">
+      <input class="gp-input" type="search" placeholder="Filtruj po REF lub opisie…" x-model="gq" @keydown.enter="loadGaps()">
+      <button class="btn btn-sm" @click="loadGaps()">Szukaj</button>
+      <span class="gp-loading" x-show="loading">Wczytuję…</span>
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)" x-text="gaps.length+' produktów bez artworku'"></span>
+    </div>
+    <template x-if="loadedG && gaps.length===0"><div class="gp-empty">Brak luk — każdy aktywny produkt ma artwork. ✓</div></template>
+    <template x-if="gaps.length">
+      <table class="gp">
+        <thead><tr><th style="width:16%">REF</th><th>Opis</th><th style="width:18%">Rodzina</th><th style="width:16%">EAN</th></tr></thead>
+        <tbody>
+          <template x-for="g in gaps" :key="g.ref_code">
+            <tr><td class="gp-mono" x-text="g.ref_code"></td><td x-text="g.opis||'—'"></td>
+              <td x-text="g.rodzina||'—'"></td><td class="gp-mono" x-text="g.ean||'—'"></td></tr>
+          </template>
+        </tbody>
+      </table>
+    </template>
+  </div>
+
+  <!-- DUPLIKATY -->
+  <div x-show="tab==='dups'">
+    <div class="gp-bar">
+      <span class="gp-loading" x-show="loading">Wczytuję…</span>
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)" x-text="dups.length+' grup z duplikatami'"></span>
+    </div>
+    <template x-if="loadedD && dups.length===0"><div class="gp-empty">Brak duplikatów. ✓</div></template>
+    <template x-for="grp in dups" :key="grp.ref_norm+'|'+grp.packaging_type+'|'+grp.revision_rank">
+      <div class="gp-group">
+        <h4><span class="gp-mono" x-text="grp.ref_code"></span>
+          · <span x-text="grp.packaging_type||'(brak poziomu)'"></span>
+          · rew. rank <span x-text="grp.revision_rank"></span>
+          · <span x-text="grp.count+' plików'"></span></h4>
+        <template x-for="f in grp.files" :key="f.rel_path">
+          <div class="gp-file">
+            <span class="gp-mono" x-text="f.filename" :title="f.rel_path" style="flex:1;min-width:200px"></span>
+            <span class="gp-status" :class="f.status" x-text="enumPL('file', f.status)"></span>
+            <button class="btn btn-sm btn-ghost" x-show="f.status!=='active'" @click="setStatus(f,'active')">Aktywny</button>
+            <button class="btn btn-sm btn-ghost" x-show="f.status==='active'" @click="setStatus(f,'ignored')">Pomiń</button>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</div>
+
+<script>
+function gapsApp(){
+  return {
+    tab:'gaps', gaps:[], dups:[], gq:'', loading:false, loadedG:false, loadedD:false,
+    switchTab(t){ this.tab=t; if(t==='gaps'&&!this.loadedG) this.loadGaps(); if(t==='dups'&&!this.loadedD) this.loadDups(); },
+    async loadGaps(){
+      this.loading=true;
+      try{ const d=await apiFetch('/api/artwork/manage/gaps?q='+encodeURIComponent(this.gq)); this.gaps=d.rows||[]; this.loadedG=true; }
+      catch(e){} this.loading=false;
+    },
+    async loadDups(){
+      this.loading=true;
+      try{ const d=await apiFetch('/api/artwork/manage/duplicates'); this.dups=d.groups||[]; this.loadedD=true; }
+      catch(e){} this.loading=false;
+    },
+    async setStatus(f, status){
+      try{
+        await apiFetch('/api/artwork/manage/file-status',{method:'POST',body:{rel_path:f.rel_path,status:status}});
+        f.status=status;
+        if(window.toast) toast('Status: '+enumPL('file',status),'success');
+      }catch(e){}
+    },
+  };
+}
+</script>
+{% endblock %}

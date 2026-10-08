@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+{% block title %}Konfiguracja dostawcy — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+.wiz-wrap{max-width:900px;margin:0 auto}
+/* Progress */
+.steps{display:flex;gap:0;margin-bottom:32px;position:relative}
+.steps::before{content:'';position:absolute;top:18px;left:0;right:0;height:2px;background:var(--border);z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1}
+.step-dot{width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:var(--bg);
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;
+  color:var(--muted);transition:all .2s;margin-bottom:8px}
+.step.done .step-dot{background:var(--ok);border-color:var(--ok);color:#000}
+.step.active .step-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.step-label{font-size:12px;color:var(--muted);text-align:center}
+.step.active .step-label{color:var(--text)}
+/* Cards */
+.wiz-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:28px;margin-bottom:16px;display:none}
+.wiz-card.active{display:block}
+.wiz-title{font-size:15px;font-weight:500;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.step-num{background:var(--accent);color:#fff;width:24px;height:24px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex-shrink:0}
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12px;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.5px;margin-bottom:5px;text-transform:uppercase}
+.form-row input,.form-row select,.form-row textarea{
+  width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:9px 12px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s;
+  font-family:inherit}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--accent)}
+.form-row select option{background:#181b27;color:#edf0f7}
+.form-row .hint{font-size:12px;color:var(--muted);margin-top:4px}
+/* Table preview */
+.tbl-preview-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px}
+.tbl-preview{width:100%;border-collapse:collapse;font-size:13px}
+.tbl-preview thead th{padding:0}
+.tbl-preview td{padding:8px 12px;border-bottom:1px solid rgba(42,45,58,.3);
+  font-family:var(--mono);font-size:12px;color:var(--muted)}
+.tbl-preview tr:last-child td{border-bottom:none}
+/* Column header with role selector */
+.col-hdr{display:flex;flex-direction:column;gap:4px;padding:6px 8px;
+  background:var(--surface);border-bottom:1px solid var(--border);min-width:100px}
+.col-name{font-size:12px;font-family:var(--mono);color:var(--text);font-weight:500;white-space:nowrap}
+.col-role{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:3px 6px;font-size:11px;color:var(--text);outline:none;cursor:pointer;
+  font-family:var(--mono)}
+.col-role option{background:#181b27;color:#edf0f7}
+/* Role colors */
+.col-role[data-role="ref"]{border-color:var(--accent)}
+.col-role[data-role="description"]{border-color:var(--ok)}
+.col-role[data-role="qty"]{border-color:var(--warn)}
+.col-role[data-role="price"]{border-color:#a78df0}
+.col-role[data-role="net"]{border-color:#f07ba0}
+.col-role[data-role="skip"]{opacity:.4}
+/* No table warning */
+.no-tbl{padding:32px;text-align:center;color:var(--muted);font-size:14px}
+.no-tbl-icon{font-size:28px;margin-bottom:8px}
+/* Ref format */
+.ref-samples{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--ok);margin-top:8px}
+/* Nav buttons */
+.wiz-nav{display:flex;gap:10px;margin-top:24px}
+.btn-back{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;
+  padding:9px 22px;font-size:14px;cursor:pointer;transition:all .15s}
+.btn-back:hover{border-color:var(--text);color:var(--text)}
+.btn-next{background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:9px 28px;font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s;margin-left:auto}
+.btn-next:hover{opacity:.85}
+.btn-next:disabled{opacity:.35;cursor:not-allowed}
+.btn-save{background:var(--ok);color:#000;border:none;border-radius:8px;
+  padding:9px 28px;font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s;margin-left:auto}
+.btn-save:hover{opacity:.85}
+/* Legend */
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono)}
+.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+/* Alert / success */
+.alert{padding:12px 16px;border-radius:8px;font-size:14px;margin-bottom:14px;display:none}
+.alert.on{display:block}
+.alert-ok{background:rgba(61,219,160,.08);border:1px solid rgba(61,219,160,.2);color:var(--ok)}
+.alert-err{background:rgba(255,92,92,.08);border:1px solid rgba(255,92,92,.2);color:var(--error)}
+/* Tolerance grid */
+.tol-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.tol-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.tol-lbl{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:6px}
+.tol-val{display:flex;align-items:center;gap:8px}
+.tol-val input[type=number]{width:80px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;padding:6px 10px;color:var(--text);font-size:14px;outline:none;font-family:var(--mono)}
+.tol-val span{font-size:12px;color:var(--muted)}
+/* Keywords tags */
+.tags-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:32px;
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+.tag{background:rgba(91,155,255,.15);border:1px solid rgba(91,155,255,.3);color:var(--accent);
+  font-size:12px;font-family:var(--mono);padding:2px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.tag button{background:none;border:none;cursor:pointer;color:inherit;padding:0;font-size:12px;line-height:1}
+.tag-input{background:none;border:none;outline:none;color:var(--text);font-size:12px;font-family:var(--mono);min-width:80px}
+</style>
+{% endblock %}
+
+{% block page_title %}Kreator dostawcy{% endblock %}
+
+{% block content %}
+<div class="wiz-wrap">
+<div class="page-header">
+  <h1>Konfiguracja dostawcy {% if mode == 'edit' %}: {{ supplier_name }}{% endif %}</h1>
+  <p>Uzupełnij profil aby system poprawnie czytał dokumenty tego dostawcy.</p>
+</div>
+
+<div class="alert" id="alertBox"></div>
+
+<!-- PROGRESS STEPS -->
+<div class="steps">
+  <div class="step active" id="s1"><div class="step-dot">1</div><div class="step-label">Dane dostawcy</div></div>
+  <div class="step" id="s2"><div class="step-dot">2</div><div class="step-label">Mapowanie PI</div></div>
+  <div class="step" id="s3"><div class="step-dot">3</div><div class="step-label">Mapowanie PO</div></div>
+  <div class="step" id="s4"><div class="step-dot">4</div><div class="step-label">Mapowanie SAD</div></div>
+  <div class="step" id="s5"><div class="step-dot">5</div><div class="step-label">Tolerancje</div></div>
+</div>
+
+<!-- KROK 1: Dane dostawcy -->
+<div class="wiz-card active" id="card1">
+  <div class="wiz-title"><span class="step-num">1</span> Dane dostawcy</div>
+  <div class="form-grid">
+    <div class="form-row">
+      <label for="fCode">Kod dostawcy *</label>
+      <input id="fCode" placeholder="np. SHIELDCO" oninput="this.value=this.value.toUpperCase()" maxlength="20" value="{{ supplier.code if supplier else '' }}" aria-required="true">
+      <div class="hint">Unikalny identyfikator, max 20 znaków</div>
+    </div>
+    <div class="form-row">
+      <label for="fName">Pełna nazwa *</label>
+      <input id="fName" placeholder="Eastport Shieldco Medical Products" value="{{ supplier.name if supplier else '' }}" aria-required="true">
+    </div>
+    <div class="form-row">
+      <label for="fCountry">Kraj (ISO 2)</label>
+      <input id="fCountry" placeholder="CN" maxlength="2" oninput="this.value=this.value.toUpperCase()" value="{{ supplier.country if supplier else '' }}">
+    </div>
+    <div class="form-row">
+      <label for="fCurrency">Waluta domyślna</label>
+      <select id="fCurrency">
+        {% for c in ['USD','EUR','PLN','GBP','CNY','INR'] %}
+        <option {% if supplier and supplier.currency==c %}selected{% endif %}>{{c}}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="fLang">Język dokumentów</label>
+      <select id="fLang">
+        {% for l in [('EN','Angielski'),('PL','Polski'),('CN','Chiński'),('DE','Niemiecki')] %}
+        <option value="{{l[0]}}" {% if supplier and supplier.language==l[0] %}selected{% endif %}>{{l[1]}}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="fDocType">Typ dokumentu dostawcy</label>
+      <select id="fDocType">
+        <option value="PI">Proforma Invoice (PI)</option>
+        <option value="CI">Commercial Invoice (CI)</option>
+        <option value="PI_CI">PI i CI (oba formaty)</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="kwInput">Słowa kluczowe do auto-detekcji</label>
+    <div class="hint">Wpisz słowo i naciśnij Enter — system będzie używał tych słów do rozpoznania dostawcy w PDF</div>
+    <div class="tags-wrap" id="kwTags" onclick="document.getElementById('kwInput').focus()">
+      <input class="tag-input" id="kwInput" placeholder="wpisz i Enter…" onkeydown="addKw(event)">
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="fNotes">Uwagi (opcjonalnie)</label>
+    <textarea id="fNotes" rows="2" placeholder="np. PI zawsze zawiera kolumnę z zdjęciem produktu, którą należy pomijać"></textarea>
+  </div>
+  <div class="wiz-nav">
+    <button type="button" class="btn-next" onclick="goStep(2)">Dalej — Mapowanie PI →</button>
+  </div>
+</div>
+
+<!-- KROK 2: Mapowanie PI -->
+<div class="wiz-card" id="card2">
+  <div class="wiz-title"><span class="step-num">2</span> Mapowanie kolumn — Proforma Invoice (PI)</div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+    Wgraj przykładowy plik PI tego dostawcy. System pokaże tabelę produktów — kliknij nagłówek i przypisz rolę każdej kolumnie.
+  </p>
+  <div class="form-row" style="max-width:400px">
+    <label for="piFile">Plik PI (PDF)</label>
+    <input type="file" id="piFile" accept=".pdf" onchange="loadPreview('pi')">
+  </div>
+  <div id="piPreview"></div>
+  <div id="piRefFormat" style="display:none">
+    <div class="form-row">
+      <label for="piRefFmt">Format kodu REF w tym dokumencie</label>
+      <select id="piRefFmt" onchange="updateRefSamples('pi')">
+        <option value="standard">Standardowy (np. AT-NFA-S_1)</option>
+        <option value="sno_prefix">Prefiks numeryczny (np. 1.AT-NFA-S 1 → AT-NFA-S_1)</option>
+        <option value="numeric_only">Tylko cyfry (np. 12345)</option>
+        <option value="custom">Własny wzorzec regex</option>
+      </select>
+      <div class="ref-samples" id="piRefSamples"></div>
+    </div>
+  </div>
+  <div class="wiz-nav">
+    <button type="button" class="btn-back" onclick="goStep(1)">← Wróć</button>
+    <button type="button" class="btn-next" onclick="goStep(3)">Dalej — Mapowanie PO →</button>
+  </div>
+</div>
+
+<!-- KROK 3: Mapowanie PO -->
+<div class="wiz-card" id="card3">
+  <div class="wiz-title"><span class="step-num">3</span> Mapowanie kolumn — Purchase Order (PO)</div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+    Wgraj przykładowy plik PO ACME dla tego dostawcy. Możesz pominąć ten krok jeśli PO jest zawsze w standardowym formacie ACME SAP.
+  </p>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button type="button" class="btn-back" style="font-size:12px;padding:5px 14px" onclick="skipPoMapping()">Użyj standardowego PO ACME (pomiń)</button>
+  </div>
+  <div class="form-row" style="max-width:400px">
+    <label for="poFile">Plik PO (PDF)</label>
+    <input type="file" id="poFile" accept=".pdf" onchange="loadPreview('po')">
+  </div>
+  <div id="poPreview"></div>
+  <div id="poRefFormat" style="display:none">
+    <div class="form-row">
+      <label for="poRefFmt">Format kodu REF w PO</label>
+      <select id="poRefFmt" onchange="updateRefSamples('po')">
+        <option value="standard">Standardowy ACME (AT-NFA-S_1)</option>
+        <option value="sno_prefix">Prefiks numeryczny</option>
+        <option value="custom">Własny wzorzec</option>
+      </select>
+    </div>
+  </div>
+  <div class="wiz-nav">
+    <button type="button" class="btn-back" onclick="goStep(2)">← Wróć</button>
+    <button type="button" class="btn-next" onclick="goStep(4)">Dalej — Mapowanie SAD →</button>
+  </div>
+</div>
+
+<!-- KROK 4: Mapowanie SAD -->
+<div class="wiz-card" id="card4">
+  <div class="wiz-title"><span class="step-num">4</span> Mapowanie kolumn — SAD / ZC415</div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:10px">
+    Wgraj przykładowy plik SAD (ZC415) dla tego dostawcy. Zmapuj pola formularza celnego na role porównania.
+    Możesz pominąć ten krok jeśli nie porównujesz SAD z CI/PO.
+  </p>
+  <div style="background:rgba(91,155,255,.07);border:1px solid rgba(91,155,255,.2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--muted);margin-bottom:14px">
+    <strong style="color:var(--text)">Pola SAD (ZC415):</strong>
+    Pole 31 = opis towaru → <em>opis</em> &nbsp;|&nbsp;
+    Pole 32 = numer pozycji → <em>REF</em> &nbsp;|&nbsp;
+    Pole 33 = kod taryfy &nbsp;|&nbsp;
+    Pole 35/38 = masa brutto/netto &nbsp;|&nbsp;
+    Pole 41 = ilość &nbsp;|&nbsp;
+    Pole 46 = wartość celna
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button type="button" class="btn-back" style="font-size:12px;padding:5px 14px" onclick="skipSadMapping()">Pomiń mapowanie SAD</button>
+  </div>
+  <div class="form-row" style="max-width:400px">
+    <label for="sadFile">Plik SAD (PDF)</label>
+    <input type="file" id="sadFile" accept=".pdf" onchange="loadPreview('sad')">
+  </div>
+  <div id="sadPreview"></div>
+  <div class="wiz-nav">
+    <button type="button" class="btn-back" onclick="goStep(3)">← Wróć</button>
+    <button type="button" class="btn-next" onclick="goStep(5)">Dalej — Tolerancje →</button>
+  </div>
+</div>
+
+<!-- KROK 5: Tolerancje i reguły -->
+<div class="wiz-card" id="card5">
+  <div class="wiz-title"><span class="step-num">5</span> Tolerancje i reguły porównania</div>
+  <div class="tol-grid">
+    <div class="tol-item">
+      <div class="tol-lbl">TOLERANCJA CENY</div>
+      <div class="tol-val"><input type="number" id="tPriceTol" value="0.5" min="0" max="10" step="0.1" inputmode="decimal"><span>%</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Różnica do X% = format, powyżej = ostrzeżenie</div>
+    </div>
+    <div class="tol-item">
+      <div class="tol-lbl">TOLERANCJA ILOŚCI</div>
+      <div class="tol-val"><input type="number" id="tQtyTol" value="0" min="0" max="5" step="0.1" inputmode="decimal"><span>%</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">0% = zero tolerancji na różnice ilości</div>
+    </div>
+    <div class="tol-item">
+      <div class="tol-lbl">ZAOKR. CENY PO</div>
+      <div class="tol-val"><input type="number" id="tPoRound" value="2" min="0" max="6" step="1" inputmode="decimal"><span>miejsc</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Ile miejsc po przecinku w PO</div>
+    </div>
+  </div>
+
+  <div class="form-row" style="margin-top:16px">
+    <label for="tPayTerms">Mapowanie warunków płatności (SAP → czytelny tekst)</label>
+    <div class="hint">Format: KOD_SAP=opis; np. IZ31=30% advance 70% before shipment; IW04=30 days</div>
+    <textarea id="tPayTerms" rows="3" placeholder="IZ31=30% in advance, 70% before shipment&#10;IW04=30 days&#10;IW30=30 days after BL" style="font-family:var(--mono);font-size:12px">{{ supplier.payment_terms_text if supplier else 'IZ31=30% in advance, 70% before shipment\nIW04=30 days\nIW30=30 days after BL' }}</textarea>
+  </div>
+
+  <div class="form-row">
+    <label for="tIgnoreFields">Pola do pominięcia w porównaniu</label>
+    <div class="hint">Nazwy pól przez przecinki (regex) — te pola nie będą porównywane</div>
+    <input id="tIgnoreFields" placeholder="Photos, Cartons qty, Base unit" value="{{ supplier.ignore_fields if supplier else 'Photos,Cartons qty,Base unit,Basic unit qty' }}">
+  </div>
+
+  <div class="wiz-nav">
+    <button type="button" class="btn-back" onclick="goStep(4)">← Wróć</button>
+    <button type="button" class="btn-save" onclick="saveProfile()">✓ Zapisz profil dostawcy</button>
+  </div>
+</div>
+
+</div><!-- /wiz-wrap -->
+
+<script>
+let currentStep = 1;
+let piMapping  = {};
+let poMapping  = {};
+let sadMapping = {};
+let poSkipped  = false;
+let sadSkipped = false;
+let keywords   = [];
+
+const ROLES = [
+  {v:'ref',          l:'REF / kod produktu',    c:'rgba(91,155,255,.4)'},
+  {v:'description',  l:'Opis produktu',          c:'rgba(61,219,160,.4)'},
+  {v:'qty',          l:'Ilość',                  c:'rgba(255,179,71,.4)'},
+  {v:'price',        l:'Cena jednostkowa',       c:'rgba(167,141,240,.4)'},
+  {v:'net',          l:'Wartość netto',          c:'rgba(240,123,160,.4)'},
+  {v:'lot',          l:'Numer LOT/partii',       c:'rgba(100,200,240,.4)'},
+  {v:'unit',         l:'Jednostka',              c:'rgba(160,200,140,.4)'},
+  {v:'skip',         l:'POMIŃ',                 c:'rgba(100,100,100,.2)'},
+];
+
+const SAD_ROLES = [
+  {v:'ref',          l:'REF / nr poz. (pole 32)', c:'rgba(91,155,255,.4)'},
+  {v:'description',  l:'Opis towaru (pole 31)',   c:'rgba(61,219,160,.4)'},
+  {v:'qty',          l:'Ilość (pole 41)',          c:'rgba(255,179,71,.4)'},
+  {v:'tariff_code',  l:'Kod taryfy (pole 33)',    c:'rgba(220,38,38,.4)'},
+  {v:'gross_weight', l:'Masa brutto (pole 35)',   c:'rgba(180,100,220,.4)'},
+  {v:'net_weight',   l:'Masa netto (pole 38)',    c:'rgba(100,180,220,.4)'},
+  {v:'customs_value',l:'Wartość celna (pole 46)', c:'rgba(240,160,60,.4)'},
+  {v:'net',          l:'Wartość netto (CI match)', c:'rgba(240,123,160,.4)'},
+  {v:'skip',         l:'POMIŃ',                  c:'rgba(100,100,100,.2)'},
+];
+
+{% if supplier and supplier.sad_column_mapping_json %}
+sadMapping = {{ supplier.sad_column_mapping_json | tojson }};
+{% endif %}
+
+// ─── KEYWORDS ────────────────────────────────────────────────────────────────
+{% if supplier and supplier.detect_keywords_json %}
+keywords = {{ supplier.detect_keywords_json | tojson }};
+{% endif %}
+renderKwTags();
+
+function renderKwTags(){
+  const wrap = document.getElementById('kwTags');
+  const inp = document.getElementById('kwInput');
+  wrap.innerHTML = '';
+  keywords.forEach((kw,i)=>{
+    const t=document.createElement('span');t.className='tag';
+    t.innerHTML=`${esc(kw)}<button type="button" onclick="removeKw(${i})">✕</button>`;
+    wrap.appendChild(t);
+  });
+  wrap.appendChild(inp);
+  inp.focus();
+}
+function addKw(e){
+  if(e.key==='Enter'||e.key===','){
+    e.preventDefault();
+    const v=e.target.value.trim().replace(/,/g,'');
+    if(v&&!keywords.includes(v)){keywords.push(v);renderKwTags();}
+    else e.target.value='';
+  }
+}
+function removeKw(i){keywords.splice(i,1);renderKwTags();}
+
+// ─── STEPS ───────────────────────────────────────────────────────────────────
+function goStep(n){
+  if(n===2&&!validate1()) return;
+  currentStep=n;
+  document.querySelectorAll('.wiz-card').forEach((c,i)=>{c.classList.toggle('active',i===n-1)});
+  document.querySelectorAll('.step').forEach((s,i)=>{
+    s.classList.toggle('active',i===n-1);
+    s.classList.toggle('done',i<n-1);
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function skipSadMapping(){
+  sadSkipped=true;
+  sadMapping={};
+  goStep(5);
+}
+
+function validate1(){
+  const code=document.getElementById('fCode').value.trim();
+  const name=document.getElementById('fName').value.trim();
+  if(!code||!name){showAlert('Uzupełnij kod i nazwę dostawcy.','err');return false;}
+  clearAlert();
+  return true;
+}
+
+function skipPoMapping(){
+  poSkipped=true;
+  poMapping={};
+  goStep(4);
+}
+
+
+// ─── PREVIEW LOADER ──────────────────────────────────────────────────────────
+async function loadPreview(side){
+  const fileIds={pi:'piFile',po:'poFile',sad:'sadFile'};
+  const previewIds={pi:'piPreview',po:'poPreview',sad:'sadPreview'};
+  const inp=document.getElementById(fileIds[side]);
+  const previewDiv=document.getElementById(previewIds[side]);
+  const refDiv=document.getElementById(side==='pi'?'piRefFormat':(side==='po'?'poRefFormat':null));
+  if(!inp.files[0]) return;
+  previewDiv.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Ładowanie podglądu…</div>';
+
+  const fd=new FormData();
+  fd.append('file',inp.files[0]);
+  fd.append('side',side);
+  let data;
+  try {
+    const resp=await fetch('/api/suppliers/preview_table',{method:'POST',body:fd});
+    data=await resp.json();
+  } catch(e) {
+    previewDiv.innerHTML='<div style="padding:20px;text-align:center;color:#dc2626">Błąd ładowania podglądu. Spróbuj ponownie.</div>';
+    return;
+  }
+
+  if(!data.table_found){
+    previewDiv.innerHTML=`<div class="no-tbl"><div class="no-tbl-icon">📋</div>
+      Nie znaleziono tabeli produktów w tym PDF.<br>
+      <span style="font-size:12px">Możesz ręcznie zdefiniować mapowanie poniżej.</span>
+    </div>`;
+    renderManualMapping(side, previewDiv);
+    return;
+  }
+  renderTablePreview(side, data, previewDiv);
+  if(refDiv) refDiv.style.display='block';
+  const samplesEl=document.getElementById(side+'RefSamples');
+  if(data.ref_samples&&samplesEl) samplesEl.textContent=data.ref_samples.join(' | ');
+  if(data.detected_mappings){
+    if(side==='pi') piMapping=data.detected_mappings;
+    else if(side==='po') poMapping=data.detected_mappings;
+    else sadMapping=data.detected_mappings;
+  }
+}
+
+function renderTablePreview(side, data, container){
+  const {headers, rows, detected_mappings} = data;
+  const mapping = detected_mappings || {};
+  const roles = side==='sad' ? SAD_ROLES : ROLES;
+
+  let h=`<div class="legend">`;
+  roles.filter(r=>r.v!=='skip').forEach(r=>{
+    h+=`<span class="leg"><span class="leg-dot" style="background:${r.c}"></span>${r.l}</span>`;
+  });
+  h+=`</div><div class="tbl-preview-wrap"><table class="tbl-preview"><thead><tr>`;
+
+  headers.forEach((hdr,i)=>{
+    const detectedRole=mapping[hdr]||'skip';
+    const roleColor=roles.find(r=>r.v===detectedRole)?.c||'transparent';
+    h+=`<th scope="col"><div class="col-hdr" style="border-bottom-color:${roleColor}">
+      <div class="col-name">${esc(hdr)}</div>
+      <select class="col-role" data-role="${esc(detectedRole)}" data-hdr="${esc(hdr)}" data-side="${side}"
+        onchange="setRole(this,this.dataset.side,this.dataset.hdr)">
+        ${roles.map(r=>`<option value="${r.v}" ${r.v===detectedRole?'selected':''}>${r.l}</option>`).join('')}
+      </select>
+    </div></th>`;
+  });
+  h+=`</tr></thead><tbody>`;
+  rows.slice(0,4).forEach(row=>{
+    h+=`<tr>${row.map((c,i)=>`<td>${esc(c)}</td>`).join('')}</tr>`;
+  });
+  h+=`</tbody></table></div>`;
+  container.innerHTML=h;
+}
+
+function setRole(sel, side, hdr){
+  const role=sel.value;
+  sel.dataset.role=role;
+  const roles=side==='sad'?SAD_ROLES:ROLES;
+  const color=roles.find(r=>r.v===role)?.c||'transparent';
+  sel.closest('.col-hdr').style.borderBottomColor=color;
+  if(side==='pi') piMapping[hdr]=role;
+  else if(side==='po') poMapping[hdr]=role;
+  else sadMapping[hdr]=role;
+}
+
+function renderManualMapping(side, container){
+  // Formularz ręcznego wpisywania nazw kolumn
+  const target=side==='pi'?piMapping:poMapping;
+  let h=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:8px">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">Ręczne mapowanie — wpisz dokładne nazwy nagłówków kolumn z dokumentu:</div>
+    <div class="form-grid">`;
+  ROLES.filter(r=>r.v!=='skip').forEach(r=>{
+    h+=`<div class="form-row">
+      <label style="color:${r.c}">${r.l}</label>
+      <input placeholder="Nazwa nagłówka kolumny…" data-role="${r.v}" data-side="${side}"
+        oninput="setManualRole(this,'${side}')" value="${esc(Object.keys(target).find(k=>target[k]===r.v)||'')}">
+    </div>`;
+  });
+  h+=`</div></div>`;
+  container.insertAdjacentHTML('beforeend',h);
+}
+
+function setManualRole(inp, side){
+  const role=inp.dataset.role;
+  const val=inp.value.trim();
+  const target=side==='pi'?piMapping:poMapping;
+  // Usuń poprzednie przypisanie tej roli
+  Object.keys(target).forEach(k=>{if(target[k]===role)delete target[k];});
+  if(val) target[val]=role;
+}
+
+function updateRefSamples(side){
+  const fmt=document.getElementById(side+'RefFmt').value;
+  const s=document.getElementById(side+'RefSamples');
+  const examples={
+    standard:'AT-NFA-S_1 | NL753-S-40 | AT-NFFA-S_2_E',
+    sno_prefix:'1.AT-NFA-S 1 → AT-NFA-S_1 | 2.AT-NFA-S 10 E → AT-NFA-S_10_E',
+    numeric_only:'12345 | 67890',
+    custom:'Własny wzorzec regex — wpisz poniżej'
+  };
+  s.textContent=examples[fmt]||'';
+}
+
+// ─── SAVE ────────────────────────────────────────────────────────────────────
+async function saveProfile(){
+  if(!validate1()) return;
+
+  // Zbierz warunki płatności
+  const ptRaw=document.getElementById('tPayTerms').value.trim();
+  const ptMap={};
+  ptRaw.split('\n').forEach(line=>{
+    const idx=line.indexOf('=');
+    if(idx>0){
+      const k=line.slice(0,idx).trim().toUpperCase();
+      const v=line.slice(idx+1).trim();
+      if(k&&v)ptMap[k]=v;
+    }
+  });
+
+  // Zbierz ignore fields
+  const ignoreRaw=document.getElementById('tIgnoreFields').value;
+  const ignoreList=ignoreRaw.split(',').map(s=>s.trim()).filter(Boolean);
+
+  const payload={
+    code:document.getElementById('fCode').value.trim().toUpperCase(),
+    name:document.getElementById('fName').value.trim(),
+    country:document.getElementById('fCountry').value.trim().toUpperCase().slice(0,2),
+    currency:document.getElementById('fCurrency').value,
+    language:document.getElementById('fLang').value,
+    detect_keywords:keywords,
+    notes:document.getElementById('fNotes').value.trim(),
+    pi_column_mapping_json:piMapping,
+    po_column_mapping_json:poSkipped?{}:poMapping,
+    sad_column_mapping_json:sadSkipped?{}:sadMapping,
+    ref_format_pi:document.getElementById('piRefFmt')?.value||'standard',
+    ref_format_po:document.getElementById('poRefFmt')?.value||'standard',
+    price_tolerance_pct:parseFloat(document.getElementById('tPriceTol').value)||0.5,
+    qty_tolerance_pct:parseFloat(document.getElementById('tQtyTol').value)||0,
+    po_rounding:parseInt(document.getElementById('tPoRound').value)||2,
+    payment_terms_json:ptMap,
+    ignore_fields_json:ignoreList,
+    wizard_completed:1,
+    active:1,
+  };
+
+  const sid='{{ supplier_id if supplier_id else "" }}';
+  const url=sid?`/api/suppliers/${sid}`:'/api/suppliers';
+  const method=sid?'PATCH':'POST';
+
+  let d;
+  try {
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    d=await r.json();
+  } catch(e) {
+    showAlert('Błąd sieci — sprawdź połączenie i spróbuj ponownie.','err');
+    document.querySelectorAll('.btn-save').forEach(b=>{b.disabled=false;b.textContent='Zapisz profil';});
+    return;
+  }
+
+  if(d.ok||d.supplier){
+    showAlert('✅ Profil zapisany! Możesz zamknąć tę stronę lub '+'<a href="/suppliers" style="color:var(--ok)">przejść do listy dostawców</a>.','ok');
+    document.querySelectorAll('.btn-save').forEach(b=>{b.disabled=true;b.textContent='Zapisano ✓';});
+  } else {
+    showAlert('Błąd: '+esc(d.error||'Nieznany błąd'),'err');
+    document.querySelectorAll('.btn-save').forEach(b=>{b.disabled=false;b.textContent='Zapisz profil';});
+  }
+}
+
+function showAlert(msg,type){
+  const el=document.getElementById('alertBox');
+  el.innerHTML=msg;
+  el.className='alert on alert-'+(type==='ok'?'ok':'err');
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function clearAlert(){document.getElementById('alertBox').className='alert';}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+{% endblock %}

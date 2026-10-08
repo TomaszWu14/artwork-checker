@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+{% block title %}Porównanie stref — {{ file_a }}{% endblock %}
+
+{% block page_title %}Strefy artwork{% endblock %}
+
+{% block content %}
+<div class="max-w-screen-2xl mx-auto px-4 py-6">
+
+  <!-- Nagłówek -->
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-xl font-bold text-gray-800">Manualne porównanie stref</h1>
+      <p class="text-sm text-gray-500 mt-0.5">
+        <span class="font-medium text-blue-600">A:</span> {{ file_a }}
+        &nbsp;↔&nbsp;
+        <span class="font-medium text-green-600">B:</span> {{ file_b }}
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <button type="button" onclick="compareZones()"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm
+                     hover:bg-blue-700 disabled:opacity-40" id="btn-compare" disabled>
+        ▶ Porównaj zaznaczone strefy
+      </button>
+      <a href="/artwork/report?cache_id={{ cache_id }}"
+         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">
+        ← Wróć do raportu
+      </a>
+    </div>
+  </div>
+
+  <!-- Instrukcja -->
+  <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
+    <strong>Jak zaznaczać:</strong>
+    (1) Wpisz nazwę strefy i wybierz typ →
+    (2) Kliknij <em>Zaznacz na A</em> i przeciągnij prostokąt na lewym obrazku →
+    (3) Kliknij <em>Zaznacz na B</em> i zaznacz odpowiadający obszar na prawym →
+    (4) Kliknij <em>Dodaj strefę</em> → powtórz dla kolejnych stref →
+    (5) Kliknij <strong>Porównaj zaznaczone strefy</strong>.
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+    <!-- ── Kolumna: obrazy z canvasami ─────────────────────────────────────── -->
+    <div class="xl:col-span-2 space-y-3">
+
+      <!-- Pasek narzędzi rysowania -->
+      <div class="bg-white rounded-lg border p-3 flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Nazwa strefy</label>
+          <input id="zone-name" type="text" placeholder="np. Tłumaczenia, Ikony MDR…"
+                 class="border rounded px-2 py-1.5 text-sm w-48">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">Typ porównania</label>
+          <select id="zone-type" class="border rounded px-2 py-1.5 text-sm">
+            <option value="both">Tekst + grafika</option>
+            <option value="text">Tylko tekst (OCR)</option>
+            <option value="graphic">Tylko grafika (pixel diff)</option>
+          </select>
+        </div>
+        <button type="button" onclick="startDraw('a')" id="btn-draw-a"
+                class="px-3 py-1.5 text-sm rounded border-2 border-blue-400 text-blue-700
+                       hover:bg-blue-50 font-medium">
+          📐 Zaznacz na A
+        </button>
+        <button type="button" onclick="startDraw('b')" id="btn-draw-b"
+                class="px-3 py-1.5 text-sm rounded border-2 border-green-400 text-green-700
+                       hover:bg-green-50 font-medium" disabled>
+          📐 Zaznacz na B
+        </button>
+        <button type="button" onclick="addZone()" id="btn-add"
+                class="px-3 py-1.5 text-sm rounded bg-gray-800 text-white
+                       hover:bg-gray-700 font-medium" disabled>
+          + Dodaj strefę
+        </button>
+        <span id="draw-hint" class="text-xs text-gray-400 italic"></span>
+      </div>
+
+      <!-- Dwa canvasy obok siebie -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Canvas A -->
+        <div>
+          <div class="text-xs font-semibold text-blue-600 mb-1">A — Wzorzec (master)</div>
+          <div class="relative border-2 border-blue-200 rounded overflow-hidden"
+               style="background:#f8fafc;">
+            <canvas id="canvas-a" class="block w-full cursor-crosshair select-none"
+                    style="touch-action:none;"></canvas>
+          </div>
+        </div>
+        <!-- Canvas B -->
+        <div>
+          <div class="text-xs font-semibold text-green-600 mb-1">B — Fabryczna</div>
+          <div class="relative border-2 border-green-200 rounded overflow-hidden"
+               style="background:#f8fafc;">
+            <canvas id="canvas-b" class="block w-full cursor-crosshair select-none"
+                    style="touch-action:none;"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Kolumna: lista stref + szablony ─────────────────────────────────── -->
+    <div class="space-y-4">
+
+      <!-- Lista zaznaczonych stref -->
+      <div class="bg-white rounded-lg border">
+        <div class="px-3 py-2 border-b flex items-center justify-between">
+          <span class="font-semibold text-sm text-gray-700">Zaznaczone strefy</span>
+          <span id="zone-count" class="text-xs text-gray-400">0 stref</span>
+        </div>
+        <div id="zone-list" class="p-2 space-y-1 max-h-64 overflow-y-auto text-sm text-gray-500 italic">
+          Brak stref — zacznij rysować na obrazach.
+        </div>
+      </div>
+
+      <!-- Zapis jako szablon -->
+      <div class="bg-white rounded-lg border p-3 space-y-2">
+        <div class="font-semibold text-sm text-gray-700">Zapisz jako szablon</div>
+        <input id="tpl-name" type="text" placeholder="Nazwa szablonu…"
+               class="border rounded px-2 py-1.5 text-sm w-full">
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" id="save-tpl"> Zapisz przy porównaniu
+        </label>
+      </div>
+
+      <!-- Zapisane szablony -->
+      <div class="bg-white rounded-lg border">
+        <div class="px-3 py-2 border-b font-semibold text-sm text-gray-700">
+          Zapisane szablony
+        </div>
+        <div id="tpl-list" class="p-2 space-y-1 max-h-56 overflow-y-auto">
+          {% if templates %}
+            {% for t in templates %}
+            <div class="flex items-center justify-between text-sm py-1 border-b last:border-0"
+                 data-tpl-id="{{ t.id }}">
+              <button type="button" onclick="loadTemplate({{ t | tojson | e }})"
+                      class="text-left text-blue-600 hover:underline flex-1 truncate">
+                {{ t.name }} ({{ t.zones | length }} stref)
+              </button>
+              <button type="button" onclick="deleteTemplate({{ t.id|tojson }})"
+                      class="text-red-400 hover:text-red-600 ml-2 text-xs">✕</button>
+            </div>
+            {% endfor %}
+          {% else %}
+          <p class="text-xs text-gray-400 italic p-1">Brak zapisanych szablonów.</p>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Wyniki porównania ─────────────────────────────────────────────────── -->
+  <div id="results-section" class="mt-6 hidden">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">Wyniki porównania stref</h2>
+    <div id="results-container" class="space-y-6"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Dane inicjalne ─────────────────────────────────────────────────────────────
+const CACHE_ID  = {{ cache_id | tojson }};
+const IMG_A_B64 = {{ img_a_b64 | tojson }};
+const IMG_B_B64 = {{ img_b_b64 | tojson }};
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let zones     = [];          // [{name, type, zone_a, zone_b}]
+let draft     = { zone_a: null, zone_b: null };  // bieżąca para w trakcie rysowania
+let drawSide  = null;        // 'a' | 'b' | null
+let isDrawing = false;
+let startX = 0, startY = 0;
+
+// ── Canvasy ────────────────────────────────────────────────────────────────────
+const canvasA = document.getElementById("canvas-a");
+const canvasB = document.getElementById("canvas-b");
+const ctxA    = canvasA.getContext("2d");
+const ctxB    = canvasB.getContext("2d");
+let imgA = new Image(), imgB = new Image();
+
+// Kolory stref (do 10 stref)
+const COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6",
+                "#06b6d4","#84cc16","#f97316","#ec4899","#6366f1"];
+
+function loadImages() {
+  imgA.onload = () => { canvasA.width = imgA.naturalWidth; canvasA.height = imgA.naturalHeight; redraw('a'); };
+  imgB.onload = () => { canvasB.width = imgB.naturalWidth; canvasB.height = imgB.naturalHeight; redraw('b'); };
+  imgA.src = "data:image/jpeg;base64," + IMG_A_B64;
+  imgB.src = "data:image/jpeg;base64," + IMG_B_B64;
+}
+
+// ── Rysowanie ──────────────────────────────────────────────────────────────────
+function redraw(side) {
+  const canvas = side === 'a' ? canvasA : canvasB;
+  const ctx    = side === 'a' ? ctxA    : ctxB;
+  const img    = side === 'a' ? imgA    : imgB;
+  const key    = side === 'a' ? 'zone_a' : 'zone_b';
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  // Narysuj zapisane strefy
+  zones.forEach((z, i) => {
+    const zn = z[key];
+    if (!zn) return;
+    const color = COLORS[i % COLORS.length];
+    const x = zn.x_pct / 100 * canvas.width;
+    const y = zn.y_pct / 100 * canvas.height;
+    const w = zn.w_pct / 100 * canvas.width;
+    const h = zn.h_pct / 100 * canvas.height;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 3;
+    ctx.setLineDash([]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = color + "22";
+    ctx.fillRect(x, y, w, h);
+    // Etykieta
+    ctx.fillStyle = color;
+    ctx.font = `bold ${Math.max(11, Math.min(16, canvas.width / 60))}px sans-serif`;
+    ctx.fillText(`${i+1}. ${z.name}`, x + 4, y + 16);
+  });
+
+  // Narysuj draft (bieżąca strefa)
+  if (drawSide === side && draft[key]) {
+    const zn = draft[key];
+    const x = zn.x_pct / 100 * canvas.width;
+    const y = zn.y_pct / 100 * canvas.height;
+    const w = zn.w_pct / 100 * canvas.width;
+    const h = zn.h_pct / 100 * canvas.height;
+    ctx.strokeStyle = "#dc2626";
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.strokeRect(x, y, w, h);
+  }
+}
+
+// ── Eventy myszy ───────────────────────────────────────────────────────────────
+function getRelPct(canvas, e) {
+  const r   = canvas.getBoundingClientRect();
+  const scx = canvas.width  / r.width;
+  const scy = canvas.height / r.height;
+  return {
+    x: (e.clientX - r.left) * scx / canvas.width  * 100,
+    y: (e.clientY - r.top)  * scy / canvas.height * 100,
+  };
+}
+
+function bindCanvas(canvas, side) {
+  canvas.addEventListener("mousedown", e => {
+    if (drawSide !== side) return;
+    isDrawing = true;
+    const p = getRelPct(canvas, e);
+    startX = p.x; startY = p.y;
+    draft[side === 'a' ? 'zone_a' : 'zone_b'] = {x_pct: p.x, y_pct: p.y, w_pct: 0, h_pct: 0};
+  });
+  canvas.addEventListener("mousemove", e => {
+    if (!isDrawing || drawSide !== side) return;
+    const p  = getRelPct(canvas, e);
+    const key = side === 'a' ? 'zone_a' : 'zone_b';
+    const x  = Math.min(startX, p.x);
+    const y  = Math.min(startY, p.y);
+    const w  = Math.abs(p.x - startX);
+    const h  = Math.abs(p.y - startY);
+    draft[key] = {x_pct: x, y_pct: y, w_pct: w, h_pct: h};
+    redraw(side);
+  });
+  canvas.addEventListener("mouseup", e => {
+    if (!isDrawing || drawSide !== side) return;
+    isDrawing = false;
+    const key = side === 'a' ? 'zone_a' : 'zone_b';
+    if (draft[key] && draft[key].w_pct > 0.5 && draft[key].h_pct > 0.5) {
+      // Zaznaczenie gotowe — przejdź do drugiej strony
+      if (side === 'a') {
+        drawSide = null;
+        document.getElementById("btn-draw-a").disabled = false;
+        document.getElementById("btn-draw-b").disabled = false;
+        document.getElementById("draw-hint").textContent = "✓ A zaznaczone — teraz zaznacz na B";
+      } else {
+        drawSide = null;
+        document.getElementById("btn-draw-b").disabled = false;
+        document.getElementById("btn-add").disabled = !(draft.zone_a && draft.zone_b);
+        document.getElementById("draw-hint").textContent = '✓ B zaznaczone \u2014 kliknij \u201eDodaj stref\u0119\u201d';
+      }
+    }
+    redraw(side);
+  });
+}
+
+bindCanvas(canvasA, 'a');
+bindCanvas(canvasB, 'b');
+
+// ── Akcje ──────────────────────────────────────────────────────────────────────
+function startDraw(side) {
+  drawSide  = side;
+  isDrawing = false;
+  draft[side === 'a' ? 'zone_a' : 'zone_b'] = null;
+  document.getElementById("btn-draw-a").disabled = (side === 'a');
+  document.getElementById("btn-draw-b").disabled = (side === 'b');
+  document.getElementById("btn-add").disabled    = true;
+  document.getElementById("draw-hint").textContent =
+    side === 'a' ? "Narysuj prostokąt na obrazie A…" : "Narysuj prostokąt na obrazie B…";
+  redraw(side);
+}
+
+function addZone() {
+  const name = document.getElementById("zone-name").value.trim() || `Strefa ${zones.length + 1}`;
+  const type = document.getElementById("zone-type").value;
+  if (!draft.zone_a || !draft.zone_b) { toast('Zaznacz obie strefy (A i B).', 'warn'); return; }
+  zones.push({ name, type, zone_a: {...draft.zone_a}, zone_b: {...draft.zone_b} });
+  draft = { zone_a: null, zone_b: null };
+  drawSide = null;
+  document.getElementById("btn-draw-b").disabled = true;
+  document.getElementById("btn-add").disabled    = true;
+  document.getElementById("draw-hint").textContent = "";
+  renderZoneList();
+  redraw('a'); redraw('b');
+  document.getElementById("btn-compare").disabled = (zones.length === 0);
+}
+
+function removeZone(idx) {
+  zones.splice(idx, 1);
+  renderZoneList();
+  redraw('a'); redraw('b');
+  document.getElementById("btn-compare").disabled = (zones.length === 0);
+}
+
+function editZoneName(idx) {
+  const ov = document.getElementById('_renameOverlay');
+  const inp = document.getElementById('_renameInput');
+  inp.value = zones[idx].name;
+  ov.style.display = 'flex';
+  inp.focus(); inp.select();
+  ov._cb = () => {
+    const v = inp.value.trim();
+    if (v) { zones[idx].name = v; renderZoneList(); redraw('a'); redraw('b'); }
+    ov.style.display = 'none';
+  };
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('_renameOk').onclick = () => {
+    const ov = document.getElementById('_renameOverlay');
+    if (ov._cb) ov._cb();
+  };
+  document.getElementById('_renameCancel').onclick = () => {
+    document.getElementById('_renameOverlay').style.display = 'none';
+  };
+  document.getElementById('_renameInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('_renameOk').click();
+    if (e.key === 'Escape') document.getElementById('_renameCancel').click();
+  });
+});
+
+function renderZoneList() {
+  const el = document.getElementById("zone-list");
+  document.getElementById("zone-count").textContent = zones.length + " stref";
+  if (zones.length === 0) {
+    el.innerHTML = '<span class="italic text-gray-400">Brak stref.</span>';
+    return;
+  }
+  el.innerHTML = zones.map((z, i) => `
+    <div class="flex items-center gap-2 py-1 border-b last:border-0 text-sm">
+      <span class="w-4 h-4 rounded-full flex-shrink-0"
+            style="background:${COLORS[i % COLORS.length]}"></span>
+      <span class="flex-1 truncate font-medium">${i+1}. ${escHtml(z.name)}</span>
+      <span class="text-xs text-gray-400">${escHtml(z.type)}</span>
+      <button type="button" onclick="editZoneName(${i})" class="text-gray-400 hover:text-blue-500 text-xs" aria-label="Edytuj nazwę strefy">✎</button>
+      <button type="button" onclick="removeZone(${i})" class="text-gray-400 hover:text-red-500 text-xs" aria-label="Usuń strefę">✕</button>
+    </div>
+  `).join("");
+}
+
+// ── Szablony ───────────────────────────────────────────────────────────────────
+function loadTemplate(tpl) {
+  confirmModal(`Załadować szablon "${tpl.name}"? Zastąpi bieżące strefy.`, () => {
+    zones = (tpl.zones || []).map(z => ({...z}));
+    draft = { zone_a: null, zone_b: null };
+    renderZoneList();
+    redraw('a'); redraw('b');
+    document.getElementById("btn-compare").disabled = (zones.length === 0);
+    document.getElementById("tpl-name").value = tpl.name;
+  }, { okLabel: 'Załaduj', danger: false });
+}
+
+async function deleteTemplate(id) {
+  confirmModal('Usunąć szablon?', async () => {
+    await fetch(`/api/artwork/zone-templates?id=${id}`, { method: "DELETE" });
+    document.querySelector(`[data-tpl-id="${id}"]`)?.remove();
+    toast('Szablon usunięty', 'ok');
+  }, { okLabel: 'Usuń', danger: true });
+}
+
+// ── Porównanie ─────────────────────────────────────────────────────────────────
+async function compareZones() {
+  if (zones.length === 0) { toast('Najpierw dodaj co najmniej jedną strefę.', 'warn'); return; }
+  const btn = document.getElementById("btn-compare");
+  btn.disabled = true;
+  btn.textContent = "⏳ Porównuję…";
+
+  const saveTpl  = document.getElementById("save-tpl").checked;
+  const tplName  = document.getElementById("tpl-name").value.trim();
+
+  try {
+    const res = await fetch("/api/artwork/zone-compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cache_id: CACHE_ID,
+        zones,
+        save_template: saveTpl && !!tplName,
+        template_name: tplName,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Błąd serwera");
+    renderResults(data.results);
+  } catch(e) {
+    toast('Błąd porównania: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "▶ Porównaj zaznaczone strefy";
+  }
+}
+
+// ── Renderowanie wyników ───────────────────────────────────────────────────────
+const STATUS_CSS = {
+  "Zgodny":            "bg-green-100 text-green-800 border-green-200",
+  "Roznica tekstowa":  "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "Roznica wizualna":  "bg-red-100 text-red-800 border-red-200",
+};
+
+function renderResults(results) {
+  const sec = document.getElementById("results-section");
+  const con = document.getElementById("results-container");
+  sec.classList.remove("hidden");
+  sec.scrollIntoView({ behavior: "smooth" });
+
+  con.innerHTML = results.map((r, i) => {
+    const css     = STATUS_CSS[r.status] || "bg-gray-100 text-gray-700 border-gray-200";
+    const simTxt  = r.pixel_similarity != null ? `${r.pixel_similarity}% podobieństwa pikseli` : "";
+
+    // Diff tekstu
+    let diffHtml = "";
+    if (r.text_diffs && r.text_diffs.length) {
+      const rows = r.text_diffs.map(d => {
+        const bg = d.status === "equal"   ? ""
+                 : d.status === "changed"  ? "bg-yellow-50"
+                 : d.status === "only_a"   ? "bg-red-50"
+                 :                          "bg-blue-50";
+        const icon = d.status === "equal" ? "✓" : d.status === "changed" ? "≠" : d.status === "only_a" ? "−B" : "+B";
+        const iconCls = d.status === "equal" ? "text-green-500" : "text-red-500 font-bold";
+        return `<tr class="${bg}">
+          <td class="py-0.5 px-2 text-xs border-r text-gray-400 w-6 text-center ${iconCls}">${icon}</td>
+          <td class="py-0.5 px-2 text-xs border-r font-mono max-w-xs break-all">${escHtml(d.a)}</td>
+          <td class="py-0.5 px-2 text-xs font-mono max-w-xs break-all">${escHtml(d.b)}</td>
+        </tr>`;
+      }).join("");
+      diffHtml = `
+        <div class="mt-3">
+          <div class="text-xs font-semibold text-gray-500 mb-1">Porównanie tekstu OCR — linia po linii:</div>
+          <div class="overflow-x-auto rounded border">
+            <table class="w-full text-xs border-collapse">
+              <thead class="bg-gray-50 text-gray-500">
+                <tr>
+                  <th class="py-1 px-2 border-r text-center w-6"></th>
+                  <th class="py-1 px-2 border-r text-left">Wzorzec A</th>
+                  <th class="py-1 px-2 text-left">Fabryczna B</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    } else if (r.type !== "graphic") {
+      diffHtml = `<p class="text-xs text-gray-400 italic mt-2">Brak danych OCR — sprawdź czy PDF zawiera warstwę tekstową.</p>`;
+    }
+
+    return `
+      <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <!-- Nagłówek -->
+        <div class="flex items-center justify-between px-4 py-2.5 border-b
+                    ${STATUS_CSS[r.status]?.split(" ")[0] || "bg-gray-50"}">
+          <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  style="background:${COLORS[i % COLORS.length]}">${i+1}</span>
+            <span class="font-semibold text-gray-800">${escHtml(r.name)}</span>
+            <span class="text-xs text-gray-500">${escHtml(r.type)}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            ${simTxt ? `<span class="text-xs text-gray-500">${simTxt}</span>` : ""}
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full border ${css}">${escHtml(r.status)}</span>
+          </div>
+        </div>
+        <!-- Contenr: obrazy + diff -->
+        <div class="p-4">
+          <!-- Para obrazów -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs font-semibold text-blue-600 mb-1">Wzorzec A</div>
+              ${r.crop_a_b64
+                ? `<img src="data:image/jpeg;base64,${r.crop_a_b64}"
+                        alt="Wzorzec A — strefa ${escHtml(r.name)}"
+                        class="w-full border rounded" style="image-rendering:crisp-edges;">`
+                : `<div class="h-24 bg-gray-100 rounded border flex items-center justify-center text-xs text-gray-400">Brak obrazu</div>`}
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-green-600 mb-1">Fabryczna B</div>
+              ${r.crop_b_b64
+                ? `<img src="data:image/jpeg;base64,${r.crop_b_b64}"
+                        alt="Fabryczna B — strefa ${escHtml(r.name)}"
+                        class="w-full border rounded" style="image-rendering:crisp-edges;">`
+                : `<div class="h-24 bg-gray-100 rounded border flex items-center justify-center text-xs text-gray-400">Brak obrazu</div>`}
+            </div>
+          </div>
+          ${diffHtml}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// FIX 17: escHtml() already defined in base.html — removed duplicate.
+
+// ── FIX 18: Enter key on zone-name input triggers addZone ────────────────────
+document.getElementById('zone-name').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') addZone();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+loadImages();
+renderZoneList();
+</script>
+
+<!-- Rename zone modal -->
+<div id="_renameOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center"
+     role="dialog" aria-modal="true" aria-labelledby="_renameDlgTitle">
+  <div style="background:#fff;border-radius:10px;padding:20px 24px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <p id="_renameDlgTitle" style="font-size:13px;font-weight:600;margin-bottom:10px;color:#111">Zmień nazwę strefy</p>
+    <label for="_renameInput" class="sr-only">Nowa nazwa strefy</label>
+    <input id="_renameInput" type="text" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;outline:none;margin-bottom:14px" aria-label="Nowa nazwa strefy">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" id="_renameCancel" style="padding:6px 14px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;cursor:pointer;background:#fff">Anuluj</button>
+      <button type="button" id="_renameOk" style="padding:6px 14px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Zmień</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & local config
+.env
+.env.local
+*.env
+.env.staging
+INITIAL_ADMIN_PASSWORD.txt
+
+# Database (SQLite local dev only)
+instance/
+*.db
+*.sqlite
+
+# Uploads & logs
+uploads/
+logs/
+
+# Dane wrażliwe: biblioteka masterów + wygenerowane modele 3D (nigdy do repo)
+glb_cache/
+**/glb_cache/
+library/
+data/
+
+# Render build artifacts
+.render/
+.claude/worktrees/
+app.py.bak
+
+# graphify code graph (lokalny artefakt, odbudowa: graphify update .)
+graphify-out/
+
+# --- kopia do przygotowania wersji publicznej (wymagane minimum) ---
+.env
+.env.*
+!.env.example
+!.env.*.example
+.idea/
+.venv/
+venv/
+__pycache__/
+*.pyc
+node_modules/
+*.sql
+*.dump
+*.bak
+.DS_Store

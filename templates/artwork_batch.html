@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}Batch porównanie artworków — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.page{max-width:1100px;margin:24px auto;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.1);padding:28px 32px}
+
+/* Header */
+.hdr h1{font-size:20px;color:#1a5276;font-weight:700}
+.hdr-nav a{color:#1a5276;text-decoration:none;font-size:12px;margin-left:14px}
+
+/* Dropzone */
+.dropzone{border:2px dashed #aed6f1;border-radius:8px;padding:36px;text-align:center;background:#f8fbff;cursor:pointer;transition:border-color .2s}
+.dropzone.over{border-color:#1a5276;background:#eaf4fb}
+.dropzone-icon{font-size:36px;margin-bottom:10px}
+.dropzone p{color:#555;margin:4px 0}
+.dropzone input{display:none}
+
+/* Buttons */
+/* .btn i .btn-primary pochodzą z app.css — lokalne kopie (inny promień, inny
+   granat #1a5276) sprawiały, że ten sam przycisk wyglądał inaczej niż w reszcie
+   aplikacji, i nie miały :focus-visible. Poniżej tylko warianty własne tego ekranu. */
+.btn-green{background:#27ae60;color:#fff}
+.btn-orange{background:#d35400;color:#fff}
+.btn-gray{background:#95a5a6;color:#fff}
+
+/* File list */
+.file-list{margin:16px 0;max-height:180px;overflow-y:auto;border:1px solid #dee2e6;border-radius:5px}
+.file-item{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid #f0f0f0;font-size:12px}
+.file-item:last-child{border-bottom:none}
+.file-item .fn{color:#1a5276;font-weight:600}
+.file-item .role{font-size:11px;padding:1px 6px;border-radius:3px}
+.role-master{background:#d5f5e3;color:#1e8449}
+.role-supplier{background:#d6eaf8;color:#1a5276}
+.role-unknown{background:#fef9e7;color:#9a7d0a}
+
+/* Pairs table */
+.pairs-table{width:100%;border-collapse:collapse;margin:14px 0;font-size:12px}
+.pairs-table th{background:#1a5276;color:#fff;padding:7px 10px;text-align:left}
+.pairs-table td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:middle}
+.pairs-table tr:hover td{background:#f8fbff}
+.conf-high{color:#27ae60;font-weight:700}
+.conf-med{color:#d35400;font-weight:700}
+
+/* Progress */
+.progress-wrap{margin:18px 0;display:none}
+.progress-bar{height:18px;background:#dee2e6;border-radius:9px;overflow:hidden}
+.progress-fill{height:100%;background:#1a5276;border-radius:9px;transition:width .3s;width:0%}
+.progress-label{font-size:12px;color:#555;margin-top:5px;text-align:center}
+
+/* Results */
+.results-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}
+.results-table th{background:#1a5276;color:#fff;padding:8px 10px;text-align:left}
+.results-table td{padding:7px 10px;border-bottom:1px solid #eee;vertical-align:middle}
+.results-table tr:hover td{background:#f8fbff}
+.risk-ok{color:#27ae60;font-weight:700}
+.risk-warning{color:#d35400;font-weight:700}
+.risk-critical{color:#c0392b;font-weight:700}
+.risk-error{color:#888;font-weight:700}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700}
+.badge-ok{background:#d5f5e3;color:#1e8449}
+.badge-warn{background:#fef9e7;color:#9a7d0a}
+.badge-crit{background:#fdedec;color:#922b21}
+
+/* Sections */
+.section-title{font-size:15px;font-weight:700;color:#1a5276;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid #aed6f1}
+.info-box{background:#eaf4fb;border:1px solid #aed6f1;border-radius:5px;padding:10px 14px;font-size:12px;color:#1a5276;margin:10px 0}
+
+#step-upload,#step-pairs,#step-running,#step-results{display:none}
+#step-upload{display:block}
+</style>{% endblock %}
+{% block page_title %}Artwork — seria{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #1a5276;padding-bottom:14px">
+    <h1>🖼️ Batch porównanie artworków</h1>
+    <div class="hdr-nav">
+      <a href="/artwork">← Porównaj jedną parę</a>
+      <a href="/artwork/history">Historia</a>
+      <a href="/">Dashboard</a>
+    </div>
+  </div>
+
+  <!-- ══ KROK 1: Upload ════════════════════════════════════════════════════════ -->
+  <div id="step-upload">
+    <div class="section-title">1. Wgraj pliki (do 100 PDF — 50 par)</div>
+    <div class="info-box">
+      Nazwy plików muszą zawierać słowo kluczowe roli:<br>
+      <strong>master / wzorzec / acme</strong> — artwork wzorcowy (ACME) &nbsp;|&nbsp;
+      <strong>supplier / dostawca / od_dostawcy</strong> — artwork od dostawcy<br>
+      Przykład: <code>A-02_master.pdf</code> ↔ <code>A-02_supplier.pdf</code>
+    </div>
+    <div class="dropzone" id="dz" onclick="document.getElementById('fileInput').click()"
+         role="button" tabindex="0" aria-label="Wgraj pliki PDF — kliknij lub przeciągnij"
+         onkeydown="if(event.key==='Enter'||event.key===' '){document.getElementById('fileInput').click()}">
+      <div class="dropzone-icon" aria-hidden="true">📂</div>
+      <p><strong>Przeciągnij pliki PDF lub kliknij żeby wybrać</strong></p>
+      <p style="font-size:11px;color:#888;margin-top:4px">Maksymalnie 100 plików (50 par)</p>
+      <input type="file" id="fileInput" accept=".pdf" multiple>
+    </div>
+    <div id="fileListWrap" style="display:none">
+      <div class="file-list" id="fileList"></div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button type="button" class="btn btn-primary" onclick="doPair()">⚡ Sparuj automatycznie</button>
+        <button type="button" class="btn btn-gray" onclick="clearFiles()">✕ Wyczyść</button>
+        <span id="fileCount" style="color:#555;font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ KROK 2: Pary ══════════════════════════════════════════════════════════ -->
+  <div id="step-pairs">
+    <div class="section-title">2. Wykryte pary — sprawdź i uruchom</div>
+    <div id="pairsWrap"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="useAI" checked>
+        <strong>Analiza AI</strong> (Claude) — dokładniejsze wyniki, zużywa kredyty API
+      </label>
+      <button type="button" class="btn btn-green" onclick="doRun()">▶ Uruchom batch</button>
+      <button type="button" class="btn btn-gray" onclick="goBack()">← Wróć</button>
+      <span id="pairCount" style="color:#555;font-size:12px"></span>
+    </div>
+  </div>
+
+  <!-- ══ KROK 3: Processing ════════════════════════════════════════════════════ -->
+  <div id="step-running">
+    <div class="section-title">3. Przetwarzanie...</div>
+    <div class="progress-wrap" id="progWrap" style="display:block">
+      <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+      <div class="progress-label" id="progLabel">Inicjalizacja...</div>
+    </div>
+    <div id="runningList" style="font-size:12px;margin-top:12px;max-height:300px;overflow-y:auto"></div>
+  </div>
+
+  <!-- ══ KROK 4: Wyniki ════════════════════════════════════════════════════════ -->
+  <div id="step-results">
+    <div class="section-title">4. Wyniki</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <button type="button" class="btn btn-green" id="btnZip" onclick="downloadZip()">⬇ Pobierz wszystkie raporty ZIP</button>
+      <button type="button" class="btn btn-gray" onclick="startOver()">↺ Nowe porównanie</button>
+    </div>
+    <div id="summaryCards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+    <table class="results-table" id="resultsTable">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Para (prefix)</th>
+          <th scope="col">Master</th>
+          <th scope="col">Dostawca</th>
+          <th scope="col">Krytyczne</th>
+          <th scope="col">Ostrzeżenia</th>
+          <th scope="col">Status</th>
+          <th scope="col">Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="resultsTbody"></tbody>
+    </table>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+const MAX_FILES = 100;
+let uploadedFiles = [];
+let detectedPairs = [];
+let batchResults  = [];
+let jobZipData    = null;
+
+// ── Dropzone ──────────────────────────────────────────────────────────────────
+const dz = document.getElementById('dz');
+const fi = document.getElementById('fileInput');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  handleFiles([...e.dataTransfer.files]);
+});
+fi.addEventListener('change', () => handleFiles([...fi.files]));
+
+function handleFiles(files) {
+  const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf')).slice(0, MAX_FILES);
+  uploadedFiles = pdfs;
+  renderFileList();
+}
+
+function roleOf(name) {
+  const n = name.toLowerCase();
+  if (/master|wzorzec|acme/.test(n)) return 'master';
+  if (/supplier|dostawca|od_dostawcy|fabryczny/.test(n)) return 'supplier';
+  return 'unknown';
+}
+
+function renderFileList() {
+  const wrap = document.getElementById('fileListWrap');
+  const list = document.getElementById('fileList');
+  const cnt  = document.getElementById('fileCount');
+  if (!uploadedFiles.length) { wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+  cnt.textContent = `${uploadedFiles.length} plik(ów)`;
+  list.innerHTML = uploadedFiles.map(f => {
+    const role = roleOf(f.name);
+    const rc = role==='master'?'role-master':role==='supplier'?'role-supplier':'role-unknown';
+    return `<div class="file-item"><span class="fn">${esc(f.name)}</span><span class="badge ${rc}">${esc(role)}</span></div>`;
+  }).join('');
+}
+
+function clearFiles() {
+  uploadedFiles = [];
+  document.getElementById('fileListWrap').style.display='none';
+  document.getElementById('fileList').innerHTML='';
+  fi.value='';
+}
+
+// ── Auto-pair ─────────────────────────────────────────────────────────────────
+async function doPair() {
+  if (!uploadedFiles.length) { toast('Wgraj najpierw pliki PDF.', 'error'); return; }
+
+  // Upload all files
+  const fd = new FormData();
+  uploadedFiles.forEach(f => fd.append('files', f));
+
+  const res = await fetch('/api/artwork/batch/pair', { method:'POST', body:fd });
+  if (!res.ok) { toast('Błąd parowania: ' + res.status, 'error'); return; }
+  const data = await res.json();
+
+  if (!data.pairs || !data.pairs.length) {
+    toast('Nie znaleziono par. Sprawdź nazwy plików.', 'warn');
+    return;
+  }
+
+  detectedPairs = data.pairs;
+  renderPairs();
+  show('step-pairs');
+  hide('step-upload');
+}
+
+function renderPairs() {
+  const wrap = document.getElementById('pairsWrap');
+  const cnt  = document.getElementById('pairCount');
+  cnt.textContent = `${detectedPairs.length} par(y)`;
+  wrap.innerHTML = `
+    <table class="pairs-table">
+      <thead><tr><th scope="col">#</th><th scope="col">Prefix</th><th scope="col">Master (A)</th><th scope="col">Dostawca (B)</th><th scope="col">Pewność</th></tr></thead>
+      <tbody>
+        ${detectedPairs.map((p,i) => `
+          <tr>
+            <td>${i+1}</td>
+            <td><strong>${esc(p.prefix)}</strong></td>
+            <td>${esc(p.file_a)}</td>
+            <td>${esc(p.file_b)}</td>
+            <td class="${p.confidence>=0.8?'conf-high':'conf-med'}">${Math.round(p.confidence*100)}%</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── Run batch ─────────────────────────────────────────────────────────────────
+let _batchRunning = false, _batchConfirmed = false;
+async function doRun() {
+  if (!detectedPairs.length || _batchRunning) return;   // blokada podwójnego submitu
+  const useAI = document.getElementById('useAI').checked;
+  // Płatna operacja AI — potwierdź przed uruchomieniem (koszt Claude per para).
+  if (useAI && !_batchConfirmed) {
+    confirmModal('Analiza AI ' + detectedPairs.length + ' par wygeneruje koszt API (Claude). Uruchomić?',
+      function(){ _batchConfirmed = true; doRun().finally(function(){ _batchConfirmed = false; }); },
+      {okLabel:'Tak, uruchom', danger:false, title:'Płatna operacja AI'});
+    return;
+  }
+  _batchRunning = true;
+
+  show('step-running');
+  hide('step-pairs');
+
+  const runList = document.getElementById('runningList');
+  runList.innerHTML = '';
+  batchResults = [];
+  jobZipData   = null;
+
+  _batchStartTime = Date.now();
+  updateProgress(0, detectedPairs.length, 'Startowanie...');
+
+  const fd = new FormData();
+  fd.append('pairs', JSON.stringify(detectedPairs));
+  fd.append('use_ai', useAI ? '1' : '0');
+
+  try {
+    const res = await fetch('/api/artwork/batch/run', { method:'POST', body:fd });
+    if (!res.ok) { toast('Błąd: ' + res.status, 'error'); _batchRunning = false; return; }
+
+    // Streaming NDJSON response
+    const reader = res.body.getReader();
+    const dec    = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const item = JSON.parse(line);
+          batchResults.push(item);
+          updateProgress(item.index + 1, item.total, item.file_a + ' ↔ ' + item.file_b);
+          appendRunRow(item, runList);
+        } catch(e) {}
+      }
+    }
+    // Last chunk
+    if (buf.trim()) {
+      try {
+        const item = JSON.parse(buf);
+        batchResults.push(item);
+      } catch(e) {}
+    }
+
+  } catch(e) {
+    toast('Błąd połączenia: ' + e.message, 'error');
+    _batchRunning = false;
+    return;
+  }
+
+  show('step-results');
+  hide('step-running');
+  renderResults();
+  _batchRunning = false;
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function appendRunRow(item, container) {
+  const icon = item.status==='done' ? (item.risk==='ok'?'✅':item.risk==='warning'?'⚠️':'❌') : item.status==='error'?'💥':'⏳';
+  const d = document.createElement('div');
+  d.style.cssText = 'padding:3px 0;border-bottom:1px solid #eee';
+  d.innerHTML = `${icon} <strong>${esc(item.prefix || item.file_a)}</strong> — ${item.status==='error'?'<span style="color:red">'+esc(item.error)+'</span>':esc(item.critical)+' kryt. / '+esc(item.warnings)+' ostrz.'}`;
+  container.appendChild(d);
+  container.scrollTop = container.scrollHeight;
+}
+
+var _batchStartTime = null;
+function updateProgress(done, total, label) {
+  if (done === 0) _batchStartTime = Date.now();
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('progFill').style.width = pct + '%';
+  let etaStr = '';
+  if (_batchStartTime && done > 0 && done < total) {
+    const elapsed = (Date.now() - _batchStartTime) / 1000;
+    const eta = Math.round((elapsed / done) * (total - done));
+    etaStr = ` · ETA: ${eta >= 60 ? Math.round(eta/60) + ' min' : eta + 's'}`;
+  }
+  const elapsedSec = _batchStartTime ? Math.round((Date.now() - _batchStartTime) / 1000) : 0;
+  const elapsedStr = elapsedSec > 0 ? ` (${elapsedSec >= 60 ? Math.round(elapsedSec/60) + ' min' : elapsedSec + 's'} łącznie)` : '';
+  document.getElementById('progLabel').textContent = `${done} / ${total} — ${label}${etaStr}${elapsedStr}`;
+}
+
+// ── Results ───────────────────────────────────────────────────────────────────
+function renderResults() {
+  const tbody = document.getElementById('resultsTbody');
+  const cards = document.getElementById('summaryCards');
+
+  const total    = batchResults.length;
+  const nOk      = batchResults.filter(r => r.risk==='ok').length;
+  const nWarn    = batchResults.filter(r => r.risk==='warning').length;
+  const nCrit    = batchResults.filter(r => r.risk==='critical').length;
+  const nErr     = batchResults.filter(r => r.status==='error').length;
+
+  cards.innerHTML = [
+    ['Łącznie par', total, '#1a5276'],
+    ['✅ OK', nOk, '#27ae60'],
+    ['⚠ Ostrzeżenia', nWarn, '#d35400'],
+    ['❌ Krytyczne', nCrit+nErr, '#c0392b'],
+  ].map(([l,v,c]) => `
+    <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px;text-align:center">
+      <div style="font-size:26px;font-weight:700;color:${c}">${v}</div>
+      <div style="font-size:11px;color:#666;margin-top:4px;text-transform:uppercase">${l}</div>
+    </div>`).join('');
+
+  tbody.innerHTML = batchResults.map((r,i) => {
+    const riskClass = r.risk==='ok'?'risk-ok':r.risk==='warning'?'risk-warning':r.status==='error'?'risk-error':'risk-critical';
+    const riskLabel = r.status==='error'?'BŁĄD':r.risk==='ok'?'OK':r.risk==='warning'?'OSTRZEŻENIA':'KRYTYCZNE';
+    const badge = r.status==='error'?'badge-crit':r.risk==='ok'?'badge-ok':r.risk==='warning'?'badge-warn':'badge-crit';
+    const cacheId = r.cache_id || '';
+    return `<tr>
+      <td>${i+1}</td>
+      <td><strong>${esc(r.prefix || '—')}</strong></td>
+      <td style="font-size:11px">${esc(r.file_a)}</td>
+      <td style="font-size:11px">${esc(r.file_b)}</td>
+      <td style="color:#c0392b;font-weight:700">${r.critical||0}</td>
+      <td style="color:#d35400;font-weight:700">${r.warnings||0}</td>
+      <td><span class="badge ${badge}">${riskLabel}</span></td>
+      <td>
+        ${cacheId?`<a href="/artwork/report?cache_id=${cacheId}" target="_blank" class="btn btn-primary" style="padding:3px 9px;font-size:11px" rel="noopener noreferrer">Raport</a>`:''}
+        <button type="button" onclick="downloadSingle(${i})" class="btn btn-green" style="padding:3px 9px;font-size:11px">⬇ Word</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Downloads ─────────────────────────────────────────────────────────────────
+async function downloadZip() {
+  const fd = new FormData();
+  fd.append('results', JSON.stringify(batchResults.map(r => ({
+    file_a: r.file_a, file_b: r.file_b, prefix: r.prefix,
+    status: r.status, critical: r.critical, warnings: r.warnings, risk: r.risk,
+    cache_id: r.cache_id
+  }))));
+  const res = await fetch('/api/artwork/batch/zip', { method:'POST', body:fd });
+  if (!res.ok) { toast('Błąd ZIP: ' + res.status, 'error'); return; }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'raporty_artworkow.zip';
+  a.click();
+}
+
+async function downloadSingle(idx) {
+  const r = batchResults[idx];
+  if (!r || !r.cache_id) { toast('Brak raportu dla tej pary.', 'error'); return; }
+  window.location = '/artwork/report/export-docx?cache_id=' + r.cache_id;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function show(id) { document.getElementById(id).style.display='block'; }
+function hide(id) { document.getElementById(id).style.display='none'; }
+function goBack() { hide('step-pairs'); show('step-upload'); }
+function startOver() { hide('step-results'); show('step-upload'); batchResults=[]; detectedPairs=[]; clearFiles(); }
+</script>
+{% endblock %}

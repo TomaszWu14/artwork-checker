@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Pokrycie 3D — Artwork{% endblock %}
+
+{% block page_title %}Pokrycie 3D{% endblock %}
+
+{% block content %}
+<div x-data="coverageApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>Pokrycie 3D</h1>
+    <p class="sub">Które artworki z biblioteki mają już wygenerowany model 3D — i jakim wariantem (wykrojnik / MARM / zdjęcia).</p>
+  </div>
+
+  <div class="filter-bar">
+    <input type="search" class="search-inp" x-model="ref" @keydown.enter="page=1;load()"
+           placeholder="REF lub fragment nazwy pliku…" autocomplete="off">
+    <select class="filter-sel" x-model="lvl1" @change="page=1;load()">
+      <option value="">— poziom (wszystkie) —</option>
+      {% for lvl in lvl1_options %}
+      <option value="{{ lvl }}">{{ lvl }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn btn-sm btn-primary" @click="page=1;load()">
+      <i data-lucide="search" style="width:13px;height:13px;" aria-hidden="true"></i> Szukaj
+    </button>
+  </div>
+
+  <div class="card overflow-hidden">
+  <div class="overflow-x-auto scroll-thin">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th scope="col">REF</th>
+        <th scope="col">Poziom</th>
+        <th scope="col">Plik</th>
+        <th scope="col">3D</th>
+        <th scope="col">Push PalViz</th>
+      </tr>
+    </thead>
+    <tbody>
+      <template x-if="!loaded">
+        <tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:16px">Ładowanie…</td></tr>
+      </template>
+      <template x-if="loaded && !err && items.length===0">
+        <tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:16px">Brak wyników</td></tr>
+      </template>
+      <template x-if="err">
+        <tr><td colspan="5" style="text-align:center;color:#b91c1c;padding:16px">
+          ⚠ Nie udało się pobrać listy pokrycia 3D (<span x-text="err"></span>).
+          <button type="button" @click="load()" style="margin-left:8px;text-decoration:underline">Spróbuj ponownie</button>
+        </td></tr>
+      </template>
+      <template x-for="r in items" :key="r.fid">
+        <tr>
+          <td class="mono" :title="r.ref" x-text="r.ref || '—'"></td>
+          <td x-text="r.lvl1 || '—'"></td>
+          <td :title="r.filename" x-text="r.filename"
+              style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></td>
+          <td>
+            <template x-if="r.has_dieline"><span class="badge badge-info">Wykrojnik</span></template>
+            <template x-if="r.dieline_stale"><span class="badge badge-err" title="Plik PDF zmienił się na Z:\ od czasu renderu — model 3D może być nieaktualny">nieaktualny</span></template>
+            <template x-if="r.has_marm"><span class="badge badge-info">MARM</span></template>
+            <template x-if="r.has_photo"><span class="badge badge-info">Zdjęcia</span></template>
+            <template x-if="!r.has_dieline && !r.has_marm && !r.has_photo"><span class="badge badge-neutral">Brak 3D</span></template>
+          </td>
+          <td>
+            <template x-if="Object.keys(r.push||{}).length===0"><span style="color:var(--ink-3)">—</span></template>
+            <template x-for="(p, variant) in (r.push||{})" :key="variant">
+              <span style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;white-space:nowrap">
+                <span x-text="enumPL('variant', variant)" style="font-size:10px;color:var(--ink-3)"></span>
+                <span class="badge"
+                      :class="p.status==='sent'?'badge-ok':(p.status==='failed'?'badge-err':'badge-neutral')"
+                      x-text="enumPL('push', p.status)"></span>
+                {% if role in ['manager','superuser','admin'] %}
+                <button type="button" class="btn btn-sm btn-ghost" x-show="p.status==='failed'"
+                        :disabled="busy[p.registry_id]"
+                        @click="retryPush(p.registry_id)" title="Ponów push do PalViz">Ponów</button>
+                {% endif %}
+              </span>
+            </template>
+          </td>
+        </tr>
+      </template>
+    </tbody>
+  </table>
+  </div>
+  </div>
+
+  <nav class="pagination" aria-label="Paginacja" x-show="loaded && total>0">
+    <span x-text="total+' artworków · strona '+page+' / '+Math.max(pages,1)"></span>
+    <button type="button" class="btn btn-sm" :disabled="page<=1" @click="page--;load()">← Poprzednia</button>
+    <button type="button" class="btn btn-sm" :disabled="page>=pages" @click="page++;load()">Następna →</button>
+  </nav>
+</div>
+
+<script>
+function coverageApp(){
+  return {
+    ref: '', lvl1: '', page: 1, per_page: 50,
+    items: [], total: 0, pages: 1, loaded: false, err: '', busy: {},
+    async load(){
+      this.err = '';
+      try{
+        const params = new URLSearchParams({ref: this.ref, lvl1: this.lvl1, page: this.page, per_page: this.per_page});
+        const r = await fetch('/api/artwork/render-coverage?' + params.toString());
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        this.items = d.items || [];
+        this.total = d.total || 0;
+        this.pages = d.total_pages || 1;
+      }catch(e){
+        this.err = e.message || 'błąd sieci';
+      }finally{
+        this.loaded = true;
+      }
+    },
+    async retryPush(registryId){
+      // PUSH-04: ręczne ponowienie nieudanego pusha (CSRF wstrzykiwany globalnie).
+      this.busy[registryId] = true;
+      try{
+        const r = await fetch('/api/artwork/render/' + registryId + '/push-retry', {method: 'POST'});
+        const d = await r.json().catch(() => ({}));
+        if(d.status === 'backoff'){
+          alert('Odczekaj chwilę przed kolejnym ponowieniem (bounded backoff).');
+        }else if(d.status === 'disabled'){
+          alert('Push do PalViz nie jest skonfigurowany (PALVIZ_PUSH_URL).');
+        }
+        await this.load();
+      }catch(e){
+        alert('Nie udało się ponowić: ' + (e.message || 'błąd sieci'));
+      }finally{
+        this.busy[registryId] = false;
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

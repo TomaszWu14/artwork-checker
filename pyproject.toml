@@ -1,0 +1,28 @@
+# Konfiguracja narzędzi deweloperskich (lint/format). NIE jest podłączona do
+# bramki deployu (auto-merge) — pełni rolę pomocniczą dla deweloperów, by nie
+# blokować wdrożeń na istniejącym, dużym kodzie legacy. Uruchom lokalnie:
+#   pip install -r dev-requirements.txt
+#   ruff check .        # tylko realne błędy (F) + wybrane E/W
+#   ruff format .       # formatowanie
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Wyłączone z lintu — duże/wygenerowane lub zewnętrzne pliki.
+extend-exclude = [
+    "static/design",
+    "app.py.bak",
+    "*.xlsx",
+    "instance",
+]
+
+[tool.ruff.lint]
+# Lenient na start: tylko wysokosygnałowe reguły (pyflakes = realne błędy:
+# niezdefiniowane nazwy, nieużywane importy/zmienne), plus podstawowe E/W.
+# Świadomie pomijamy E501 (długość linii) i resztę, by lint nie tonął w szumie
+# na 15k-liniowym app.py — można dokręcać stopniowo.
+select = ["F", "E9", "W6"]
+ignore = ["F401"]   # nieużywane importy bywają celowe (lazy/optional) — włączyć po przeglądzie
+
+[tool.ruff.format]
+quote-style = "preserve"

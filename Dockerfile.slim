@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile.slim — CIENKI obraz aplikacji
+#
+# Cała ciężka warstwa ML/OCR/CV siedzi w obrazie bazowym (Dockerfile.base),
+# opublikowanym w GHCR. Tutaj dokładamy WYŁĄCZNIE kod aplikacji, więc build
+# deployu to praktycznie samo `COPY . .` → ~1 min zamiast 7-8.
+#
+# Aktywuj w Coolify, gdy obraz bazowy jest już w registry i serwer potrafi go
+# pobrać — szczegóły i kolejność: docs/OBRAZ_BAZOWY_ML.md
+#
+# Obraz bazowy można nadpisać build-argiem (np. konkretny tag/SHA zamiast latest):
+#   docker build -f Dockerfile.slim \
+#     --build-arg ML_BASE_IMAGE=ghcr.io/tomaszwu14/doccompare-ml-base:<sha> .
+# ─────────────────────────────────────────────────────────────────────────────
+ARG ML_BASE_IMAGE=ghcr.io/tomaszwu14/doccompare-ml-base:latest
+FROM ${ML_BASE_IMAGE}
+
+WORKDIR /app
+
+# Tylko kod — zależności są już w obrazie bazowym.
+# UWAGA: jeśli zmienisz requirements.txt, NAJPIERW przebuduj obraz bazowy
+# (workflow „Buduj obraz bazowy ML"), inaczej cienki obraz nie dostanie
+# nowych pakietów. Patrz docs/OBRAZ_BAZOWY_ML.md.
+COPY . .
+
+EXPOSE 5000
+
+# Migration runs at container start so it targets the runtime DB path
+# (which may be on a persistent mounted volume, not available at build time).
+# Workers: 2 × 3 threads — each worker loads its own model copy (~2 GB),
+# 3 workers exhausted 8 GB RAM and triggered OOM. 2 workers × 3 threads
+# serves ~5 concurrent users with overlap during Claude API I/O waits.
+CMD python migrate_db.py && \
+    gunicorn app:app \
+    --workers 2 \
+    --worker-class gthread \
+    --threads 3 \
+    --timeout 300 \
+    --bind 0.0.0.0:5000

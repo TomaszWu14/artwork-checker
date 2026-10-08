@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% block title %}Admin — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+  h1{font-size:20px;font-weight:500;margin-bottom:5px}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:26px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:30px}
+  .scard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .slbl{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;margin-bottom:6px}
+  .sval{font-size:26px;font-weight:500;font-family:var(--mono)}
+  .verr{color:var(--error)}.vwarn{color:var(--warn)}
+  .sec{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-family:var(--mono)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:28px}
+  th{text-align:left;padding:8px 12px;font-size:11px;font-family:var(--mono);letter-spacing:1px;
+    color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface)}
+  td{padding:9px 12px;border-bottom:1px solid rgba(42,45,58,.5);vertical-align:middle}
+  .mono{font-family:var(--mono);font-size:12px}
+  .bdel{background:none;border:1px solid rgba(255,92,92,.3);color:var(--error);border-radius:6px;
+    padding:4px 9px;cursor:pointer;font-size:12px;font-family:var(--mono);transition:all .15s}
+  .bdel:hover{background:rgba(255,92,92,.1)}
+  .bedit{background:none;border:1px solid rgba(255,179,71,.3);color:#ffb347;border-radius:6px;
+    padding:4px 9px;cursor:pointer;font-size:12px;font-family:var(--mono);transition:all .15s}
+  .bedit:hover{background:rgba(255,179,71,.1)}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center}
+  .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;min-width:340px;max-width:480px;width:90%}
+  .modal-title{font-size:15px;font-weight:500;margin-bottom:18px}
+  .modal-box .ff{margin-bottom:14px}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+  .form{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:18px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .ff{display:flex;flex-direction:column;gap:5px}
+  .ff label{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:1px}
+  .ff input,.ff select{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    padding:8px 11px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;
+    transition:border-color .2s;min-width:150px}
+  .ff input:focus,.ff select:focus{border-color:var(--accent)}
+  .badd{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 18px;
+    font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .badd:hover{opacity:.85}
+  .msg{font-size:13px;margin-top:8px}
+  .mok{color:var(--ok)}.merr{color:var(--error)}
+  .role-select{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    padding:4px 8px;color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;outline:none}
+  .role-select:focus{border-color:var(--accent)}
+  .mod-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;
+    font-size:11px;font-family:var(--mono);border:1px solid var(--border);cursor:pointer;
+    background:var(--surface2);transition:all .12s;user-select:none}
+  .mod-chip.active{background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.5);color:#818cf8}
+  .role-mod-row td{padding:10px 12px;vertical-align:top}
+</style>
+{% endblock %}
+{% block page_title %}Panel administracyjny{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Panel administracyjny</h1>
+  <p class="sub">Statystyki, koszty API i konfiguracja systemu.</p>
+</div>
+
+<div class="stats">
+  <div class="scard"><div class="slbl">ŁĄCZNIE PORÓWNAŃ</div><div class="sval">{{ stats.total or 0 }}</div></div>
+  <div class="scard"><div class="slbl">Z BŁĘDAMI</div><div class="sval verr">{{ stats.errors or 0 }}</div></div>
+  <div class="scard"><div class="slbl">Z OSTRZEŻENIAMI</div><div class="sval vwarn">{{ stats.warnings or 0 }}</div></div>
+</div>
+
+
+<style>
+  .adm-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin:10px 0 22px}
+  .adm-tab{appearance:none;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:10px 18px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-radius:8px 8px 0 0}
+  .adm-tab:hover{color:var(--text);background:var(--surface2,rgba(127,127,127,.06))}
+  .adm-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .adm-pane{display:none}
+  .adm-pane.active{display:block;animation:admFade .15s ease}
+  @keyframes admFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+<div class="adm-tabs" role="tablist">
+  <button type="button" class="adm-tab active" data-pane="api" onclick="admTab('api')" role="tab">💰 Użycie i koszty Claude API</button>
+  <button type="button" class="adm-tab" data-pane="system" onclick="admTab('system')" role="tab">⚙️ Status systemu</button>
+  <button type="button" class="adm-tab" data-pane="aiconfig" onclick="admTab('aiconfig')" role="tab">🤖 Konfiguracja AI</button>
+  <button type="button" class="adm-tab" data-pane="database" onclick="admTab('database')" role="tab">💾 Baza danych</button>
+</div>
+
+<div class="adm-pane active" id="pane-api">
+<!-- ── SEKCJA: UŻYCIE API ── -->
+<div class="sec">Użycie i koszty Claude API</div>
+{% if api_usage %}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+  <div class="scard"><div class="slbl">ŁĄCZNY KOSZT</div><div class="sval" style="color:#7c3aed">${{ '%.4f'|format(api_usage.total_cost) }}</div></div>
+  <div class="scard"><div class="slbl">WYWOŁANIA API</div><div class="sval">{{ api_usage.total_calls }}</div></div>
+  <div class="scard"><div class="slbl">TOKENY WEJŚCIE</div><div class="sval" style="font-size:18px">{{ '{:,}'.format(api_usage.total_input|default(0)|int).replace(',', ' ') }}</div></div>
+  <div class="scard"><div class="slbl">TOKENY WYJŚCIE</div><div class="sval" style="font-size:18px">{{ '{:,}'.format(api_usage.total_output|default(0)|int).replace(',', ' ') }}</div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+  <div class="form" style="flex-direction:column;gap:0;padding:14px 16px">
+    <div style="font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);margin-bottom:10px">WEDŁUG MODELU</div>
+    {% if api_usage.by_model %}
+    <table style="margin:0;font-size:12px">
+      <thead><tr><th scope="col">Model</th><th scope="col" style="text-align:right">Wywołania</th><th scope="col" style="text-align:right">Tokeny</th><th scope="col" style="text-align:right">Koszt USD</th></tr></thead>
+      <tbody>
+      {% for m in api_usage.by_model %}
+      <tr>
+        <td class="mono">{{ m.model }}</td>
+        <td class="mono" style="text-align:right">{{ m.calls }}</td>
+        <td class="mono" style="text-align:right">{{ '{:,}'.format((m.input_tokens+m.output_tokens)|int).replace(',', ' ') }}</td>
+        <td class="mono" style="text-align:right;color:#7c3aed;font-weight:600">${{ '%.4f'|format(m.cost_usd) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div style="color:var(--muted);font-size:12px">Brak danych</div>{% endif %}
+  </div>
+
+  <div class="form" style="flex-direction:column;gap:0;padding:14px 16px">
+    <div style="font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);margin-bottom:10px">WEDŁUG TYPU WYWOŁANIA</div>
+    {% if api_usage.by_type %}
+    <table style="margin:0;font-size:12px">
+      <thead><tr><th scope="col">Typ</th><th scope="col" style="text-align:right">Wywołania</th><th scope="col" style="text-align:right">Koszt USD</th></tr></thead>
+      <tbody>
+      {% for t in api_usage.by_type %}
+      <tr>
+        <td class="mono">{{ t.call_type }}</td>
+        <td class="mono" style="text-align:right">{{ t.calls }}</td>
+        <td class="mono" style="text-align:right;color:#7c3aed;font-weight:600">${{ '%.4f'|format(t.cost_usd) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div style="color:var(--muted);font-size:12px">Brak danych</div>{% endif %}
+  </div>
+</div>
+
+{% if api_usage.recent %}
+<div class="form" style="flex-direction:column;gap:0;padding:14px 16px;margin-bottom:16px">
+  <div style="font-size:11px;font-family:var(--mono);letter-spacing:1px;color:var(--muted);margin-bottom:10px">OSTATNIE 50 WYWOŁAŃ</div>
+  <div style="max-height:260px;overflow-y:auto">
+  <table style="margin:0;font-size:11px">
+    <thead><tr>
+      <th scope="col">Data</th><th scope="col">Użytkownik</th><th scope="col">Model</th><th scope="col">Typ</th>
+      <th scope="col" style="text-align:right">In</th><th scope="col" style="text-align:right">Out</th><th scope="col" style="text-align:right">Koszt</th>
+    </tr></thead>
+    <tbody>
+    {% for r in api_usage.recent %}
+    <tr>
+      <td class="mono" style="white-space:nowrap">{{ (r.created_at|string)[:16] if r.created_at else '—' }}</td>
+      <td>{{ r.username or '—' }}</td>
+      <td class="mono" style="font-size:10px">{{ r.model.split('-')[1] if r.model and '-' in r.model else (r.model or '?') }}</td>
+      <td class="mono" style="font-size:10px;color:var(--muted)">{{ r.call_type }}</td>
+      <td class="mono" style="text-align:right">{{ r.input_tokens }}</td>
+      <td class="mono" style="text-align:right">{{ r.output_tokens }}</td>
+      <td class="mono" style="text-align:right;color:#7c3aed">${{ '%.5f'|format(r.cost_usd) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+</div><!-- /pane-api -->
+
+<div class="adm-pane" id="pane-system">
+<div class="sec">Status systemu i zależności</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:24px">
+  <div id="sysStatusWrap"><span style="color:var(--muted);font-size:12px">Ładowanie…</span></div>
+</div>
+
+<div class="sec" style="margin-top:30px">Zarządzanie modułami</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
+  <a href="/artwork/admin" style="text-decoration:none;display:block;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;transition:border-color .15s">
+    <div style="font-size:22px;margin-bottom:8px">🖼️</div>
+    <div style="font-weight:700;font-size:13px;color:var(--text)">Artwork admin</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:3px">Użytkownicy, ostatnie analizy artwork</div>
+  </a>
+  <a href="/templates" style="text-decoration:none;display:block;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;transition:border-color .15s">
+    <div style="font-size:22px;margin-bottom:8px">📋</div>
+    <div style="font-weight:700;font-size:13px;color:var(--text)">Szablony porównań</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:3px">Twórz i zarządzaj szablonami</div>
+  </a>
+  <a href="/api-costs" style="text-decoration:none;display:block;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;transition:border-color .15s">
+    <div style="font-size:22px;margin-bottom:8px">💰</div>
+    <div style="font-weight:700;font-size:13px;color:var(--text)">Koszty Claude API</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:3px">Analiza kosztów i wywołań AI</div>
+  </a>
+</div>
+</div><!-- /pane-system -->
+
+<div class="adm-pane" id="pane-aiconfig">
+<div class="sec">Konfiguracja AI (Claude API)</div>
+<div class="form" style="flex-direction:column;align-items:stretch;gap:10px">
+  <div style="font-size:13px;color:var(--muted);line-height:1.6">
+    Klucz API do analizy AI artworków i porównań dokumentów. Uzyskaj na <strong style="color:var(--text)">console.anthropic.com</strong>.
+  </div>
+  <div id="aiStatus" style="font-size:12px;font-family:var(--mono);color:var(--muted)">Sprawdzanie...</div>
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <div class="ff" style="flex:1;min-width:280px">
+      <label for="aiKey">KLUCZ ANTHROPIC API</label>
+      <input type="password" id="aiKey" placeholder="sk-ant-api03-..." style="font-family:var(--mono)">
+    </div>
+    <button type="button" class="badd" onclick="saveAiKey()">💾 Zapisz klucz</button>
+  </div>
+  <div class="msg" id="aiMsg"></div>
+</div>
+</div><!-- /pane-aiconfig -->
+
+<div class="adm-pane" id="pane-database" x-data="dbUsage()" x-init="load()">
+  <h2 style="font-size:15px;font-weight:800;margin:0 0 10px">💾 Baza danych — zużycie</h2>
+  <div class="stats">
+    <div class="scard"><div class="slbl">ROZMIAR BAZY (<span x-text="d.engine||'…'"></span>)</div>
+      <div class="sval" x-text="d.db_pretty || '…'"></div></div>
+    <div class="scard"><div class="slbl">MASTERY ARTWORKÓW</div>
+      <div class="sval" x-text="(d.masters_pretty||'0 B') + (d.masters_count!=null ? (' · '+d.masters_count+' plików') : '')"></div></div>
+    <div class="scard"><div class="slbl">WOLNE / LIMIT (dysk)</div>
+      <div class="sval" x-text="d.limit_pretty ? (d.free_pretty + ' / ' + d.limit_pretty) : 'brak limitu'"></div></div>
+    <div class="scard"><div class="slbl">BUDŻET ARTWORKI</div>
+      <div class="sval" :style="(d.artwork_pct!=null && d.artwork_pct>=80)?'color:#dc2626':''"
+           x-text="d.artwork_budget_pretty ? (d.masters_pretty + ' / ' + d.artwork_budget_pretty + ' (' + d.artwork_pct + '%)') : 'brak budżetu'"></div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin:6px 0 14px;font-size:13px;flex-wrap:wrap">
+    <label>Limit dysku (GB):</label>
+    <input type="number" min="0" step="1" x-model="limitInput"
+           style="width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2)">
+    <label style="margin-left:10px">Budżet artworki (GB):</label>
+    <input type="number" min="0" step="1" x-model="artworkInput"
+           style="width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2)">
+    <button class="btn btn-sm btn-primary" @click="saveLimit()">Zapisz</button>
+    <span x-show="savedMsg" x-text="savedMsg" style="font-size:12px;color:#16a34a"></span>
+    <span style="font-size:11px;color:var(--muted)">np. dysk 160, artworki 5</span>
+  </div>
+  <div x-show="d.artwork_pct!=null && d.artwork_pct>=80"
+       style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px">
+    ⚠️ <b>Budżet artworków na wyczerpaniu</b> — zajęte <span x-text="d.artwork_pct"></span>% (<span x-text="d.masters_pretty"></span> z <span x-text="d.artwork_budget_pretty"></span>).
+    Zwiększ budżet powyżej albo dołóż miejsce. (To tylko ostrzeżenie — wgrywanie nie jest blokowane.)
+  </div>
+  <template x-if="(d.tables||[]).length">
+    <div class="scard" style="margin-top:4px">
+      <div class="slbl" style="margin-bottom:6px">NAJWIĘKSZE TABELE</div>
+      <template x-for="t in d.tables" :key="t.name">
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-top:1px solid var(--border)">
+          <span style="font-family:var(--mono)" x-text="t.name"></span><span x-text="t.pretty"></span>
+        </div>
+      </template>
+    </div>
+  </template>
+  <div x-show="d.error" style="color:var(--error);font-size:12px" x-text="d.error"></div>
+</div><!-- /pane-database -->
+<script>
+function dbUsage(){
+  return { d:{}, limitInput:'', artworkInput:'', savedMsg:'',
+    async load(){ try{ const r=await fetch('/api/admin/db-usage'); this.d=await r.json();
+      if(this.d.limit_gb!=null) this.limitInput=this.d.limit_gb;
+      if(this.d.artwork_budget_gb!=null) this.artworkInput=this.d.artwork_budget_gb; }catch(e){ this.d={error:'Błąd pobierania'}; } },
+    async saveLimit(){ this.savedMsg='';
+      const body={}; if(this.limitInput!=='') body.limit_gb=this.limitInput; if(this.artworkInput!=='') body.artwork_gb=this.artworkInput;
+      try{ const r=await fetch('/api/admin/db-limit',{method:'POST',headers:{'Content-Type':'application/json'},
+             body:JSON.stringify(body)});
+        const j=await r.json(); if(!r.ok){ this.savedMsg=''; alert(j.error||'Błąd'); return; }
+        this.savedMsg='Zapisano'; this.load(); setTimeout(()=>this.savedMsg='',2500);
+      }catch(e){ alert('Błąd połączenia'); } } };
+}
+</script>
+
+<!-- Edit user modal -->
+<script>
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let _editUid = null;
+const ALL_MODULES = ['artwork','dane_ref','admin'];   // moduły forka Artwork (usunięto zakupy/transport/spedycja/magazyn)
+
+// ── chip helpers ─────────────────────────────────────────────────────────────
+async function saveAiKey() {
+  const k = document.getElementById('aiKey').value.trim();
+  const m = document.getElementById('aiMsg');
+  if (!k) { m.textContent='Wklej klucz API.'; m.className='msg merr'; return; }
+  if (!k.startsWith('sk-ant-')) { m.textContent='Klucz powinien zaczynać się od sk-ant-'; m.className='msg merr'; return; }
+  const r = await fetch('/api/ai/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({api_key:k}) });
+  const d = await r.json();
+  if (d.ok) { m.textContent='✓ Klucz zapisany i aktywny'; m.className='msg mok'; document.getElementById('aiKey').value=''; loadAiStatus(); }
+  else { m.textContent='✕ '+(d.error||'Błąd'); m.className='msg merr'; }
+}
+async function loadAiStatus() {
+  try {
+    const r = await fetch('/api/ai/status');
+    const d = await r.json();
+    const s = document.getElementById('aiStatus');
+    if (d.api_key_set || d.ok) s.innerHTML = '<span style="color:var(--ok)">✓ Klucz API aktywny</span>' + (d.model?' — model: '+esc(d.model):'');
+    else s.innerHTML = '<span style="color:var(--error)">✗ Brak klucza — analiza AI niedostępna</span>';
+  } catch(e) { document.getElementById('aiStatus').textContent = 'Błąd sprawdzania statusu'; }
+}
+
+// ── ref database ──────────────────────────────────────────────────────────────
+async function loadRefDbStats() {
+  try {
+    const r = await fetch('/api/ref-database/stats');
+    const d = await r.json();
+    const el = document.getElementById('refDbStats');
+    if (d.count > 0) {
+      el.innerHTML = '<span style="color:var(--ok)">'+esc(d.count)+' kodów REF</span>'+(d.last_uploaded?'<br>ostatnio: '+esc(d.last_uploaded):'');
+      {% if session.get('role') == 'admin' %}
+      document.getElementById('refDbClearBtn').style.display = '';
+      {% endif %}
+    } else { el.textContent = 'Baza pusta'; }
+  } catch(e) { document.getElementById('refDbStats').textContent = 'Błąd ładowania statystyk'; }
+}
+async function uploadRefDb() {
+  const f = document.getElementById('refDbFile').files[0];
+  const m = document.getElementById('refDbMsg');
+  if (!f) return;
+  m.textContent = 'Importowanie...'; m.className = 'msg';
+  const fd = new FormData();
+  fd.append('file', f);
+  try {
+    const r = await fetch('/api/ref-database/upload', { method:'POST', body:fd });
+    const d = await r.json();
+    if (d.ok) { m.textContent = '✓ Zaimportowano: '+d.imported+' kodów, pominięto: '+d.skipped; m.className='msg mok'; loadRefDbStats(); }
+    else { m.textContent = '✕ '+(d.error||'Błąd'); m.className='msg merr'; }
+  } catch(e) { m.textContent = '✕ Błąd połączenia'; m.className='msg merr'; }
+  document.getElementById('refDbFile').value = '';
+}
+async function clearRefDb() {
+  confirmModal('Usunąć wszystkie wpisy z bazy REF? Tej operacji nie można cofnąć.', async () => {
+    const m = document.getElementById('refDbMsg');
+    try {
+      const r = await fetch('/api/ref-database', { method:'DELETE' });
+      const d = await r.json();
+      if (d.ok) { m.textContent='✓ Baza REF wyczyszczona'; m.className='msg mok'; document.getElementById('refDbClearBtn').style.display='none'; loadRefDbStats(); toast('Baza REF wyczyszczona', 'ok'); }
+      else { m.textContent='✕ '+(d.error||'Błąd'); m.className='msg merr'; toast(d.error||'Błąd','error'); }
+    } catch(e) { m.textContent='✕ Błąd połączenia'; m.className='msg merr'; }
+  }, { okLabel: 'Usuń wszystko', danger: true });
+}
+
+// ── system status ─────────────────────────────────────────────────────────────
+async function loadSystemStatus() {
+  const wrap = document.getElementById('sysStatusWrap');
+  wrap.innerHTML = '<span style="color:var(--muted);font-size:12px">Sprawdzanie…</span>';
+  try {
+    const _sr = await fetch('/api/admin/system-status');
+    if (!_sr.ok) throw new Error('HTTP ' + _sr.status);
+    const d = await _sr.json();
+    if (!d.ok) { wrap.innerHTML = '<span style="color:var(--error)">Błąd API</span>'; return; }
+    const s = d.summary;
+    const allOk = s.fail === 0;
+    let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:22px;font-weight:700;color:${allOk?'var(--ok)':'var(--error)'}">${allOk?'✓ Wszystko OK':'✕ '+s.fail+' błędów'}</span>
+      <span style="font-size:12px;color:var(--muted)">${s.ok}/${s.total} zależności aktywnych</span>
+      <button type="button" onclick="loadSystemStatus()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:var(--muted)">↻ Odśwież</button>
+    </div>`;
+    const sys = d.checks.filter(c=>!c.name.startsWith('py_'));
+    const py  = d.checks.filter(c=> c.name.startsWith('py_'));
+    function renderGroup(items, title) {
+      let g = `<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:12px 0 6px">${title}</div>`;
+      g += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px">';
+      for (const c of items) {
+        const col = c.ok ? 'var(--ok)' : 'var(--error)';
+        g += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:flex-start;gap:8px">
+          <span style="color:${col};font-weight:700;font-size:13px;flex-shrink:0;margin-top:1px">${c.ok?'✓':'✕'}</span>
+          <div style="min-width:0"><div style="font-size:12px;font-weight:600;color:var(--text)">${esc(c.label)}</div>
+          ${c.detail?`<div style="font-size:11px;color:${c.ok?'var(--muted)':'var(--error)'};margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.detail)}">${esc(c.detail)}</div>`:''}</div></div>`;
+      }
+      return g + '</div>';
+    }
+    html += renderGroup(sys, 'Binaries systemowe');
+    html += renderGroup(py, 'Biblioteki Python');
+    const r = d.runtime;
+    html += `<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:14px 0 6px">Środowisko runtime</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;font-family:var(--mono);display:grid;grid-template-columns:1fr 1fr;gap:4px 20px">
+      <div><span style="color:var(--muted)">Python:</span> ${esc((r.python||'').split(' ')[0])}</div>
+      <div><span style="color:var(--muted)">Platform:</span> ${esc(r.platform)}</div>
+      <div><span style="color:var(--muted)">MASTERS_DIR:</span> ${esc(r.masters_dir)}</div>
+      <div><span style="color:${r.masters_dir_writable?'var(--ok)':'var(--error)'}">masters zapisywalny: ${r.masters_dir_writable?'tak':'NIE'}</span></div>
+      <div><span style="color:var(--muted)">DATA_DIR env:</span> ${esc(r.data_dir_env)}</div>
+      <div><span style="color:${r.database_url_set?'var(--ok)':'var(--muted)'}">DATABASE_URL: ${r.database_url_set?'ustawiony':'(brak — SQLite)'}</span></div>
+      <div><span style="color:${r.anthropic_key_set?'var(--ok)':'var(--error)'}">ANTHROPIC_API_KEY: ${r.anthropic_key_set?'ustawiony':'BRAK'}</span></div>
+    </div>`;
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = `<span style="color:var(--error)">Błąd: ${esc(e.message)}</span>`;
+  }
+}
+
+// ── zakładki panelu admina ─────────────────────────────────────────────────────
+function admTab(name){
+  document.querySelectorAll('.adm-pane').forEach(function(p){ p.classList.toggle('active', p.id === 'pane-'+name); });
+  document.querySelectorAll('.adm-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.pane === name); });
+  try { localStorage.setItem('admTab', name); } catch(e){}
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+loadAiStatus();
+loadSystemStatus();
+loadRoleModules();
+// Przywróć ostatnio otwartą zakładkę.
+try { var _at = localStorage.getItem('admTab'); if (_at && document.getElementById('pane-'+_at)) admTab(_at); } catch(e){}
+</script>
+{% endblock %}

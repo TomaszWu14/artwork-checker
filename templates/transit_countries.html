@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Państwa tranzytowe — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.tc-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.tc-bar input{padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:13px;min-width:240px}
+table.tc{width:100%;border-collapse:collapse;font-size:13.5px;max-width:560px}
+table.tc th,table.tc td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border)}
+table.tc th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.tc-empty{color:var(--muted);font-style:italic;padding:20px;text-align:center}
+.tc-del{background:none;border:1px solid rgba(255,92,92,.3);color:var(--error);border-radius:6px;
+  padding:3px 9px;cursor:pointer;font-size:12px}
+.tc-del:hover{background:rgba(255,92,92,.1)}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Państwa tranzytowe{% endblock %}
+
+{% block content %}
+<div x-data="transitApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🌍 Państwa tranzytowe</h1>
+    <p>Lista krajów wybieranych przy zakładaniu dostawy jako <b>Tranzyt – &lt;kraj&gt;</b>
+       (proces inny niż Magazyn Centralny Radom).</p>
+  </div>
+
+  {% if role in ['manager','superuser','admin'] %}
+  <div class="tc-bar">
+    <input type="text" x-model="newName" placeholder="np. Iberia" @keydown.enter="add()">
+    <button class="btn btn-sm btn-primary" @click="add()" :disabled="!newName.trim()">＋ Dodaj kraj</button>
+    <span x-show="msg" x-text="msg" style="font-size:12px" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+  </div>
+  {% endif %}
+
+  <table class="tc">
+    <thead><tr><th>Państwo</th>{% if role in ['manager','superuser','admin'] %}<th style="width:80px"></th>{% endif %}</tr></thead>
+    <tbody>
+      <template x-if="loaded && items.length===0">
+        <tr><td colspan="2" class="tc-empty">Brak krajów — dodaj pierwszy powyżej.</td></tr>
+      </template>
+      <template x-for="c in items" :key="c.id">
+        <tr>
+          <td x-text="c.name"></td>
+          {% if role in ['manager','superuser','admin'] %}
+          <td><button class="tc-del" @click="remove(c)">Usuń</button></td>
+          {% endif %}
+        </tr>
+      </template>
+    </tbody>
+  </table>
+</div>
+
+<script>
+function transitApp(){
+  return {
+    items:[], loaded:false, newName:'', msg:'', ok:false,
+    async load(){ try{ const r=await fetch('/api/transit-countries'); this.items=await r.json(); }
+      catch(e){ if(window.toast) toast('Nie udało się wczytać krajów','error'); } finally{ this.loaded=true; } },
+    async add(){
+      const name=this.newName.trim(); if(!name) return;
+      this.msg='';
+      try{
+        const r=await fetch('/api/transit-countries',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name})});
+        const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.newName=''; this.msg='Dodano: '+name; this.ok=true; this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+    },
+    async remove(c){
+      if(!confirm('Usunąć „'+c.name+'” z listy?')) return;
+      this.msg='';
+      try{
+        const r=await fetch('/api/transit-countries/'+c.id,{method:'DELETE'});
+        const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Usunięto: '+c.name; this.ok=true; this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+    },
+  };
+}
+</script>
+{% endblock %}

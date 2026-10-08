@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>ArtCompare — raport porównania artworków</title>
+<meta name="viewport" content="width=1440" />
+<base href="/artwork/design-preview/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #08111e; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #eaedf2; }
+  * { box-sizing: border-box; }
+  :root {
+    /* Deep navy / oxford blue palette */
+    --paper:     #0d1b2c;  /* artboard "page" surface */
+    --paper-2:   #142840;  /* panels, sub-areas */
+    --paper-3:   #1c3554;  /* hover, accent surface */
+    --paper-tint:#102134;  /* slightly lifted from paper */
+    --ink:       #eaedf2;  /* primary text */
+    --ink-2:     #c1cad8;  /* secondary */
+    --ink-3:     #8b97ad;  /* tertiary / meta */
+    --ink-4:     #5a6b85;  /* placeholder / muted */
+    --rule:      #1d3148;  /* hairline */
+    --rule-2:    #2a4262;  /* visible rule */
+    --rule-3:    #3b577d;  /* strong rule */
+    --critical:    #ff7864;
+    --critical-bg: #3a1a18;
+    --warn:        #ffba4f;
+    --warn-bg:     #3a2a12;
+    --ok:          #6ad29a;
+    --ok-bg:       #15331f;
+    --info:        #79bbff;
+    --info-bg:     #142c45;
+    --accent:      #ffba4f;
+    --accent-2:    #79bbff;
+    /* keep artwork canvas (physical packaging) light — opposite of UI chrome */
+    --art-paper: #fdfcf7;
+    --art-ink:   #14130f;
+  }
+  ::selection { background: rgba(121,187,255,.35); color: #fff; }
+  /* Geist look on numbers/code */
+  code, .mono, .num { font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'ss01','zero'; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="artwork-svg.jsx"></script>
+<script type="text/babel" src="variant-a.jsx"></script>
+<script type="text/babel" src="variant-b.jsx"></script>
+<script type="text/babel" src="variant-c.jsx"></script>
+<script type="text/babel" src="variant-d.jsx"></script>
+<script type="text/babel" src="variant-e.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+
+</body>
+</html>

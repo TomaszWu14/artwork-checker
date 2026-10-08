@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Materiały — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.mm-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.mm-toolbar input[type=search],.mm-toolbar input[type=text],.mm-toolbar input[type=date],.mm-toolbar select{
+  padding:8px 11px;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:13px}
+.mm-toolbar input[type=search]{flex:1;min-width:200px}
+.mm-toolbar label.flbl{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.mm-count{font-size:12px;color:var(--muted)}
+.mm-tblwrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);max-height:74vh}
+table.mm{width:100%;border-collapse:collapse;font-size:12px}
+table.mm th,table.mm td{padding:5px 9px;text-align:left;border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);vertical-align:top;white-space:nowrap}
+table.mm th{background:var(--accent-bg,#eff6ff);font-size:10px;font-weight:700;
+  position:sticky;top:0;z-index:1}
+table.mm th.lv{background:#e0ecff;text-align:center}
+table.mm th.lv-paz{background:#fef3c7}
+table.mm tr:hover td{background:var(--accent-bg,#f4f8ff)}
+.mm-ref{font-family:var(--mono);font-weight:800}
+.mm-mono{font-family:var(--mono)}
+.mm-ctr{text-align:center}
+.mm-desc{max-width:240px;white-space:normal}
+.mm-del{background:none;border:1px solid rgba(255,92,92,.3);color:var(--error);border-radius:6px;
+  padding:2px 7px;cursor:pointer;font-size:11px}
+.mm-del:hover{background:rgba(255,92,92,.1)}
+.mm-pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:13px}
+.mm-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center;white-space:normal}
+table.mm thead tr.mm-filter th{top:22px;background:#fbfdff;padding:2px 3px;text-align:center;z-index:1}
+.mm-fbtn{width:100%;min-width:40px;font-size:11px;border:1px solid var(--border);border-radius:4px;
+  background:#fff;cursor:pointer;color:var(--muted);padding:2px 4px}
+.mm-fbtn.on{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700}
+.mm-pop{position:fixed;z-index:60;width:280px;max-width:92vw;background:#fff;border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.18);padding:8px;font-size:13px}
+.mm-pop-hd{font-weight:800;font-size:12px;margin-bottom:6px}
+.mm-pop-search{width:100%;box-sizing:border-box;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px}
+.mm-pop-actions{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
+.mm-pop-list{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:6px}
+.mm-pop-item{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:12px;white-space:nowrap;cursor:pointer}
+.mm-pop-item:hover{background:var(--accent-bg,#f4f8ff)}
+.mm-pop-item>span:first-of-type{flex:1;overflow:hidden;text-overflow:ellipsis}
+.mm-pop-cnt{color:var(--muted);font-size:11px}
+.mm-pop-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Materiały (master data){% endblock %}
+
+{% block content %}
+<div x-data="materialsApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>📦 Master data materiałów</h1>
+    <p>Płaska tabela — układ jak w pliku migracyjnym (każde pole w osobnej kolumnie, poziomy SZT/OP/OPZ/KAR/PAZ/PPA rozbite na kolumny). Filtry + data migracji rekordu.</p>
+  </div>
+
+  <div class="mm-toolbar">
+    <input type="search" placeholder="Szukaj: REF, opis, EAN…" x-model="q" @input.debounce.350="reset()">
+    <select x-model="rodzina" @change="reset()">
+      <option value="">Wszystkie rodziny</option>
+      <template x-for="f in families" :key="f"><option :value="f" x-text="f"></option></template>
+    </select>
+    <input type="text" placeholder="Producent…" x-model="producent" @input.debounce.350="reset()" style="width:130px">
+    <label class="flbl">Migracja od<input type="date" x-model="after" @change="reset()"></label>
+    <label class="flbl">Migracja do<input type="date" x-model="before" @change="reset()"></label>
+    <span class="mm-count" x-text="total + ' rekordów'"></span>
+    {% if role in ['manager','superuser','admin'] %}
+    <label class="btn btn-sm btn-primary" style="cursor:pointer">⬆ Import
+      <input type="file" accept=".xlsx,.csv" style="display:none" @change="doImport($event)"></label>
+    <button class="btn btn-sm btn-ghost" style="border-color:rgba(255,92,92,.4);color:var(--error)"
+            @click="deleteOld()" :disabled="!before"
+            title="Usuwa rekordy z datą migracji starszą niż „Migracja do”">🗑 Usuń starsze niż „do”</button>
+    {% endif %}
+    <span x-show="importMsg" x-text="importMsg" style="font-size:12px" :style="importOk?'color:#16a34a':'color:var(--error)'"></span>
+  </div>
+
+  <div class="mm-tblwrap">
+    <table class="mm">
+      <thead>
+        <tr>
+          <template x-for="c in COLS" :key="'h'+c.id">
+            <th :class="c.cls" x-text="c.lbl"></th>
+          </template>
+          {% if role in ['manager','superuser','admin'] %}<th></th>{% endif %}
+        </tr>
+        <tr class="mm-filter">
+          <template x-for="c in COLS" :key="'f'+c.id">
+            <th :class="c.cls">
+              <button type="button" class="mm-fbtn" :class="(filterSel[c.id]&&filterSel[c.id].length)?'on':''"
+                      @click.stop="openColFilter(c.id, $event)" :title="c.lbl">
+                <span x-text="(filterSel[c.id]&&filterSel[c.id].length)? ('▼ '+filterSel[c.id].length) : '▽'"></span>
+              </button>
+            </th>
+          </template>
+          {% if role in ['manager','superuser','admin'] %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        <template x-if="filteredItems.length===0">
+          <tr><td :colspan="totalCols" class="mm-empty">Brak materiałów dla tych filtrów.</td></tr>
+        </template>
+        <template x-for="m in viewItems" :key="m.ref_code">
+          <tr>
+            <template x-for="c in COLS" :key="m.ref_code+c.id">
+              <td :class="c.td" x-text="valOf(m, c.id)"></td>
+            </template>
+            {% if role in ['manager','superuser','admin'] %}
+            <td><button class="mm-del" @click="deleteOne(m)">Usuń</button></td>
+            {% endif %}
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  {# Excel-owy filtr kolumny: podpowiedzi (distinct) + wielokrotny wybór #}
+  <div x-show="openFilter" x-cloak class="mm-pop" @click.outside="openFilter=null"
+       :style="'left:'+popX+'px;top:'+popY+'px'">
+    <div class="mm-pop-hd" x-text="colLabel(openFilter)"></div>
+    <input class="mm-pop-search" type="search" x-model="popSearch" placeholder="Szukaj wartości…">
+    <div class="mm-pop-actions">
+      <a href="#" @click.prevent="selectAll(openFilter)">Zaznacz widoczne</a>
+      <a href="#" @click.prevent="clearCol(openFilter)">Wyczyść</a>
+    </div>
+    <div class="mm-pop-list">
+      <template x-for="v in popValues()" :key="'pv'+v.raw">
+        <label class="mm-pop-item">
+          <input type="checkbox" :checked="isSel(openFilter, v.raw)" @change="toggleVal(openFilter, v.raw)">
+          <span x-text="v.label"></span>
+          <span class="mm-pop-cnt" x-text="v.count"></span>
+        </label>
+      </template>
+      <template x-if="popValues().length===0">
+        <div style="padding:8px;color:var(--muted);font-style:italic">Brak wartości</div>
+      </template>
+    </div>
+    <div class="mm-pop-foot">
+      <span x-text="'Filtr działa na wczytanej stronie ('+items.length+')'"></span>
+      <button class="btn btn-sm btn-primary" @click="openFilter=null">OK</button>
+    </div>
+  </div>
+
+  <div class="mm-pager">
+    <span x-text="'Wczytano wszystkie: ' + items.length + (filteredItems.length!==items.length ? (' · po filtrze: ' + filteredItems.length) : '') + ' · pokazano: ' + viewItems.length"></span>
+    <button class="btn btn-sm btn-ghost" x-show="viewItems.length < filteredItems.length"
+            @click="renderLimit += 1000">Pokaż więcej (+1000)</button>
+  </div>
+</div>
+
+<script>
+function materialsApp(){
+  const _roleAdmin = {{ ('true' if role in ['manager','superuser','admin'] else 'false') }};
+  // Kolumny DOKŁADNIE w kolejności pliku migracyjnego (per poziom: Wymiar, EAN,
+  // Ilość, Artwork). Nagłówek, filtry I dane idą z tej samej listy → brak rozjazdu.
+  const COLS=[
+    {id:'ref_code',     lbl:'REF',          cls:'', td:'mm-ref'},
+    {id:'opis_pl',      lbl:'Opis PL',      cls:'', td:'mm-desc'},
+    {id:'opis_en',      lbl:'Opis EN',      cls:'', td:'mm-desc'},
+    {id:'base_uom',     lbl:'Podstawowa JM',cls:'', td:''},
+    {id:'rodzina',      lbl:'Rodzina',      cls:'', td:''},
+    {id:'producer_code',lbl:'Producent',    cls:'', td:''},
+    {id:'txt_short_pl', lbl:'TXT_SHORT_PL', cls:'', td:'mm-desc'},
+  ];
+  [['sztuka','SZT'],['op','OP'],['opz','OPZ'],['karton','KAR']].forEach(([k,l])=>{
+    COLS.push({id:k+'.wymiar',     lbl:l+' Wymiar', cls:'lv', td:'mm-mono'});
+    COLS.push({id:k+'.ean',        lbl:l+' EAN',    cls:'lv', td:'mm-mono'});
+    COLS.push({id:k+'.qty_base',   lbl:l+' Ilość',  cls:'lv', td:'mm-mono'});
+    COLS.push({id:k+'.artwork_ref',lbl:l+' Artwork',cls:'lv', td:'mm-mono'});
+  });
+  COLS.push({id:'paz.qty_base', lbl:'PAZ Ilość', cls:'lv-paz', td:'mm-mono'});
+  COLS.push({id:'ppa.qty_base', lbl:'PPA Ilość', cls:'lv-paz', td:'mm-mono'});
+  COLS.push({id:'customs_code', lbl:'Kod celny', cls:'', td:'mm-mono'});
+  COLS.push({id:'sent',         lbl:'SENT',      cls:'', td:'mm-ctr'});
+  COLS.push({id:'vat_rate',     lbl:'VAT',       cls:'', td:''});
+  // Kolumny systemowe (poza plikiem) — dopięte na końcu.
+  COLS.push({id:'tariff_cn',     lbl:'Taryfa CN',    cls:'', td:'mm-mono'});
+  COLS.push({id:'ean',           lbl:'EAN',          cls:'', td:'mm-mono'});
+  COLS.push({id:'supplier_codes',lbl:'Dostawcy',     cls:'', td:''});
+  COLS.push({id:'updated_at',    lbl:'Data migracji',cls:'', td:'mm-mono'});
+  return {
+    COLS,
+    q:'', rodzina:'', producent:'', before:'', after:'',
+    items:[], families:[], total:0, offset:0, importMsg:'', importOk:false,
+    filterSel:{}, openFilter:null, popSearch:'', popX:0, popY:0, renderLimit:500,
+    get totalCols(){ return COLS.length + (_roleAdmin?1:0); },
+    // Renderujemy tylko porcję (DOM lekki), ale FILTRY działają na całym zakresie.
+    get viewItems(){ return this.filteredItems.slice(0, this.renderLimit); },
+    // levels_json parsowane RAZ na rekord (cache na obiekcie) — bez tego re-parse zabija wydajność.
+    _levels(m){ if(!m._lv){ try{ m._lv=JSON.parse(m.levels_json||'{}'); }catch(e){ m._lv={}; } } return m._lv; },
+    cell(m, key, sub){ const lv=this._levels(m)[key]; return (lv && lv[sub]!=null) ? String(lv[sub]) : ''; },
+    // Wartość kolumny (do wyświetlania/filtrowania) dla danego materiału.
+    valOf(m, id){
+      if(id.includes('.')){ const p=id.split('.'); return this.cell(m,p[0],p[1]); }
+      if(id==='sent') return (m.sent==1)?'✓':'—';
+      if(id==='vat_rate') return (m.vat_rate||'')?(m.vat_rate==='zw'?'zw':m.vat_rate+'%'):'';
+      if(id==='updated_at') return this.fmtDate(m.updated_at);
+      return (m[id]==null?'':String(m[id]));
+    },
+    colLabel(id){ const c=COLS.find(x=>x.id===id); return c?c.lbl:id; },
+    // Filtr Excel: zaznaczone wartości per kolumna (wielokrotny wybór). Pusty = brak.
+    get filteredItems(){
+      const sel=this.filterSel||{};
+      const ids=Object.keys(sel).filter(k=>sel[k]&&sel[k].length);
+      if(!ids.length) return this.items;
+      return this.items.filter(m=>ids.every(id=>sel[id].includes(this.valOf(m,id))));
+    },
+    // Distinct wartości dla popupu (podpowiedzi) + licznik, filtrowane po szukajce.
+    popValues(){
+      const id=this.openFilter; if(!id) return [];
+      const cnt={};
+      this.items.forEach(m=>{ const v=this.valOf(m,id); cnt[v]=(cnt[v]||0)+1; });
+      const q=(this.popSearch||'').toLowerCase();
+      return Object.keys(cnt).sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}))
+        .map(v=>({raw:v, label:(v===''?'(puste)':v), count:cnt[v]}))
+        .filter(o=>!q || o.label.toLowerCase().includes(q));
+    },
+    isSel(id,v){ return (this.filterSel[id]||[]).includes(v); },
+    toggleVal(id,v){ const cur=this.filterSel[id]?[...this.filterSel[id]]:[];
+      const i=cur.indexOf(v); if(i>=0)cur.splice(i,1); else cur.push(v);
+      this.filterSel={...this.filterSel,[id]:cur}; this.renderLimit=500; },
+    selectAll(id){ this.filterSel={...this.filterSel,[id]:this.popValues().map(o=>o.raw)}; this.renderLimit=500; },
+    clearCol(id){ const f={...this.filterSel}; delete f[id]; this.filterSel=f; this.renderLimit=500; },
+    openColFilter(id,ev){ this.openFilter=(this.openFilter===id?null:id); this.popSearch='';
+      const r=ev.currentTarget.getBoundingClientRect();
+      this.popX=Math.min(r.left, window.innerWidth-300); this.popY=r.bottom+4; },
+    fmtDate(s){ return s ? String(s).slice(0,10) : ''; },
+    qs(){ return '?limit=0&q='+encodeURIComponent(this.q)+'&rodzina='+encodeURIComponent(this.rodzina)
+      +'&producent='+encodeURIComponent(this.producent)+'&before='+encodeURIComponent(this.before)
+      +'&after='+encodeURIComponent(this.after); },
+    async load(){ try{ const r=await fetch('/api/materials'+this.qs()); const d=await r.json();
+      this.items=d.items||[]; this.total=d.total||0; if(d.families)this.families=d.families; }catch(e){ if(window.toast) toast('Nie udało się wczytać materiałów','error'); } },
+    reset(){ this.offset=0; this.load(); },
+    next(){ if(this.offset+this.items.length<this.total){ this.offset+=100; this.load(); } },
+    prev(){ if(this.offset>0){ this.offset=Math.max(0,this.offset-100); this.load(); } },
+    async doImport(ev){ const f=ev.target.files[0]; if(!f)return; this.importMsg='Importuję…'; this.importOk=false;
+      const fd=new FormData(); fd.append('file',f);
+      try{ const r=await fetch('/api/materials/import',{method:'POST',body:fd}); const d=await r.json();
+        if(!r.ok){ this.importMsg=d.error||'Błąd'; this.importOk=false; return; }
+        this.importMsg='Zaimportowano: '+d.imported+' (przeliczniki: '+(d.conversions||0)+')'; this.importOk=true; this.reset();
+      }catch(e){ this.importMsg='Błąd połączenia'; this.importOk=false; } finally{ ev.target.value=''; } },
+    async deleteOne(m){ if(!confirm('Usunąć rekord '+m.ref_code+'?'))return;
+      try{ const r=await fetch('/api/materials/'+encodeURIComponent(m.ref_code),{method:'DELETE'}); const d=await r.json();
+        if(!r.ok){ this.importMsg=d.error||'Błąd'; this.importOk=false; return; }
+        this.importMsg='Usunięto: '+m.ref_code; this.importOk=true; this.load();
+      }catch(e){ this.importMsg='Błąd połączenia'; this.importOk=false; } },
+    async saveField(m, field, value){
+      m[field]=value;  // optymistycznie
+      const body={}; body[field]=value;
+      try{ const r=await fetch('/api/materials/'+encodeURIComponent(m.ref_code),
+            {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const d=await r.json();
+        if(!r.ok){ this.importMsg=(d&&d.error)||'Błąd zapisu'; this.importOk=false; return; }
+        this.importMsg='Zapisano '+m.ref_code+' · '+(field==='sent'?'SENT':'VAT'); this.importOk=true;
+      }catch(e){ this.importMsg='Błąd połączenia'; this.importOk=false; }
+    },
+    async deleteOld(){ if(!this.before){ this.importMsg='Ustaw „Migracja do”, by usunąć starsze rekordy'; this.importOk=false; return; }
+      if(!confirm('Usunąć WSZYSTKIE rekordy z datą migracji starszą niż '+this.before+'? Tej operacji nie można cofnąć.'))return;
+      this.importMsg='Usuwam stare…'; this.importOk=false;
+      try{ const r=await fetch('/api/materials/delete-old',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({before:this.before})}); const d=await r.json();
+        if(!r.ok){ this.importMsg=d.error||'Błąd'; this.importOk=false; return; }
+        this.importMsg='Usunięto starych rekordów: '+(d.deleted||0); this.importOk=true; this.reset();
+      }catch(e){ this.importMsg='Błąd połączenia'; this.importOk=false; } },
+  };
+}
+</script>
+{% endblock %}

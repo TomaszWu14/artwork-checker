@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Koszty API Claude — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1100px;margin:28px auto;padding:0 20px}
+.page-header h1{font-size:20px;font-weight:700;color:#1a1a2e}
+.page-header p{color:#6b7280;margin-top:3px;font-size:13px}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.kpi-card{background:#fff;border-radius:10px;padding:20px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center;border-top:3px solid #e5e7eb}
+.kpi-card.blue{border-top-color:#1d4ed8}.kpi-card.green{border-top-color:#16a34a}
+.kpi-card.orange{border-top-color:#d97706}.kpi-card.purple{border-top-color:#7c3aed}
+.kpi-num{font-size:32px;font-weight:700;line-height:1;margin-bottom:6px}
+.kpi-card.blue .kpi-num{color:#1d4ed8}.kpi-card.green .kpi-num{color:#16a34a}
+.kpi-card.orange .kpi-num{color:#d97706}.kpi-card.purple .kpi-num{color:#7c3aed}
+.kpi-lbl{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.4px}
+.kpi-sub{font-size:11px;color:#9ca3af;margin-top:4px}
+
+.panel{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+.section-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.dtable{width:100%;border-collapse:collapse;font-size:13px}
+.dtable th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280}
+.dtable td{padding:9px 12px;border-bottom:1px solid #f3f4f6;font-family:'IBM Plex Mono','Fira Code',monospace;font-size:12px}
+.dtable tr:last-child td{border-bottom:none}
+.dtable tr:hover td{background:#f0f7ff}
+.mono{font-family:'IBM Plex Mono','Fira Code',monospace}
+
+.bar-wrap{background:#e5e7eb;border-radius:4px;height:8px;min-width:60px;overflow:hidden;display:inline-block;width:80px;vertical-align:middle}
+.bar-fill{height:100%;border-radius:4px;background:#1d4ed8;transition:width .4s}
+
+.chart-wrap{position:relative;height:200px}
+</style>{% endblock %}
+{% block page_title %}Koszty API{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>💰 Koszty API Claude</h1>
+    <p>{% if is_admin %}Zbiorcze koszty wszystkich użytkowników{% else %}Twoje koszty Claude API{% endif %}</p>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num">{{ "%.2f"|format((totals.cost or 0) * usd_to_pln) }} zł</div>
+      <div class="kpi-lbl">Łączny koszt</div>
+      <div class="kpi-sub">od uruchomienia</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num">{{ "%.2f"|format((current_month.cost or 0) * usd_to_pln) }} zł</div>
+      <div class="kpi-lbl">Bieżący miesiąc</div>
+      <div class="kpi-sub">{{ current_month.calls or 0 }} wywołań</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num">{{ totals.calls or 0 }}</div>
+      <div class="kpi-lbl">Wywołań łącznie</div>
+      <div class="kpi-sub">wszystkich modeli</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-num">{{ "%.4f"|format((avg_cost or 0) * usd_to_pln) }} zł</div>
+      <div class="kpi-lbl">Śr. koszt / wywołanie</div>
+      <div class="kpi-sub">PLN (kurs {{ usd_to_pln }} zł/USD)</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+
+    <!-- MONTHLY CHART -->
+    <div class="panel">
+      <div class="section-title">Koszty miesięczne (ostatnie 12 miesięcy)</div>
+      <div class="chart-wrap">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- BY TYPE -->
+    <div class="panel">
+      <div class="section-title">Według typu wywołania</div>
+      <table class="dtable">
+        <thead><tr><th scope="col">Typ</th><th scope="col">Wywołania</th><th scope="col">Koszt</th></tr></thead>
+        <tbody>
+        {% for r in by_type %}
+        <tr>
+          <td>{{ r.call_type or '—' }}</td>
+          <td>{{ r.calls }}</td>
+          <td>{{ "%.4f"|format((r.cost or 0) * usd_to_pln) }} zł</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" style="color:#9ca3af;text-align:center;padding:20px">Brak danych</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BY MODEL -->
+  <div class="panel">
+    <div class="section-title">Według modelu</div>
+    <table class="dtable">
+      <thead><tr>
+        <th scope="col">Model</th><th scope="col">Wywołania</th>
+        <th scope="col">Tokeny wejściowe</th><th scope="col">Tokeny wyjściowe</th>
+        <th scope="col">Koszt PLN</th>
+      </tr></thead>
+      <tbody>
+      {% for r in by_model %}
+      <tr>
+        <td>{{ r.model or '—' }}</td>
+        <td>{{ r.calls }}</td>
+        <td>{{ "{:,}".format(r.inp or 0) }}</td>
+        <td>{{ "{:,}".format(r.out or 0) }}</td>
+        <td>{{ "%.4f"|format((r.cost or 0) * usd_to_pln) }} zł</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="color:#9ca3af;text-align:center;padding:20px">Brak danych</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if is_admin and by_user %}
+  <!-- BY USER (admin only) -->
+  <div class="panel">
+    <div class="section-title">Według użytkownika</div>
+    <table class="dtable">
+      <thead><tr><th scope="col">Użytkownik</th><th scope="col">Wywołania</th><th scope="col">Koszt PLN</th><th scope="col">Udział</th></tr></thead>
+      <tbody>
+      {% for r in by_user %}
+      <tr>
+        <td>{{ r.username or '—' }}</td>
+        <td>{{ r.calls }}</td>
+        <td>{{ "%.4f"|format((r.cost or 0) * usd_to_pln) }} zł</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="bar-wrap"><div class="bar-fill" style="width:{{ r.pct }}%"></div></div>
+            <span>{{ r.pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+(function(){
+  const monthly = {{ monthly | tojson }};
+  const usdToPln = {{ usd_to_pln }};
+  const labels = monthly.map(r=>r.month);
+  const costs  = monthly.map(r=>parseFloat(r.cost||0)*usdToPln);
+  const ctx = document.getElementById('monthlyChart');
+  if(!ctx||!monthly.length){
+    ctx&&(ctx.parentElement.innerHTML='<p style="color:#9ca3af;text-align:center;padding:40px">Brak danych</p>');
+    return;
+  }
+  new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'Koszt PLN',
+        data:costs,
+        borderColor:'#1d4ed8',
+        backgroundColor:'rgba(29,78,216,.08)',
+        borderWidth:2,
+        fill:true,
+        tension:.35,
+        pointBackgroundColor:'#1d4ed8',
+        pointRadius:4
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{ticks:{callback:v=>v.toFixed(4)+' zł'},grid:{color:'rgba(0,0,0,.05)'}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Szablony porównań — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1100px;margin:28px auto;padding:0 20px}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px}
+/* .btn-primary / .btn-ghost — z app.css (ładowany przez base.html). */
+.btn-danger{background:none;border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:12px;color:#dc2626;cursor:pointer}
+.btn-danger:hover{background:#fef2f2}
+.btn-edit{background:none;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;font-size:12px;color:#1d4ed8;cursor:pointer}
+.btn-edit:hover{background:#eff6ff}
+
+.panel{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:20px}
+.section-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.dtable{width:100%;border-collapse:collapse;font-size:13px}
+.dtable th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280}
+.dtable td{padding:9px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.dtable tr:last-child td{border-bottom:none}
+.dtable tr:hover td{background:#fafbfc}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600}
+.badge-compare{background:#eff6ff;color:#1d4ed8}
+.badge-typo{background:rgba(255,179,71,.15);color:#b45309}
+.badge-table{background:rgba(123,158,247,.15);color:#4338ca}
+.badge-public{background:#dcfce7;color:#15803d}
+.badge-private{background:#f3f4f6;color:#6b7280}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:480px;max-width:94vw;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:16px;font-weight:700;margin-bottom:18px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12px;color:#6b7280;font-family:monospace;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;background:#f9fafb;color:#111827;outline:none}
+.form-row input:focus,.form-row select:focus{border-color:#1d4ed8}
+.form-row .hint{font-size:11px;color:#9ca3af;margin-top:3px}
+.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cb-row{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:12px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid #f3f4f6}
+
+.empty-state{text-align:center;padding:48px 20px;color:#9ca3af}
+.empty-state .ic{font-size:36px;margin-bottom:12px}
+</style>{% endblock %}
+
+{% block page_title %}Szablony porównań{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="page-header">
+    <div>
+      <h1>📋 Szablony porównań</h1>
+      <p>Szablony umożliwiają szybkie uruchamianie porównań z zachowaną konfiguracją</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="btn btn-ghost" onclick="exportTemplates()">⬇ Eksportuj JSON</button>
+      <label class="btn btn-ghost" style="cursor:pointer">
+        ⬆ Importuj JSON
+        <input type="file" accept=".json" style="display:none" onchange="importTemplates(this)">
+      </label>
+      <button type="button" class="btn btn-primary" onclick="openModal()">+ Nowy szablon</button>
+    </div>
+  </div>
+
+  <!-- TEMPLATE TABLE -->
+  <div class="panel">
+    {% if templates %}
+    <table class="dtable" id="tplTable">
+      <thead><tr>
+        <th scope="col">Nazwa</th>
+        <th scope="col">Strona</th>
+        <th scope="col">Dostawca</th>
+        <th scope="col">Typy A→B</th>
+        <th scope="col">Widoczność</th>
+        <th scope="col">Użycia</th>
+        <th scope="col" style="width:110px">Akcje</th>
+      </tr></thead>
+      <tbody>
+      {% for t in templates %}
+      <tr id="trow-{{ t.id }}">
+        <td>
+          <strong>{{ t.name }}</strong>
+          {% if t.description %}<div style="font-size:11px;color:#9ca3af;margin-top:2px">{{ t.description }}</div>{% endif %}
+        </td>
+        <td>
+          {% if t.page_type == 'compare' %}<span class="badge badge-compare">📄 Porównaj</span>
+          {% elif t.page_type == 'typo' %}<span class="badge badge-typo">🔍 Literówki</span>
+          {% else %}<span class="badge badge-table">📊 Tabele</span>{% endif %}
+        </td>
+        <td>{{ t.supplier_code or '—' }}</td>
+        <td style="font-family:monospace;font-size:12px">{{ t.doc_type_a or '?' }} → {{ t.doc_type_b or '?' }}</td>
+        <td>
+          {% if t.is_public %}<span class="badge badge-public">🌐 Publiczny</span>
+          {% else %}<span class="badge badge-private">🔒 Prywatny</span>{% endif %}
+        </td>
+        <td style="font-weight:600">{{ t.use_count }}</td>
+        <td>
+          <button type="button" class="btn-edit" onclick="editTemplate({{ t | tojson | e }})">Edytuj</button>
+          <button type="button" class="btn-danger" onclick="deleteTemplate({{ t.id }}, {{ t.name|tojson }})">Usuń</button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="ic">📋</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">Brak szablonów</div>
+      <div>Kliknij „+ Nowy szablon" aby dodać pierwszy</div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- MODAL CREATE/EDIT -->
+<div class="modal-overlay" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h2 id="modalTitle">Nowy szablon</h2>
+    <input type="hidden" id="fId">
+
+    <div class="form-row">
+      <label for="fName">Nazwa *</label>
+      <input type="text" id="fName" placeholder="np. SHIELDCO — PO vs PI">
+    </div>
+    <div class="form-row">
+      <label for="fDesc">Opis (opcjonalnie)</label>
+      <input type="text" id="fDesc" placeholder="Krótki opis">
+    </div>
+    <div class="form-2col">
+      <div class="form-row">
+        <label for="fPageType">Strona</label>
+        <select id="fPageType">
+          <option value="compare">📄 Porównaj dokumenty</option>
+          <option value="typo">🔍 Analiza literówek</option>
+          <option value="table">📊 Porównanie tabelaryczne</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="fSupplier">Dostawca</label>
+        <input type="text" id="fSupplier" placeholder="np. SHIELDCO">
+      </div>
+    </div>
+    <div class="form-2col">
+      <div class="form-row">
+        <label for="fDocA">Typ dokumentu A</label>
+        <input type="text" id="fDocA" placeholder="PO / PI / CI…">
+      </div>
+      <div class="form-row">
+        <label for="fDocB">Typ dokumentu B</label>
+        <input type="text" id="fDocB" placeholder="PI / CI / PL…">
+      </div>
+    </div>
+    <div class="form-2col">
+      <div class="form-row">
+        <label for="fPriceTol">Tolerancja ceny (%)</label>
+        <input type="number" id="fPriceTol" step="0.1" min="0" value="0.5" inputmode="decimal">
+      </div>
+      <div class="form-row">
+        <label for="fQtyTol">Tolerancja ilości (%)</label>
+        <input type="number" id="fQtyTol" step="0.1" min="0" value="0.0" inputmode="decimal">
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="fAiModel">Model AI</label>
+      <select id="fAiModel">
+        <option value="claude-haiku-4-5-20251001">Haiku (szybki, tani)</option>
+        <option value="claude-sonnet-4-6" selected>Sonnet (zalecany)</option>
+        <option value="claude-opus-4-7">Opus (najdokładniejszy)</option>
+      </select>
+    </div>
+    <label class="cb-row"><input type="checkbox" id="fUseAi" checked> Użyj AI do walidacji</label>
+    <label class="cb-row"><input type="checkbox" id="fPublic"> Publiczny (widoczny dla wszystkich użytkowników)</label>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeModal()">Anuluj</button>
+      <button type="button" class="btn btn-primary" onclick="saveTemplate()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(tpl){
+  const m=document.getElementById('modal');
+  document.getElementById('modalTitle').textContent=tpl?'Edytuj szablon':'Nowy szablon';
+  document.getElementById('fId').value=tpl?tpl.id:'';
+  document.getElementById('fName').value=tpl?tpl.name:'';
+  document.getElementById('fDesc').value=tpl?tpl.description:'';
+  document.getElementById('fPageType').value=tpl?tpl.page_type:'compare';
+  document.getElementById('fSupplier').value=tpl?tpl.supplier_code:'';
+  document.getElementById('fDocA').value=tpl?tpl.doc_type_a:'';
+  document.getElementById('fDocB').value=tpl?tpl.doc_type_b:'';
+  document.getElementById('fPriceTol').value=tpl?tpl.price_tolerance_pct:0.5;
+  document.getElementById('fQtyTol').value=tpl?tpl.qty_tolerance_pct:0.0;
+  document.getElementById('fAiModel').value=tpl?tpl.ai_model:'claude-sonnet-4-6';
+  document.getElementById('fUseAi').checked=tpl?Boolean(tpl.use_ai):true;
+  document.getElementById('fPublic').checked=tpl?Boolean(tpl.is_public):false;
+  m.classList.add('open');
+  document.getElementById('fName').focus();
+}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function editTemplate(tpl){openModal(tpl)}
+
+async function saveTemplate(){
+  const name=document.getElementById('fName').value.trim();
+  if(!name){toast('Pole Nazwa jest wymagane','warn');return}
+  const id=document.getElementById('fId').value;
+  const body={
+    name,
+    description:document.getElementById('fDesc').value.trim(),
+    page_type:document.getElementById('fPageType').value,
+    supplier_code:document.getElementById('fSupplier').value.trim(),
+    doc_type_a:document.getElementById('fDocA').value.trim(),
+    doc_type_b:document.getElementById('fDocB').value.trim(),
+    price_tolerance_pct:parseFloat(document.getElementById('fPriceTol').value)||0.5,
+    qty_tolerance_pct:parseFloat(document.getElementById('fQtyTol').value)||0.0,
+    ai_model:document.getElementById('fAiModel').value,
+    use_ai:document.getElementById('fUseAi').checked?1:0,
+    is_public:document.getElementById('fPublic').checked?1:0,
+  };
+  try{
+    const url=id?'/api/templates/'+id:'/api/templates';
+    const method=id?'PATCH':'POST';
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){toast(d.error||'Błąd zapisu','error');return}
+    closeModal();
+    location.reload();
+  }catch(e){toast('Błąd połączenia: '+e.message,'error')}
+}
+
+async function _doDeleteTemplate(id){
+  try{
+    const r=await fetch('/api/templates/'+id,{method:'DELETE'});
+    if(r.ok){
+      const row=document.getElementById('trow-'+id);
+      if(row)row.remove();
+      toast('Szablon usunięty','ok');
+    }
+  }catch(e){toast('Błąd: '+e.message,'error')}
+}
+async function deleteTemplate(id, name){
+  confirmModal('Usunąć szablon „'+name+'"?',async()=>_doDeleteTemplate(id),{okLabel:'Usuń',danger:true});
+}
+
+async function exportTemplates(){
+  window.open('/api/templates/export','_blank');
+}
+
+async function importTemplates(input){
+  const file=input.files[0];
+  if(!file)return;
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    const r=await fetch('/api/templates/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const d=await r.json();
+    if(r.ok){toast('Zaimportowano: '+d.imported+' szablonów','ok');setTimeout(()=>location.reload(),1200);}
+    else{toast(d.error||'Błąd importu','error')}
+  }catch(e){toast('Błąd: '+e.message,'error')}
+  input.value='';
+}
+</script>
+{% endblock %}

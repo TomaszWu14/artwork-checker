@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}404 — Nie znaleziono{% endblock %}
+{% block content %}
+<div class="flex flex-col items-center justify-center text-center" style="min-height:65vh;padding:40px 20px">
+  <div style="font-size:72px;margin-bottom:16px;opacity:.35" aria-hidden="true">🔍</div>
+  <h1 class="text-[64px] font-extrabold leading-none mb-2" style="color:var(--accent)">404</h1>
+  <p class="text-[18px] font-semibold mb-2" style="color:var(--ink)">Strona nie istnieje</p>
+  <p class="text-[14px] mb-7" style="color:var(--ink-3);max-width:400px;line-height:1.6">
+    Adres, który wpisałeś, nie istnieje lub został przeniesiony.
+  </p>
+  <div class="flex gap-3 flex-wrap justify-center">
+    <a href="/" class="btn btn-primary">
+      <i data-lucide="home" style="width:15px;height:15px;" aria-hidden="true"></i> Strona główna
+    </a>
+    <a href="/history" class="btn btn-ghost">
+      <i data-lucide="history" style="width:15px;height:15px;" aria-hidden="true"></i> Historia porównań
+    </a>
+  </div>
+</div>
+<script>document.addEventListener('DOMContentLoaded',()=>{if(window.lucide)lucide.createIcons();});</script>
+{% endblock %}

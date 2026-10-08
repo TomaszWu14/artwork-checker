@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% block title %}Master Data Materiałowa — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+.main-wrap > main { padding: 0 !important; max-width: none !important; }
+
+/* ── Shell ── */
+.md-shell { display: flex; flex-direction: column; height: calc(100vh - 52px); overflow: hidden; }
+
+/* ── Toolbar ── */
+.md-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid #e5e7eb;
+  background: #fff; flex-shrink: 0;
+}
+.md-toolbar h1 { font-size: 16px; font-weight: 700; color: #111827; margin: 0; white-space: nowrap; }
+.md-toolbar .sep { width: 1px; height: 24px; background: #e5e7eb; }
+.md-filter { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 120px; }
+.md-filter:focus { outline: none; border-color: #7c3aed; }
+/* .btn / .btn-primary / .btn-outline / .btn-sm — z app.css. Lokalne kopie robiły
+   z „Zapisz" fiolet (#7c3aed) zamiast firmowego niebieskiego: ten sam przycisk
+   zmieniał kolor przy przejściu z Porównania do Materiałów. */
+
+/* ── Stats bar ── */
+.md-stats {
+  display: flex; gap: 16px; padding: 8px 16px;
+  background: #f9fafb; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
+}
+.stat-chip { font-size: 12px; color: #6b7280; }
+.stat-chip strong { color: #111827; }
+
+/* ── Table area ── */
+.md-table-wrap { flex: 1; overflow: auto; }
+table.md-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.md-table thead tr { background: #f3f4f6; position: sticky; top: 0; z-index: 10; }
+.md-table th {
+  padding: 9px 10px; text-align: left; font-weight: 600; color: #374151;
+  border-bottom: 2px solid #e5e7eb; white-space: nowrap;
+}
+.md-table td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.md-table tbody tr:hover { background: #f9fafb; }
+.md-table tbody tr.selected { background: #f5f3ff; }
+
+/* ── Level cells ── */
+.lvl-cell { min-width: 130px; }
+.lvl-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 500;
+  cursor: pointer; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lvl-badge.mapped { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.lvl-badge.inherited { background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; }
+.lvl-badge.empty { background: #f3f4f6; color: #9ca3af; border: 1px dashed #d1d5db; }
+.lvl-badge:hover { filter: brightness(0.95); }
+
+/* ── Status pill ── */
+.status-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.status-pill.complete { background: #d1fae5; color: #065f46; }
+.status-pill.partial { background: #fef3c7; color: #92400e; }
+.status-pill.none { background: #fee2e2; color: #991b1b; }
+
+/* ── Modals ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  z-index: 9000; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: #fff; border-radius: 10px; padding: 24px;
+  width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+}
+.modal-box.wide { width: 680px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.modal-head h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: #6b7280; }
+.form-row { margin-bottom: 12px; }
+.form-label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: #374151; }
+.form-input {
+  width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+  border-radius: 6px; font-size: 13px; box-sizing: border-box;
+}
+.form-input:focus { outline: none; border-color: #7c3aed; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* ── Level assign panel ── */
+.assign-grid { display: grid; gap: 10px; margin-top: 12px; }
+.assign-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid #e5e7eb; border-radius: 6px; background: #fafafa;
+}
+.assign-lvl-badge { width: 80px; flex-shrink: 0; text-align: center; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.assign-select { flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 12px; }
+.assign-type { font-size: 11px; color: #6b7280; width: 70px; }
+.assign-source-row { display: none; margin-top: 6px; padding-left: 90px; }
+
+/* ── CSV info ── */
+.csv-hint { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #065f46; margin-bottom: 12px; }
+.csv-hint code { background: #dcfce7; padding: 1px 4px; border-radius: 3px; font-family: monospace; }
+
+/* ── Levels manager ── */
+.lt-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+.lt-color-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.lt-label { flex: 1; font-size: 13px; }
+.lt-code { font-size: 11px; color: #9ca3af; font-family: monospace; }
+
+/* ── Empty state ── */
+.empty-state { text-align: center; padding: 60px 20px; color: #9ca3af; }
+.empty-state .ei { font-size: 48px; display: block; margin-bottom: 12px; }
+.empty-state p { margin: 4px 0; font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block page_title %}Materiały artwork{% endblock %}
+
+{% block content %}
+<div class="md-shell">
+
+  <!-- ── Toolbar ── -->
+  <div class="md-toolbar">
+    <h1>📦 Master Data Materiałowa</h1>
+    <div class="sep"></div>
+    <input id="mdSearch" class="md-filter" type="text" placeholder="Szukaj REF lub nazwy…" oninput="debouncedLoad()" style="min-width:200px">
+    <select id="mdFilterFamily" class="md-filter" onchange="loadMaterials()">
+      <option value="">Wszystkie rodziny</option>
+    </select>
+    <select id="mdFilterStatus" class="md-filter" onchange="loadMaterials()">
+      <option value="">Wszystkie statusy</option>
+      <option value="complete">✅ Kompletne</option>
+      <option value="partial">⚠ Częściowe</option>
+      <option value="none">❌ Niezmapowane</option>
+    </select>
+    <div class="sep"></div>
+    <button type="button" class="btn btn-primary" onclick="openAddMat()">+ Dodaj REF</button>
+    <button type="button" class="btn btn-outline" onclick="openImportCsv()">📥 Import CSV</button>
+    <button type="button" class="btn btn-outline" onclick="exportCsv()">📤 Eksport CSV</button>
+    <button type="button" class="btn btn-outline" onclick="openLevelTypes()" title="Zarządzaj typami poziomów opakowań">⚙ Poziomy</button>
+  </div>
+
+  <!-- ── Stats bar ── -->
+  <div class="md-stats" id="mdStats">
+    <span class="stat-chip">Ładowanie…</span>
+  </div>
+
+  <!-- ── Table ── -->
+  <div class="md-table-wrap">
+    <table class="md-table">
+      <thead id="mdHead"></thead>
+      <tbody id="mdBody"></tbody>
+    </table>
+    <div id="mdEmpty" class="empty-state" style="display:none">
+      <span class="ei">📦</span>
+      <p><strong>Brak materiałów</strong></p>
+      <p>Dodaj REF ręcznie lub zaimportuj z pliku CSV.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ ADD / EDIT MATERIAL MODAL ══════════════════════ -->
+<div class="modal-overlay" id="matModal" role="dialog" aria-modal="true" aria-labelledby="matModalTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="matModalTitle">Dodaj materiał</h3>
+      <button type="button" class="modal-close" onclick="closeMatModal()" aria-label="Zamknij">✕</button>
+    </div>
+    <input type="hidden" id="matModalId">
+    <div class="form-row">
+      <label class="form-label" for="matRef">REF (kod materiału) *</label>
+      <input id="matRef" class="form-input" type="text" placeholder="np. NL753-S-40">
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="matName">Nazwa materiału</label>
+      <input id="matName" class="form-input" type="text" placeholder="np. Rękawica nitrylowa S">
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="matFamily">Rodzina produktu</label>
+      <input id="matFamily" class="form-input" type="text" placeholder="np. NL753 (grupuje rozmiary S/M/L/XL)">
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="matEan">EAN (opcjonalnie)</label>
+      <input id="matEan" class="form-input" type="text" placeholder="np. 5901501234567">
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="matNotes">Uwagi</label>
+      <input id="matNotes" class="form-input" type="text" placeholder="Opcjonalne uwagi…">
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-outline" onclick="closeMatModal()">Anuluj</button>
+      <button type="button" class="btn btn-primary" onclick="saveMat()">Zapisz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ ASSIGN LEVELS MODAL ══════════════════════ -->
+<div class="modal-overlay" id="assignModal" role="dialog" aria-modal="true" aria-labelledby="assignModalTitle">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3 id="assignModalTitle">Przypisz artwork</h3>
+      <button type="button" class="modal-close" onclick="closeAssignModal()" aria-label="Zamknij">✕</button>
+    </div>
+    <p id="assignModalSub" style="font-size:12px;color:#6b7280;margin:-8px 0 14px"></p>
+    <div class="assign-grid" id="assignGrid"></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-outline" onclick="closeAssignModal()">Zamknij</button>
+      <button type="button" class="btn btn-primary" onclick="saveAllLevels()">Zapisz wszystkie poziomy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ IMPORT CSV MODAL ══════════════════════ -->
+<div class="modal-overlay" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="importModalTitle">Import CSV</h3>
+      <button type="button" class="modal-close" onclick="document.getElementById('importModal').classList.remove('open')" aria-label="Zamknij">✕</button>
+    </div>
+    <div class="csv-hint">
+      Wymagana kolumna: <code>ref_code</code><br>
+      Opcjonalne: <code>name</code>, <code>product_family</code>, <code>ean</code>, <code>notes</code><br>
+      Mapowanie artwork: <code>sztuka_profile</code>, <code>op_profile</code>, <code>opz_profile</code>, <code>karton_profile</code><br>
+      Separator: przecinek lub średnik. Kodowanie: UTF-8 lub UTF-8 BOM (Excel).
+    </div>
+    <div class="form-row">
+      <label class="form-label" for="csvFile">Plik CSV</label>
+      <input id="csvFile" type="file" accept=".csv" class="form-input" aria-label="Wybierz plik CSV do importu">
+    </div>
+    <div id="importResult" style="display:none;margin-top:8px;font-size:13px;padding:10px;border-radius:6px;background:#f0fdf4;color:#065f46"></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-outline" onclick="document.getElementById('importModal').classList.remove('open')">Anuluj</button>
+      <button type="button" class="btn btn-primary" onclick="runImport()">Importuj</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ LEVEL TYPES MANAGER ══════════════════════ -->
+<div class="modal-overlay" id="ltModal" role="dialog" aria-modal="true" aria-labelledby="ltModalTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="ltModalTitle">Poziomy opakowań</h3>
+      <button type="button" class="modal-close" onclick="document.getElementById('ltModal').classList.remove('open')" aria-label="Zamknij">✕</button>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin:-4px 0 12px">Zdefiniuj hierarchię poziomów opakowań obowiązującą dla wszystkich REF-ów.</p>
+    <div id="ltList" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #e5e7eb;padding-top:12px">
+      <input id="ltNewCode" class="form-input" type="text" placeholder="Kod (np. display)" style="width:110px">
+      <input id="ltNewLabel" class="form-input" type="text" placeholder="Etykieta (np. Display Box)" style="flex:1">
+      <input id="ltNewColor" type="color" value="#6b7280" style="width:36px;height:36px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;padding:2px">
+      <button type="button" class="btn btn-primary btn-sm" onclick="addLevelType()">Dodaj</button>
+    </div>
+    <div class="form-actions" style="margin-top:12px">
+      <button type="button" class="btn btn-primary" onclick="document.getElementById('ltModal').classList.remove('open');loadMaterials()">Gotowe</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════ STATE
+let _levelTypes = [];
+let _profiles = [];
+let _materials = [];
+let _assignMid = null;
+let _debTimer = null;
+
+// ═══════════════════════════════════════════════════════════ INIT
+document.addEventListener('DOMContentLoaded', async () => {
+  await Promise.all([loadLevelTypes(), loadProfiles()]);
+  loadMaterials();
+});
+
+function debouncedLoad() {
+  clearTimeout(_debTimer);
+  _debTimer = setTimeout(loadMaterials, 280);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════ DATA LOADERS
+async function loadLevelTypes() {
+  try {
+    const r = await fetch('/api/artwork/pkg-level-types');
+    _levelTypes = await r.json();
+  } catch(e) { _levelTypes = []; }
+}
+
+async function loadProfiles() {
+  try {
+    const r = await fetch('/api/artwork/profiles');
+    const d = await r.json();
+    _profiles = Array.isArray(d) ? d : (d.profiles || []);
+  } catch(e) { _profiles = []; }
+}
+
+async function loadMaterials() {
+  const q = document.getElementById('mdSearch').value.trim();
+  const fam = document.getElementById('mdFilterFamily').value;
+  const status = document.getElementById('mdFilterStatus').value;
+  let url = '/api/artwork/materials?';
+  if (q) url += 'q=' + encodeURIComponent(q) + '&';
+  if (fam) url += 'family=' + encodeURIComponent(fam) + '&';
+  if (status) url += 'status=' + encodeURIComponent(status) + '&';
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    _materials = d.items || [];
+    _levelTypes = d.level_types || _levelTypes;
+    // Update family filter
+    const famSel = document.getElementById('mdFilterFamily');
+    const curFam = famSel.value;
+    famSel.innerHTML = '<option value="">Wszystkie rodziny</option>' +
+      (d.families || []).map(f => `<option value="${esc(f)}"${f===curFam?' selected':''}>${esc(f)}</option>`).join('');
+    renderTable(d);
+    renderStats(d);
+  } catch(e) {
+    document.getElementById('mdBody').innerHTML = '<tr><td colspan="99" style="color:#dc2626;padding:20px">Błąd ładowania: ' + esc(e.message) + '</td></tr>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════ RENDER TABLE
+function renderTable(d) {
+  const lts = d.level_types || _levelTypes;
+  const items = d.items || [];
+  const head = document.getElementById('mdHead');
+  const body = document.getElementById('mdBody');
+  const empty = document.getElementById('mdEmpty');
+
+  // Header
+  let h = '<tr>';
+  h += '<th style="width:32px"><input type="checkbox" onchange="toggleAll(this)"></th>';
+  h += '<th>REF</th><th>Nazwa</th><th>Rodzina</th>';
+  lts.forEach(lt => {
+    h += `<th class="lvl-cell"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(lt.color)};margin-right:4px"></span>${esc(lt.label)}</th>`;
+  });
+  h += '<th>Status</th><th style="width:80px">Akcje</th></tr>';
+  head.innerHTML = h;
+
+  if (!items.length) {
+    body.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  let rows = '';
+  items.forEach(m => {
+    rows += `<tr data-mid="${m.id}">`;
+    rows += `<td><input type="checkbox" class="row-cb" value="${m.id}"></td>`;
+    rows += `<td><strong>${esc(m.ref_code)}</strong>${m.ean ? '<br><span style="font-size:11px;color:#9ca3af">'+esc(m.ean)+'</span>' : ''}</td>`;
+    rows += `<td>${esc(m.name)}</td>`;
+    rows += `<td><span style="font-size:12px;color:#7c3aed">${esc(m.product_family)}</span></td>`;
+    lts.forEach(lt => {
+      const lv = m.levels[lt.id];
+      rows += `<td class="lvl-cell">`;
+      if (lv && lv.profile_id) {
+        const mtype = lv.mapping_type || 'direct';
+        const cls = mtype === 'inherited' ? 'inherited' : 'mapped';
+        const icon = mtype === 'inherited' ? '🔗' : '✅';
+        rows += `<span class="lvl-badge ${cls}" title="${esc(lv.profile_name)}" onclick="openAssign(${m.id})">${icon} ${esc((lv.profile_name||'').substring(0,18))}</span>`;
+      } else {
+        rows += `<span class="lvl-badge empty" onclick="openAssign(${m.id})">+ Przypisz</span>`;
+      }
+      rows += `</td>`;
+    });
+    // Status
+    const pct = m.total > 0 ? Math.round(m.assigned / m.total * 100) : 0;
+    let scls = 'none', slbl = '❌ Brak';
+    if (m.assigned === m.total && m.total > 0) { scls = 'complete'; slbl = '✅ Kompletny'; }
+    else if (m.assigned > 0) { scls = 'partial'; slbl = `⚠ ${m.assigned}/${m.total}`; }
+    rows += `<td><span class="status-pill ${scls}">${slbl}</span></td>`;
+    rows += `<td style="white-space:nowrap">
+      <button type="button" class="btn btn-outline btn-sm" onclick="openEditMat(${m.id})" title="Edytuj" aria-label="Edytuj ${esc(m.ref_code)}">✏</button>
+      <button type="button" class="btn btn-outline btn-sm" style="color:#dc2626" onclick="deleteMat(${m.id},'${esc(m.ref_code)}')" title="Usuń" aria-label="Usuń ${esc(m.ref_code)}">🗑</button>
+    </td>`;
+    rows += '</tr>';
+  });
+  body.innerHTML = rows;
+}
+
+function renderStats(d) {
+  const items = d.items || [];
+  const total = items.length;
+  const complete = items.filter(m => m.assigned === m.total && m.total > 0).length;
+  const partial = items.filter(m => m.assigned > 0 && m.assigned < m.total).length;
+  const none = items.filter(m => m.assigned === 0).length;
+  document.getElementById('mdStats').innerHTML =
+    `<span class="stat-chip">Materiałów: <strong>${total}</strong></span>` +
+    `<span class="stat-chip" style="color:#065f46">✅ Kompletne: <strong>${complete}</strong></span>` +
+    `<span class="stat-chip" style="color:#92400e">⚠ Częściowe: <strong>${partial}</strong></span>` +
+    `<span class="stat-chip" style="color:#991b1b">❌ Brak: <strong>${none}</strong></span>`;
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('.row-cb').forEach(c => c.checked = cb.checked);
+}
+
+// ═══════════════════════════════════════════════════════════ ADD / EDIT MATERIAL
+function openAddMat() {
+  document.getElementById('matModalTitle').textContent = 'Dodaj materiał';
+  document.getElementById('matModalId').value = '';
+  ['matRef','matName','matFamily','matEan','matNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('matModal').classList.add('open');
+}
+
+function openEditMat(mid) {
+  const m = _materials.find(x => x.id === mid);
+  if (!m) return;
+  document.getElementById('matModalTitle').textContent = 'Edytuj materiał';
+  document.getElementById('matModalId').value = mid;
+  document.getElementById('matRef').value = m.ref_code;
+  document.getElementById('matName').value = m.name;
+  document.getElementById('matFamily').value = m.product_family;
+  document.getElementById('matEan').value = m.ean;
+  document.getElementById('matNotes').value = m.notes;
+  document.getElementById('matModal').classList.add('open');
+}
+
+function closeMatModal() { document.getElementById('matModal').classList.remove('open'); }
+
+async function saveMat() {
+  const id = document.getElementById('matModalId').value;
+  const payload = {
+    ref_code: document.getElementById('matRef').value.trim(),
+    name: document.getElementById('matName').value.trim(),
+    product_family: document.getElementById('matFamily').value.trim(),
+    ean: document.getElementById('matEan').value.trim(),
+    notes: document.getElementById('matNotes').value.trim(),
+  };
+  if (!payload.ref_code) { toast('Podaj REF', 'error'); return; }
+  try {
+    const r = await fetch(id ? `/api/artwork/materials/${id}` : '/api/artwork/materials', {
+      method: id ? 'PUT' : 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); return; }
+    closeMatModal();
+    loadMaterials();
+  } catch(e) { toast('Błąd: ' + e.message, 'error'); }
+}
+
+async function deleteMat(mid, ref) {
+  confirmModal(`Usunąć materiał "${ref}" i wszystkie przypisania?`, async () => {
+    await fetch(`/api/artwork/materials/${mid}`, {method: 'DELETE'});
+    loadMaterials();
+  }, {okLabel: 'Usuń', danger: true});
+}
+
+// ═══════════════════════════════════════════════════════════ ASSIGN LEVELS
+function openAssign(mid) {
+  const m = _materials.find(x => x.id === mid);
+  if (!m) return;
+  _assignMid = mid;
+  document.getElementById('assignModalTitle').textContent = `Przypisz artwork — ${m.ref_code}`;
+  document.getElementById('assignModalSub').textContent = m.name + (m.product_family ? ` · Rodzina: ${m.product_family}` : '');
+
+  let html = '';
+  _levelTypes.forEach(lt => {
+    const lv = m.levels[lt.id] || {};
+    const pid = lv.profile_id || '';
+    const mtype = lv.mapping_type || 'none';
+    const srcMid = lv.source_material_id || '';
+    html += `<div class="assign-row">
+      <span class="assign-lvl-badge" style="background:${esc(lt.color)}20;color:${esc(lt.color)};border:1px solid ${esc(lt.color)}40">${esc(lt.label)}</span>
+      <select class="assign-select" id="asel_${lt.id}" onchange="updateAssignType(${lt.id})">
+        <option value="">— brak przypisania —</option>
+        ${_profiles.map(p => `<option value="${p.id}"${p.id==pid?' selected':''}>${esc(p.name)}</option>`).join('')}
+      </select>
+      <select class="assign-type" id="atype_${lt.id}">
+        <option value="direct"${mtype==='direct'?' selected':''}>direct</option>
+        <option value="inherited"${mtype==='inherited'?' selected':''}>inherit</option>
+      </select>
+    </div>`;
+  });
+  document.getElementById('assignGrid').innerHTML = html;
+  document.getElementById('assignModal').classList.add('open');
+}
+
+function updateAssignType(ltid) {
+  const sel = document.getElementById(`asel_${ltid}`);
+  const typeEl = document.getElementById(`atype_${ltid}`);
+  if (!sel.value) typeEl.value = 'none';
+}
+
+function closeAssignModal() { document.getElementById('assignModal').classList.remove('open'); }
+
+async function saveAllLevels() {
+  const mid = _assignMid;
+  for (const lt of _levelTypes) {
+    const sel = document.getElementById(`asel_${lt.id}`);
+    const typeEl = document.getElementById(`atype_${lt.id}`);
+    if (!sel) continue;
+    const pid = sel.value ? parseInt(sel.value) : null;
+    const mtype = typeEl ? typeEl.value : (pid ? 'direct' : 'none');
+    await fetch(`/api/artwork/materials/${mid}/levels/${lt.id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({profile_id: pid, mapping_type: mtype})
+    });
+  }
+  closeAssignModal();
+  loadMaterials();
+}
+
+// ═══════════════════════════════════════════════════════════ CSV
+function openImportCsv() {
+  document.getElementById('csvFile').value = '';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('importModal').classList.add('open');
+}
+
+async function runImport() {
+  const f = document.getElementById('csvFile').files[0];
+  if (!f) { toast('Wybierz plik CSV', 'error'); return; }
+  const fd = new FormData(); fd.append('file', f);
+  try {
+    const r = await fetch('/api/artwork/materials/import-csv', {method: 'POST', body: fd});
+    const d = await r.json();
+    const res = document.getElementById('importResult');
+    res.style.display = '';
+    if (d.error) {
+      res.className = 'alert alert-err'; res.style.display = 'flex';
+      res.textContent = 'Błąd: ' + d.error;
+    } else {
+      res.className = 'alert alert-ok'; res.style.display = 'flex';
+      res.innerHTML = `✅ Dodano: <strong>${d.imported}</strong> · Zaktualizowano: <strong>${d.updated}</strong> · Pominięto: <strong>${d.skipped}</strong>` +
+        (d.errors && d.errors.length ? `<br>⚠ Błędy: ${d.errors.join(', ')}` : '');
+    }
+    loadMaterials();
+  } catch(e) { toast('Błąd importu: ' + e.message, 'error'); }
+}
+
+function exportCsv() { window.location = '/api/artwork/materials/export-csv'; }
+
+// ═══════════════════════════════════════════════════════════ LEVEL TYPES MANAGER
+async function openLevelTypes() {
+  await loadLevelTypes();
+  renderLtList();
+  document.getElementById('ltModal').classList.add('open');
+}
+
+function renderLtList() {
+  let html = '';
+  _levelTypes.forEach(lt => {
+    html += `<div class="lt-row">
+      <span class="lt-color-dot" style="background:${esc(lt.color)}"></span>
+      <span class="lt-code">${esc(lt.code)}</span>
+      <span class="lt-label">${esc(lt.label)}</span>
+      <button type="button" class="btn btn-outline btn-sm" style="color:#dc2626;margin-left:auto" onclick="deleteLevelType(${lt.id},'${esc(lt.label)}')">Usuń</button>
+    </div>`;
+  });
+  document.getElementById('ltList').innerHTML = html || '<p style="color:#9ca3af;font-size:13px">Brak poziomów.</p>';
+}
+
+async function addLevelType() {
+  const code = document.getElementById('ltNewCode').value.trim();
+  const label = document.getElementById('ltNewLabel').value.trim();
+  const color = document.getElementById('ltNewColor').value;
+  if (!code || !label) { toast('Podaj kod i etykietę', 'error'); return; }
+  const r = await fetch('/api/artwork/pkg-level-types', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({code, label, color})
+  });
+  const d = await r.json();
+  if (d.error) { toast(d.error, 'error'); return; }
+  document.getElementById('ltNewCode').value = '';
+  document.getElementById('ltNewLabel').value = '';
+  await loadLevelTypes();
+  renderLtList();
+}
+
+async function deleteLevelType(id, label) {
+  confirmModal(`Usunąć poziom "${label}"? Usunie też wszystkie przypisania tego poziomu.`, async () => {
+    await fetch(`/api/artwork/pkg-level-types/${id}`, {method: 'DELETE'});
+    await loadLevelTypes();
+    renderLtList();
+  }, {okLabel: 'Usuń', danger: true});
+}
+</script>
+{% endblock %}

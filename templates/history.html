@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+{% block title %}Historia — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+/* FIX 5: CSS custom properties for status colors */
+:root {
+  --status-ok: #16a34a;
+  --status-error: #dc2626;
+  --status-warning: #d97706;
+}
+h2{font-size:23px;font-weight:500;margin-bottom:5px}
+.sub{font-size:17px;color:var(--muted);margin-bottom:22px}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.search-input{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:7px 12px;color:var(--text);font-size:17px;outline:none;width:220px;transition:border-color .2s;font-family:var(--mono)}
+.search-input:focus{border-color:var(--accent)}
+select.filter-sel{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:7px 10px;color:var(--text);font-size:17px;outline:none;cursor:pointer}
+select.filter-sel option{background:#181b27;color:#edf0f7}
+.count-badge{font-size:13px;color:var(--ink-3);margin-left:auto}
+table.htbl{width:100%;border-collapse:collapse;font-size:17px}
+.htbl th{text-align:left;padding:8px 10px;font-size:16px;font-family:var(--mono);letter-spacing:1px;
+  color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface)}
+.htbl td{padding:9px 10px;border-bottom:1px solid rgba(42,45,58,.4);vertical-align:middle}
+.htbl tr.data-row:hover td{background:rgba(255,255,255,.02)}
+.htbl tr.data-row.selected td{background:rgba(255,92,92,.05)}
+.mono{font-family:var(--mono);font-size:16px}
+.pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:16px;font-family:var(--mono)}
+.p-ok{background:rgba(61,219,160,.12);color:var(--ok)}
+.p-err{background:rgba(255,92,92,.12);color:var(--error)}
+.p-warn{background:rgba(255,179,71,.12);color:var(--warn)}
+.p-fmt{background:rgba(123,158,247,.12);color:#8b9cf8}
+.dn{color:var(--error);font-weight:500;font-family:var(--mono)}
+.dok{color:var(--ok);font-weight:500;font-family:var(--mono)}
+.empty-state{text-align:center;padding:56px;color:var(--muted);font-size:16px}
+.cb-col{width:36px;text-align:center}
+input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--error)}
+.del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;
+  padding:2px 6px;border-radius:4px;transition:all .15s}
+.del-btn:hover{color:var(--error);background:rgba(255,92,92,.1)}
+.open-btn{background:rgba(91,155,255,.12);border:1px solid rgba(91,155,255,.3);color:var(--accent);
+  border-radius:5px;padding:3px 9px;font-size:17px;cursor:pointer;font-family:var(--mono);
+  transition:all .15s;white-space:nowrap}
+.open-btn:hover{background:rgba(91,155,255,.25)}
+.confirm-box{background:rgba(255,92,92,.08);border:1px solid rgba(255,92,92,.3);
+  border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-bottom:14px}
+.confirm-box.hidden{display:none}
+.user-badge{display:inline-flex;align-items:center;gap:5px;font-size:17px;font-family:var(--mono);
+  background:rgba(91,155,255,.08);border:1px solid rgba(91,155,255,.15);
+  color:var(--accent);padding:2px 7px;border-radius:20px}
+.hidden-row{display:none}
+
+/* ── RAPORT MODAL ── */
+.rov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:400;overflow-y:auto}
+.rov.on{display:block}
+.rwrap{max-width:1280px;margin:0 auto;padding:16px}
+.rhdr{display:flex;align-items:center;gap:12px;padding:14px 18px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:14px;position:sticky;top:16px;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.rhdr-left{flex:1;min-width:0}
+.rhdr-title{font-size:17px;font-weight:500;margin-bottom:2px}
+.rhdr-meta{font-size:17px;color:var(--muted);font-family:var(--mono)}
+.rbtn-close{background:none;border:1px solid var(--border);color:var(--muted);
+  border-radius:6px;padding:5px 14px;cursor:pointer;font-size:16px;font-family:var(--mono);flex-shrink:0}
+.rbtn-close:hover{border-color:var(--error);color:var(--error)}
+.rbtn-exp{background:rgba(91,155,255,.12);border:1px solid rgba(91,155,255,.3);color:var(--accent);
+  border-radius:6px;padding:5px 12px;cursor:pointer;font-size:16px;font-family:var(--mono);flex-shrink:0}
+.rbtn-exp:hover{background:rgba(91,155,255,.25)}
+.rbanner{display:flex;align-items:center;gap:12px;padding:12px 16px;
+  border-radius:10px;margin-bottom:12px;border:1px solid var(--border)}
+.rb-ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+.rb-warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.rb-err{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+.rb-icon{font-size:23px;flex-shrink:0}
+.rb-title{font-size:16px;font-weight:500}
+.rb-sub{font-size:17px;color:var(--muted);margin-top:2px}
+.rb-stats{display:flex;gap:14px;margin-left:auto;flex-shrink:0}
+.rb-stat{text-align:center}
+.rb-num{font-size:21px;font-family:var(--mono);font-weight:600;line-height:1}
+.rb-lbl{font-size:16px;color:var(--muted)}
+.c-err{color:var(--error)}.c-warn{color:var(--warn)}.c-ok{color:var(--ok)}
+/* tabs */
+.rtabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+.rtab{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);
+  padding:8px 14px;font-size:17px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  transition:all .15s;white-space:nowrap}
+.rtab:hover{color:var(--text)}
+.rtab.on{color:var(--text);border-bottom-color:var(--accent)}
+.rbadge{font-size:16px;padding:1px 6px;border-radius:20px;font-family:var(--mono)}
+.b-err{background:rgba(255,92,92,.15);color:var(--error)}
+.b-warn{background:rgba(255,179,71,.15);color:var(--warn)}
+.b-ok{background:rgba(61,219,160,.15);color:var(--ok)}
+.b-info{background:rgba(123,158,247,.15);color:#8b9cf8}
+.rpanel{display:none}.rpanel.on{display:block}
+/* tables inside report */
+.rtbl-wrap{overflow-x:auto}
+.rtbl{width:100%;border-collapse:collapse;font-size:16px}
+.rtbl th{text-align:left;padding:7px 9px;font-size:16px;font-family:var(--mono);letter-spacing:1px;
+  color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap}
+.rtbl td{padding:7px 9px;border-bottom:1px solid rgba(42,45,58,.35);vertical-align:top}
+.rtbl tr:hover td{background:rgba(255,255,255,.012)}
+.r-roznica .rtbl td:first-child,.r-brak_w_a .rtbl td:first-child,
+.r-brak_w_b .rtbl td:first-child,.r-tylko_a .rtbl td:first-child,
+.r-tylko_b .rtbl td:first-child{border-left:3px solid var(--error)}
+.r-roznica td:first-child,.r-brak_w_a td:first-child,.r-brak_w_b td:first-child,
+.r-tylko_a td:first-child,.r-tylko_b td:first-child{border-left:3px solid var(--error)}
+.r-format td:first-child,.r-watpliwe td:first-child{border-left:3px solid var(--warn)}
+.r-ok td:first-child{border-left:3px solid var(--ok)}
+.r-error td:first-child{border-left:3px solid var(--error)}
+.r-warning td:first-child{border-left:3px solid var(--warn)}
+.ve{color:var(--error);font-weight:500}
+.vn{color:var(--muted);font-style:italic;font-size:17px}
+.hl1{background:rgba(255,92,92,.2);padding:1px 3px;border-radius:3px;font-family:var(--mono);font-weight:600;color:var(--error)}
+.hidden-tr{display:none}
+.mod-sum{font-size:16px;color:var(--muted);padding:9px 12px;background:var(--surface);
+  border-radius:7px;border:1px solid var(--border);margin-bottom:12px}
+.mod-err{background:rgba(255,92,92,.05);border:1px solid rgba(255,92,92,.2);
+  border-radius:8px;padding:12px 14px;font-size:17px;color:var(--error);margin-bottom:10px}
+.sec{font-size:16px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);
+  font-family:var(--mono);margin:16px 0 8px}
+.totals{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.tot{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.tot-lbl{font-size:16px;color:var(--muted);font-family:var(--mono);margin-bottom:3px}
+.tot-val{font-family:var(--mono);font-size:16px}
+.fbar{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.fbar-lbl{font-size:16px;color:var(--muted);font-family:var(--mono)}
+.fb{background:none;border:1px solid var(--border);color:var(--muted);border-radius:20px;
+  padding:3px 10px;font-size:17px;cursor:pointer;font-family:var(--mono);transition:all .12s}
+.fb:hover{border-color:var(--muted);color:var(--text)}
+.fb.on{background:#333;border-color:#555;color:var(--text)}
+.cards-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.crd{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 14px}
+.crd-hdr{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.crd-lbl{font-size:17px;font-weight:500}
+.crd-det{font-size:17px;color:var(--muted);font-family:var(--mono);line-height:1.5}
+#rContent{background:var(--surface);border-radius:10px;padding:20px}
+.crit-list{background:rgba(254,202,202,.12);border:1.5px solid #fca5a5;border-radius:9px;padding:12px 14px}
+.crit-item{font-size:14px;padding:5px 0;border-bottom:1px solid rgba(252,165,165,.25);color:#dc2626;font-weight:500;line-height:1.5}
+.crit-item:last-child{border-bottom:none}
+.ok-box{background:rgba(61,219,160,.04);border:1px solid rgba(61,219,160,.14);
+  border-radius:8px;padding:18px;text-align:center;color:var(--ok);font-size:17px}
+.issues{font-size:17px;color:var(--muted);margin-top:2px;line-height:1.5}
+.ie{color:var(--error)}
+.rloading{padding:60px;text-align:center;color:var(--muted)}
+.rspin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── KOLORY KOLUMN A/B w historii ── */
+th.col-a{background:rgba(91,155,255,.12)!important;color:#8bb4f8}
+th.col-b{background:rgba(61,219,160,.12)!important;color:#7dd4a8}
+td.col-a{background:rgba(91,155,255,.04)}
+td.col-b{background:rgba(61,219,160,.04)}
+tr.r-roznica td.col-a,tr.r-brak_w_b td.col-a{background:rgba(255,92,92,.07)}
+tr.r-roznica td.col-b,tr.r-brak_w_a td.col-b{background:rgba(255,92,92,.07)}
+.dot-a{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:4px;vertical-align:middle}
+.dot-b{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:4px;vertical-align:middle}
+</style>
+{% endblock %}
+
+{% block page_title %}Historia porównań{% endblock %}
+
+{% block content %}
+
+<!-- ── RAPORT OVERLAY ── -->
+<div class="rov" id="rov" role="dialog" aria-modal="true" aria-label="Raport porównania">
+  <div class="rwrap">
+    <div class="rhdr">
+      <div class="rhdr-left">
+        <div class="rhdr-title" id="rTitle">Raport porównania</div>
+        <div class="rhdr-meta" id="rMeta"></div>
+      </div>
+      <button type="button" class="rbtn-exp btn btn-ghost btn-sm" onclick="exportRep('pdf')" id="rBtnPdf">
+        <i data-lucide="file-text" style="width:14px;height:14px;" aria-hidden="true"></i> PDF
+      </button>
+      <button type="button" class="rbtn-exp btn btn-ghost btn-sm" onclick="exportRep('excel')" id="rBtnXlsx">
+        <i data-lucide="table-2" style="width:14px;height:14px;" aria-hidden="true"></i> Excel
+      </button>
+      <button type="button" class="rbtn-close btn btn-ghost btn-sm" onclick="closeRov()">
+        <i data-lucide="x" style="width:14px;height:14px;" aria-hidden="true"></i> Zamknij
+      </button>
+    </div>
+    <div id="rContent">
+      <div class="rloading"><div class="rspin"></div>Ładowanie raportu…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="page-header">
+  <h1>Historia porównań</h1>
+  <p class="sub">
+    {% if can_see_all %}Wszystkie porównania — wszyscy użytkownicy{% else %}Twoje porównania{% endif %}
+    · Łącznie: <strong>{{ total_count }}</strong> rekordów
+  </p>
+</div>
+
+<!-- Wyszukiwanie i filtry (server-side) -->
+<form method="get" action="/history" id="filterForm">
+<div class="filter-bar">
+  <label for="searchInput" class="sr-only">Szukaj w historii porównań</label>
+  <input type="search" class="search-inp" name="q" id="searchInput"
+         value="{{ search }}"
+         placeholder="Szukaj pliku, PO, dostawcy, usera…"
+         onchange="submitFilter()" autocomplete="off">
+  <select class="filter-sel" name="status" id="statusFilter" onchange="submitFilter()">
+    <option value="">Wszystkie statusy</option>
+    <option value="ok" {% if status_filter=='ok' %}selected{% endif %}>✅ OK</option>
+    <option value="ostrzezenie" {% if status_filter=='ostrzezenie' %}selected{% endif %}>⚠ Ostrzeżenie</option>
+    <option value="blad" {% if status_filter=='blad' %}selected{% endif %}>❌ Błąd</option>
+  </select>
+  <button type="submit" class="btn btn-primary btn-sm">
+    <i data-lucide="search" style="width:13px;height:13px;" aria-hidden="true"></i> Szukaj
+  </button>
+  {% if search or status_filter %}
+  <a href="/history" class="btn btn-ghost btn-sm">✕ Wyczyść</a>
+  {% endif %}
+  <span class="text-[12px] ml-auto" style="color:var(--ink-3);">{{ comparisons|length }} z {{ total_count }} rekordów</span>
+  {% if can_delete %}
+  <button type="button" class="btn btn-danger btn-sm hidden" id="btnBulkDelete" onclick="bulkDelete()">
+    <i data-lucide="trash-2" style="width:13px;height:13px;" aria-hidden="true"></i> Usuń zaznaczone
+  </button>
+  {% endif %}
+</div>
+</form>
+
+{% if can_delete %}
+<div class="alert alert-err hidden mb-4 gap-3" id="confirmBar">
+  <span id="confirmText" class="flex-1">Usunąć zaznaczone rekordy?</span>
+  <button type="button" onclick="confirmDelete()" class="btn btn-danger btn-sm">Tak, usuń</button>
+  <button type="button" onclick="cancelDelete()" class="btn btn-ghost btn-sm">Anuluj</button>
+</div>
+{% endif %}
+
+{% if comparisons %}
+<div class="card overflow-hidden">
+<div class="overflow-x-auto scroll-thin">
+<table class="tbl htbl" id="histTable">
+  <thead>
+    <tr>
+      {% if can_delete %}<th scope="col" style="width:36px;text-align:center"><input type="checkbox" id="chkAll" onchange="toggleAll(this)" class="w-3.5 h-3.5 cursor-pointer" style="accent-color:var(--accent)"></th>{% endif %}
+      <th scope="col">#</th>
+      <th scope="col">Data i czas</th>
+      {% if can_see_all %}<th scope="col">Użytkownik</th>{% endif %}
+      <th scope="col">Typ</th>
+      <th scope="col">Dok. A</th>
+      <th scope="col">Dok. B</th>
+      <th scope="col">Różnic</th>
+      <th scope="col">Status</th>
+      <th scope="col" style="text-align:center">Raport</th>
+      {% if can_delete %}<th scope="col" style="width:36px"></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody id="tableBody">
+    {% for c in comparisons %}
+    <tr class="data-row"
+        data-id="{{ c.id }}"
+        data-status="{{ c.status }}"
+        data-user="{{ c.username }}">
+      {% if can_delete %}
+      <td style="text-align:center" onclick="event.stopPropagation()">
+        <input type="checkbox" class="row-cb w-3.5 h-3.5 cursor-pointer" data-id="{{ c.id }}" onchange="onCheckChange()" style="accent-color:var(--accent)">
+      </td>
+      {% endif %}
+      <td class="mono text-[12.5px]" style="color:var(--ink-3)">#{{ c.id }}</td>
+      <td class="mono text-[12.5px]" style="white-space:nowrap;color:var(--ink-3)">
+        <span class="ts-rel" data-ts="{{ c.created_at or '' }}" title="{{ c.created_at[:16].replace('T',' ') if c.created_at else '—' }}">{{ c.created_at[:16].replace('T',' ') if c.created_at else '—' }}</span>
+      </td>
+      {% if can_see_all %}
+      <td>
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11.5px] font-semibold" style="background:rgba(37,99,235,.08);color:#1d4ed8">
+          <i data-lucide="user" style="width:11px;height:11px;" aria-hidden="true"></i> {{ c.username }}
+        </span>
+      </td>
+      {% endif %}
+      <td class="text-[12.5px]" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3)" title="{{ c.doc_type }}">{{ c.doc_type or '—' }}</td>
+      <td class="strong text-[13px]" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ c.file_a }}">{{ c.file_a }}</td>
+      <td class="text-[13px]" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)" title="{{ c.file_b }}">{{ c.file_b }}</td>
+      <td class="tnum text-[13px] font-semibold {% if (c.diff_count or 0) > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">{{ c.diff_count or 0 }}</td>
+      <td>
+        {% if c.status=='ok' %}<span class="chip chip-ok"><span class="dot"></span>OK</span>
+        {% elif c.status=='ostrzezenie' %}<span class="chip chip-warn"><span class="dot"></span>Ostrzeżenie</span>
+        {% else %}<span class="chip chip-err"><span class="dot"></span>Błąd</span>{% endif %}
+      </td>
+      <td style="text-align:center" onclick="event.stopPropagation()">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="openReport({{ c.id }}, event)">
+          <i data-lucide="eye" style="width:13px;height:13px;" aria-hidden="true"></i> Otwórz
+        </button>
+      </td>
+      {% if can_delete %}
+      <td onclick="event.stopPropagation()">
+        <button type="button" class="btn btn-icon btn-subtle" onclick="deleteOne({{ c.id }})" title="Usuń porównanie #{{ c.id }}" aria-label="Usuń porównanie #{{ c.id }}">
+          <i data-lucide="trash-2" style="width:14px;height:14px;color:#94a3b8;" aria-hidden="true"></i>
+        </button>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
+{% else %}
+<div class="empty-state-full card">
+  <div style="font-size:48px;margin-bottom:16px;opacity:.4">📂</div>
+  <h3>Brak historii porównań{% if search %} dla „{{ search }}"{% endif %}</h3>
+  <p class="mt-1">{% if search %}Spróbuj zmienić frazy wyszukiwania lub wyczyść filtry.{% else %}Wykonaj pierwsze porównanie dokumentów, aby zobaczyć historię.{% endif %}</p>
+  {% if not search %}
+  <a href="/artwork" class="btn btn-primary mt-4">
+    <i data-lucide="palette" style="width:15px;height:15px;" aria-hidden="true"></i> Porównaj artworki
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Paginacja -->
+{% if total_pages > 1 %}
+<nav class="pagination" aria-label="Paginacja">
+  {% if page > 1 %}
+  <a href="/history?page={{ page-1 }}&q={{ search | urlencode }}&status={{ status_filter | urlencode }}" aria-label="Poprzednia strona">← Poprzednia</a>
+  {% endif %}
+  {% for p in range(1, total_pages+1) %}
+    {% if p == page %}
+    <span class="active" aria-current="page">{{ p }}</span>
+    {% elif p == 1 or p == total_pages or (p >= page-2 and p <= page+2) %}
+    <a href="/history?page={{ p }}&q={{ search | urlencode }}&status={{ status_filter | urlencode }}">{{ p }}</a>
+    {% elif p == page-3 or p == page+3 %}
+    <span class="dots">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="/history?page={{ page+1 }}&q={{ search | urlencode }}&status={{ status_filter | urlencode }}" aria-label="Następna strona">Następna →</a>
+  {% endif %}
+  <span class="dots text-[12px]">Strona {{ page }}/{{ total_pages }}</span>
+</nav>
+{% endif %}
+
+<script>
+let _currentReport = null;
+let _currentCid = null;
+
+// FIX 4: Persist filter state in URL so back button restores filters
+function updateURL() {
+  const q = (document.getElementById('searchInput').value || '').trim();
+  const st = document.getElementById('statusFilter').value || '';
+  const params = new URLSearchParams(window.location.search);
+  if (q) params.set('q', q); else params.delete('q');
+  if (st) params.set('status', st); else params.delete('status');
+  history.replaceState(null, '', '?' + params.toString());
+}
+
+function submitFilter(){
+  updateURL();
+  document.getElementById('filterForm').submit();
+}
+
+// Restore filter state from URL params on page load (FIX 4)
+(function restoreFilterState() {
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get('q');
+  const st = params.get('status');
+  const searchInput = document.getElementById('searchInput');
+  const statusFilter = document.getElementById('statusFilter');
+  if (q && searchInput && !searchInput.value) searchInput.value = q;
+  if (st && statusFilter) statusFilter.value = st;
+})();
+
+// ─── FILTR (klient-side dla zaznaczonych checkbox) ───────────────────────────
+function filterTable(){
+  // Wyszukiwanie server-side — JS filter tylko dla checkbox/bulk
+  const q=(document.getElementById('searchInput').value||'').toLowerCase();
+  const st=(document.getElementById('statusFilter').value||'');
+  let vis=0;
+  document.querySelectorAll('#tableBody tr.data-row').forEach(tr=>{
+    const txt=tr.innerText.toLowerCase();
+    const show=(q===''||txt.includes(q))&&(st===''||tr.dataset.status===st);
+    tr.classList.toggle('hidden-row',!show);
+    if(show)vis++;
+  });
+}
+
+// ─── CHECKBOX / BULK DELETE ──────────────────────────────────────────────────
+function toggleAll(cb){
+  document.querySelectorAll('.row-cb').forEach(c=>{
+    if(!c.closest('tr').classList.contains('hidden-row'))c.checked=cb.checked;
+  });
+  onCheckChange();
+}
+function onCheckChange(){
+  const n=document.querySelectorAll('.row-cb:checked').length;
+  const btn=document.getElementById('btnBulkDelete');
+  if(btn)btn.classList.toggle('hidden',n===0);
+  document.querySelectorAll('#tableBody tr').forEach(tr=>{
+    const cb=tr.querySelector('.row-cb');
+    if(cb)tr.classList.toggle('selected',cb.checked);
+  });
+}
+let _pendingIds=[];
+function bulkDelete(){
+  _pendingIds=Array.from(document.querySelectorAll('.row-cb:checked')).map(c=>parseInt(c.dataset.id));
+  if(!_pendingIds.length)return;
+  document.getElementById('confirmText').textContent=`Usunąć ${_pendingIds.length} rekord(ów)?`;
+  document.getElementById('confirmBar').classList.remove('hidden');
+}
+function cancelDelete(){_pendingIds=[];document.getElementById('confirmBar').classList.add('hidden');}
+async function confirmDelete(){
+  if(!_pendingIds.length)return;
+  const r=await fetch('/api/comparisons/bulk_delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:_pendingIds})});
+  const d=await r.json();
+  if(d.ok){_pendingIds.forEach(id=>document.querySelector(`tr[data-id="${id}"]`)?.remove());cancelDelete();filterTable();}
+  else toast(d.error||'Błąd','error');
+}
+async function deleteOne(id){
+  confirmModal(`Usunąć porównanie #${id}?`, async () => {
+    const r=await fetch(`/api/comparison/${id}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){document.querySelector(`tr[data-id="${id}"]`)?.remove();filterTable();}
+    else toast(d.error||'Błąd','error');
+  }, {okLabel:'Usuń', danger:true});
+}
+
+// ─── OPEN REPORT ─────────────────────────────────────────────────────────────
+async function openReport(id, e){
+  if(e){e.stopPropagation();e.preventDefault();}
+  document.getElementById('rContent').innerHTML='<div class="rloading"><div class="rspin"></div>Ładowanie raportu…</div>';
+  document.getElementById('rTitle').textContent=`Raport #${id}`;
+  document.getElementById('rMeta').textContent='';
+  document.getElementById('rov').classList.add('on');
+  document.body.style.overflow='hidden';
+  _currentCid=id;_currentReport=null;
+
+  const resp=await fetch(`/api/comparison/${id}`);
+  if(!resp.ok){
+    document.getElementById('rContent').innerHTML=`<div class="mod-err">Błąd ładowania raportu #${id}</div>`;
+    return;
+  }
+  const d=await resp.json();
+  _currentReport=d;
+  renderReport(d, id);
+}
+
+function closeRov(){
+  document.getElementById('rov').classList.remove('on');
+  document.body.style.overflow='';
+  _currentReport=null;_currentCid=null;
+}
+
+document.getElementById('rov').addEventListener('click', e=>{
+  if(e.target===document.getElementById('rov'))closeRov();
+});
+document.addEventListener('keydown', e=>{if(e.key==='Escape')closeRov();});
+
+// ─── RENDER RAPORT (identyczny jak w analyze.html) ───────────────────────────
+function renderReport(d, id){
+  const risk=d.risk_level||d.db_status||'ok';
+  const rm={ok:{icon:'✅',title:'Dokumenty zgodne',cls:'rb-ok'},
+            ostrzezenie:{icon:'⚠️',title:'Ostrzeżenia',cls:'rb-warn'},
+            blad:{icon:'❌',title:'Błędy krytyczne',cls:'rb-err'}}[risk]||{icon:'✅',title:'OK',cls:'rb-ok'};
+
+  const errs=d.total_errors||d.db_diff_count||0;
+  const warns=d.total_warnings||0;
+  const ta=d.doc_type_a&&d.doc_type_a!=='auto'?` [${d.doc_type_a}]`:'';
+  const tb=d.doc_type_b&&d.doc_type_b!=='auto'?` [${d.doc_type_b}]`:'';
+  const ts=(d.created_at||'').slice(0,16).replace('T',' ');
+
+  document.getElementById('rTitle').textContent=`Raport #${id} — ${d.file_a||''} vs ${d.file_b||''}`;
+  document.getElementById('rMeta').textContent=`${ts}  ·  👤 ${d.username||'?'}  ·  ${d.doc_type_a||'?'}${ta} vs ${d.doc_type_b||'?'}${tb}`;
+
+  const modules=d.modules||{};
+
+  // badge helpers
+  function badge(n,hasErr,hasWarn){
+    const cls=hasErr?'b-err':hasWarn?'b-warn':'b-ok';
+    return `<span class="rbadge ${cls}">${n}</span>`;
+  }
+
+  // Build tabs based on available modules
+  const hasTbl  = modules.table?.ok;
+  const hasEnh  = modules.enhanced?.ok;
+  const hasRx   = modules.regex?.ok;
+  const hasTypo = modules.typo?.ok;
+
+  const tblE=modules.table?.diff_count||0,  tblW=modules.table?.warn_count||0;
+  const enhE=modules.enhanced?.diff_count||0,enhW=modules.enhanced?.warn_count||0;
+  const rxE =modules.regex?.diff_count||0,   rxW =modules.regex?.warn_count||0;
+  const tyE =modules.typo?.error_count||0,   tyW =modules.typo?.warning_count||0;
+
+  let html=`
+  <div class="rbanner ${rm.cls}">
+    <div class="rb-icon">${rm.icon}</div>
+    <div style="flex:1">
+      <div class="rb-title">${rm.title}</div>
+      <div class="rb-sub">${esc(d.summary||'')}</div>
+    </div>
+    <div class="rb-stats">
+      <div class="rb-stat"><div class="rb-num c-err">${errs}</div><div class="rb-lbl">rozbieżności</div></div>
+      <div class="rb-stat"><div class="rb-num c-warn">${warns}</div><div class="rb-lbl">ostrzeżenia</div></div>
+    </div>
+  </div>
+  <div class="rtabs">
+    <button type="button" class="rtab on" id="rtab-ov" onclick="showRTab('ov')">📋 Przegląd ${badge(errs+warns,errs>0,warns>0)}</button>
+    ${hasEnh?`<button type="button" class="rtab" id="rtab-enh" onclick="showRTab('enh')">⚡ Enhanced ${badge(enhE+enhW,enhE>0,enhW>0)}</button>`:''}
+    ${hasTbl?`<button type="button" class="rtab" id="rtab-tbl" onclick="showRTab('tbl')">📊 Tabele ${badge(tblE+tblW,tblE>0,tblW>0)}</button>`:''}
+    ${hasRx ?`<button type="button" class="rtab" id="rtab-rx"  onclick="showRTab('rx')">🔎 Pola tekst. ${badge(rxE+rxW,rxE>0,rxW>0)}</button>`:''}
+    ${hasTypo?`<button type="button" class="rtab" id="rtab-typo" onclick="showRTab('typo')">⚠ Literówki ${badge(tyE+tyW,tyE>0,tyW>0)}</button>`:''}
+  </div>
+  <div class="rpanel on" id="rpanel-ov">${buildOv(d)}</div>
+  ${hasEnh?`<div class="rpanel" id="rpanel-enh">${buildTblPanel(modules.enhanced,'enhanced')}</div>`:''}
+  ${hasTbl?`<div class="rpanel" id="rpanel-tbl">${buildTblPanel(modules.table,'table')}</div>`:''}
+  ${hasRx ?`<div class="rpanel" id="rpanel-rx">${buildRxPanel(modules.regex)}</div>`:''}
+  ${hasTypo?`<div class="rpanel" id="rpanel-typo">${buildTypoPanel(modules.typo)}</div>`:''}
+  `;
+
+  document.getElementById('rContent').innerHTML=html;
+}
+
+function showRTab(name){
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.rpanel').forEach(p=>p.classList.remove('on'));
+  const t=document.getElementById('rtab-'+name);
+  const p=document.getElementById('rpanel-'+name);
+  if(t)t.classList.add('on');
+  if(p)p.classList.add('on');
+}
+
+// ─── OVERVIEW ────────────────────────────────────────────────────────────────
+function buildOv(d){
+  const m=d.modules||{};
+  let h='<div class="cards-mini">';
+  const cfg=[
+    {k:'enhanced',icon:'⚡',lbl:'Enhanced',det:m=>`${m.diff_count||0} błędów · ${m.warn_count||0} ost. · ${m.ok_count||0} OK`},
+    {k:'table',   icon:'📊',lbl:'Tabele',   det:m=>`${m.diff_count||0} błędów · ${m.warn_count||0} ost. · ${m.ok_count||0} OK`},
+    {k:'regex',   icon:'🔎',lbl:'Pola tekst.',det:m=>`${m.diff_count||0} rozbieżności`},
+    {k:'typo',    icon:'⚠', lbl:'Literówki',det:m=>`${m.error_count||0} błędów · ${m.warning_count||0} ost.`},
+  ];
+  cfg.forEach(c=>{
+    const mod=m[c.k];
+    if(!mod)return;
+    const e=mod.diff_count||mod.error_count||0;
+    const w=mod.warn_count||mod.warning_count||0;
+    h+=`<div class="crd"><div class="crd-hdr"><span>${e>0?'🔴':'🟢'}</span><span class="crd-lbl">${c.lbl}</span></div>
+      <div class="crd-det">${esc(c.det(mod))}</div></div>`;
+  });
+  h+='</div>';
+
+  // Krytyczne problemy
+  const crits=[];
+  if(m.table?.ok){
+    (m.table.items||[]).filter(i=>i.status==='roznica').forEach(i=>crits.push(`[Tabela] ${i.ref}: ${(i.issues||[]).join('; ')}`));
+    (m.table.headers||[]).filter(h=>['roznica','brak_w_a','brak_w_b'].includes(h.status)).forEach(h=>crits.push(`[Tabela] '${h.key}': ${h.val_a||'—'} → ${h.val_b||'—'}`));
+  }
+  if(m.enhanced?.ok){
+    (m.enhanced.findings||[]).filter(f=>f.severity==='error').forEach(f=>crits.push(`[Enhanced] ${f.description||''}`));
+  }
+  if(m.typo?.ok)(m.typo.findings||[]).filter(f=>f.severity==='error').forEach(f=>crits.push(`[I↔1] ${f.description}`));
+  if(m.regex?.ok)(m.regex.fields||[]).filter(f=>['roznica','brak_w_a','brak_w_b'].includes(f.status)).slice(0,5).forEach(f=>crits.push(`[Regex] '${f.field}': ${f.doc_a||'—'} vs ${f.doc_b||'—'}`));
+
+  if(crits.length){
+    h+=`<div class="sec">PROBLEMY KRYTYCZNE (${crits.length})</div><div class="crit-list">`;
+    crits.slice(0,25).forEach(c=>h+=`<div class="crit-item">❌ ${esc(c)}</div>`);
+    if(crits.length>25)h+=`<div style="font-size:17px;color:var(--muted);padding:3px 0">… i ${crits.length-25} więcej w zakładkach</div>`;
+    h+='</div>';
+  }else{
+    h+='<div class="ok-box">✅ Brak krytycznych problemów</div>';
+  }
+  return h;
+}
+
+// ─── TABLE / ENHANCED PANEL ──────────────────────────────────────────────────
+function buildTblPanel(m, mode){
+  if(!m||!m.ok)return`<div class="mod-err">Błąd: ${esc(m?.error||'?')}</div>`;
+  let h=`<div class="mod-sum">${esc(m.summary||'')}</div>`;
+
+  // Enhanced findings
+  if(mode==='enhanced'&&(m.findings||[]).length){
+    const cats={'I_vs_1':'I↔1','ilosc':'ilość','cena':'cena','wartosc':'wartość',
+                'suma_kontrolna':'suma','suma_totalna':'total','pozycja':'pozycja',
+                'data':'data','warunki':'warunki','incoterms':'incoterms'};
+    h+=`<div class="sec">Znaleziska (${m.findings.length})</div>
+    <div class="rtbl-wrap"><table class="rtbl"><thead><tr>
+      <th scope="col">Ważność</th><th scope="col">Kategoria</th><th scope="col">Pole</th><th scope="col">Wartość A</th><th scope="col">Wartość B</th><th scope="col">Opis</th>
+    </tr></thead><tbody>`;
+    m.findings.forEach(f=>{
+      h+=`<tr class="r-${f.severity}">
+        <td>${sevpill(f.severity)}</td>
+        <td style="font-size:16px;font-family:var(--mono);color:var(--muted)">${esc(cats[f.category]||f.category)}</td>
+        <td style="font-size:17px">${esc(f.field_name||'')}</td>
+        <td class="col-a mono ve" style="font-size:17px">${esc(f.val_a)||'<span class="vn">—</span>'}</td>
+        <td class="col-b mono ve" style="font-size:17px">${esc(f.val_b)||'<span class="vn">—</span>'}</td>
+        <td style="font-size:16px">${esc(f.description||'')}</td>
+      </tr>`;
+    });
+    h+='</tbody></table></div>';
+  }
+
+  if(m.total_a||m.total_b){
+    h+=`<div class="totals">
+      <div class="tot"><div class="tot-lbl">TOTAL A</div><div class="tot-val mono">${esc(m.total_a||'—')}</div></div>
+      <div class="tot"><div class="tot-lbl">TOTAL B</div><div class="tot-val mono">${esc(m.total_b||'—')}</div></div>
+    </div>`;
+  }
+
+  if((m.headers||[]).length){
+    h+=`<div class="sec">Pola nagłówkowe</div>
+    <div class="fbar"><span class="fbar-lbl">FILTR:</span>
+      <button type="button" class="fb on" onclick="rfilt('all',this,'rthT${mode}')">Wszystkie</button>
+      <button type="button" class="fb" onclick="rfilt('err',this,'rthT${mode}')">Błędy</button>
+      <button type="button" class="fb" onclick="rfilt('ok',this,'rthT${mode}')">Zgodne</button>
+    </div>
+    <div class="rtbl-wrap"><table class="rtbl" id="rthT${mode}"><thead><tr>
+      <th scope="col">Pole</th><th scope="col" class="col-a"><span class="dot-a"></span>Dok. A</th><th scope="col" class="col-b"><span class="dot-b"></span>Dok. B</th><th scope="col">Status</th><th scope="col">Komentarz</th>
+    </tr></thead><tbody>`;
+    m.headers.forEach(hdr=>{
+      const ve=['roznica','brak_w_a','brak_w_b'].includes(hdr.status)?'ve':'';
+      h+=`<tr class="r-${hdr.status}" data-s="${hdr.status}">
+        <td><strong>${esc(hdr.key)}</strong></td>
+        <td class="col-a"><span class="${ve}">${esc(hdr.val_a)||'<span class="vn">—</span>'}</span></td>
+        <td class="col-b"><span class="${ve}">${esc(hdr.val_b)||'<span class="vn">—</span>'}</span></td>
+        <td>${spill(hdr.status)}</td>
+        <td style="font-size:17px;color:var(--muted)">${esc(hdr.comment||'')}</td>
+      </tr>`;
+    });
+    h+='</tbody></table></div>';
+  }
+
+  if((m.items||[]).length){
+    h+=`<div class="sec" style="margin-top:16px">Pozycje towarowe</div>
+    <div class="fbar"><span class="fbar-lbl">FILTR:</span>
+      <button type="button" class="fb on" onclick="rfilt('all',this,'rtiT${mode}')">Wszystkie</button>
+      <button type="button" class="fb" onclick="rfilt('err',this,'rtiT${mode}')">Błędy</button>
+      <button type="button" class="fb" onclick="rfilt('ok',this,'rtiT${mode}')">Zgodne</button>
+    </div>
+    <div class="rtbl-wrap"><table class="rtbl" id="rtiT${mode}"><thead><tr>
+      <th scope="col">REF</th><th scope="col">Opis A</th><th scope="col">Opis B</th>
+      <th scope="col">Ilość A</th><th scope="col">Ilość B</th><th scope="col">Cena A</th><th scope="col">Cena B</th>
+      <th scope="col">Net A</th><th scope="col">Net B</th><th scope="col">Status</th>
+    </tr></thead><tbody>`;
+    m.items.forEach(it=>{
+      const err=it.status==='roznica';
+      const issH=(it.issues||[]).map(s=>`<div class="ie">${esc(s)}</div>`).join('');
+      h+=`<tr class="r-${it.status}" data-s="${it.status}">
+        <td><strong class="mono" style="font-size:17px">${esc(it.ref)}</strong>${issH?`<div class="issues">${issH}</div>`:''}</td>
+        <td class="col-a" style="font-size:15px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.desc_a)}">${esc(it.desc_a)||'<span class="vn">—</span>'}</td>
+        <td class="col-b" style="font-size:15px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.desc_b)}">${esc(it.desc_b)||'<span class="vn">—</span>'}</td>
+        <td class="col-a mono${err?' ve':''}" style="font-size:17px">${esc(it.qty_a)||'—'}</td>
+        <td class="col-b mono${err?' ve':''}" style="font-size:17px">${esc(it.qty_b)||'—'}</td>
+        <td class="col-a mono" style="font-size:17px">${esc(it.price_a)||'—'}</td>
+        <td class="col-b mono" style="font-size:17px">${esc(it.price_b)||'—'}</td>
+        <td class="col-a mono${err?' ve':''}" style="font-size:17px">${esc(it.net_a)||'—'}</td>
+        <td class="col-b mono${err?' ve':''}" style="font-size:17px">${esc(it.net_b)||'—'}</td>
+        <td>${spill(it.status)}</td>
+      </tr>`;
+    });
+    h+='</tbody></table></div>';
+  }
+
+  if(!(m.headers||[]).length&&!(m.items||[]).length&&!(m.findings||[]).length){
+    h+='<div class="ok-box">✅ Brak rozbieżności w tym module</div>';
+  }
+  return h;
+}
+
+// ─── REGEX PANEL ─────────────────────────────────────────────────────────────
+function buildRxPanel(m){
+  if(!m||!m.ok)return`<div class="mod-err">Błąd: ${esc(m?.error||'?')}</div>`;
+  let h=`<div class="mod-sum">${esc(m.summary||'')}</div>`;
+  const fields=m.fields||[];
+  if(!fields.length)return h+'<div class="ok-box">✅ Brak rozbieżności w polach tekstowych</div>';
+  h+=`<div class="rtbl-wrap"><table class="rtbl"><thead><tr>
+    <th scope="col">Pole</th><th scope="col" class="col-a"><span class="dot-a"></span>Dok. A</th><th scope="col" class="col-b"><span class="dot-b"></span>Dok. B</th><th scope="col">Status</th><th scope="col">Komentarz</th>
+  </tr></thead><tbody>`;
+  fields.forEach(f=>{
+    const ve=['roznica','brak_w_a','brak_w_b'].includes(f.status)?'ve':'';
+    h+=`<tr class="r-${f.status}">
+      <td>${esc(f.field)}</td>
+      <td><span class="${ve}">${esc(f.doc_a)||'<span class="vn">—</span>'}</span></td>
+      <td><span class="${ve}">${esc(f.doc_b)||'<span class="vn">—</span>'}</span></td>
+      <td>${spill(f.status)}</td>
+      <td style="font-size:17px;color:var(--muted)">${esc(f.comment||'')}</td>
+    </tr>`;
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+
+// ─── TYPO PANEL ───────────────────────────────────────────────────────────────
+function buildTypoPanel(m){
+  if(!m||!m.ok)return`<div class="mod-err">Błąd: ${esc(m?.error||'?')}</div>`;
+  let h=`<div class="mod-sum">${esc(m.summary||'')}</div>`;
+  const fs=m.findings||[];
+  if(!fs.length)return h+'<div class="ok-box">✅ Brak literówek ani błędów I↔1</div>';
+  const cats={'I_vs_1':'I↔1','literowka':'literówka','ilosc':'ilość','wartosc':'wartość','format':'format'};
+  h+=`<div class="rtbl-wrap"><table class="rtbl"><thead><tr>
+    <th scope="col">Ważność</th><th scope="col">Typ</th><th scope="col">Pole</th><th scope="col">Wartość A</th><th scope="col">Wartość B</th><th scope="col">Opis</th>
+  </tr></thead><tbody>`;
+  fs.forEach(f=>{
+    h+=`<tr class="r-${f.severity}">
+      <td>${sevpill(f.severity)}</td>
+      <td style="font-size:16px;font-family:var(--mono);color:var(--muted)">${esc(cats[f.category]||f.category||'')}</td>
+      <td style="font-size:17px;color:var(--muted)">${esc(f.field_name||'')}</td>
+      <td class="col-a mono ve" style="font-size:17px">${esc(f.val_a)||'<span class="vn">—</span>'}</td>
+      <td class="col-b mono ve" style="font-size:17px">${esc(f.val_b)||'<span class="vn">—</span>'}</td>
+      <td style="font-size:16px">${esc(f.description||'')}${f.suggestion?`<div style="font-size:17px;color:var(--muted)">💡 ${esc(f.suggestion)}</div>`:''}</td>
+    </tr>`;
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+
+// ─── TABLE FILTER ─────────────────────────────────────────────────────────────
+function rfilt(f,btn,tid){
+  btn.closest('.fbar').querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const tbl=document.getElementById(tid);
+  if(!tbl)return;
+  tbl.querySelectorAll('tbody tr').forEach(tr=>{
+    const s=tr.dataset.s||'';
+    let show=true;
+    if(f==='err')show=['roznica','brak_w_a','brak_w_b','tylko_a','tylko_b','error'].includes(s);
+    else if(f==='ok')show=s==='ok';
+    tr.classList.toggle('hidden-tr',!show);
+  });
+}
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+async function exportRep(fmt){
+  if(!_currentReport||!_currentCid)return;
+  const btn=fmt==='pdf'?document.getElementById('rBtnPdf'):document.getElementById('rBtnXlsx');
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳';
+  try{
+    const r=await fetch('/api/analyze/export',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({format:fmt,report:_currentReport,comparison_id:_currentCid})
+    });
+    if(!r.ok){const e=await r.json();toast(e.error||'Błąd eksportu','error');return;}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`raport_${_currentCid}.${fmt==='excel'?'xlsx':'pdf'}`;
+    a.click();URL.revokeObjectURL(url);
+  }catch(ex){toast('Błąd: '+ex.message,'error');}
+  finally{btn.disabled=false;btn.textContent=orig;}
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function spill(s){
+  const m={ok:['OK','p-ok'],format:['format','p-fmt'],watpliwe:['wątpliwe','p-warn'],
+           roznica:['różnica','p-err'],brak_w_a:['brak A','p-err'],brak_w_b:['brak B','p-err'],
+           tylko_a:['tylko A','p-warn'],tylko_b:['tylko B','p-warn']};
+  const[l,c]=m[s]||[s,'p-fmt'];
+  return`<span class="pill ${c}">${l}</span>`;
+}
+function sevpill(s){
+  const m={error:['błąd','p-err'],warning:['ostrzeż.','p-warn'],info:['uwaga','p-fmt']};
+  const[l,c]=m[s]||[s,'p-fmt'];
+  return`<span class="pill ${c}">${l}</span>`;
+}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+{% endblock %}

@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Typy dokumentów — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+h2{font-size:20px;font-weight:500;margin-bottom:4px}
+.sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+/* .btn / .btn-primary / .btn-ghost — z app.css. */
+.search{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:7px 12px;color:var(--text);font-size:13px;outline:none;width:220px}
+.search:focus{border-color:var(--accent)}
+
+/* table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;font-size:10px;font-family:var(--mono);letter-spacing:1px;
+  color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface);
+  white-space:nowrap;user-select:none}
+th.sortable{cursor:pointer}
+th.sortable:hover{color:var(--text)}
+td{padding:9px 12px;border-bottom:1px solid rgba(42,45,58,.4);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.018)}
+tr.inactive td{opacity:.45}
+
+/* drag handle */
+.drag-handle{cursor:grab;color:var(--muted);font-size:16px;padding:0 4px;
+  user-select:none;display:inline-block}
+.drag-handle:active{cursor:grabbing}
+tr.dragging{opacity:.4;background:rgba(91,155,255,.05)}
+tr.drag-over{border-top:2px solid var(--accent)}
+
+/* inline edit */
+.editable{border:none;background:transparent;color:var(--text);font-size:13px;
+  font-family:inherit;width:100%;outline:none;cursor:text}
+.editable:focus{background:var(--bg);border:1px solid var(--accent);
+  border-radius:4px;padding:2px 6px;cursor:text}
+.icon-input{width:50px;text-align:center;font-size:16px}
+
+/* toggle switch */
+.toggle{position:relative;display:inline-block;width:38px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:var(--border);border-radius:22px;
+  cursor:pointer;transition:background .2s}
+.slider:before{position:absolute;content:"";height:16px;width:16px;
+  left:3px;bottom:3px;background:#fff;border-radius:50%;transition:transform .2s}
+input:checked + .slider{background:var(--ok)}
+input:checked + .slider:before{transform:translateX(16px)}
+
+/* action buttons */
+.act-btn{background:none;border:none;cursor:pointer;padding:4px 7px;border-radius:5px;
+  font-size:13px;transition:background .15s;color:var(--muted)}
+.act-btn:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.act-btn.del:hover{background:rgba(255,92,92,.1);color:var(--error)}
+
+/* code badge */
+.code-badge{font-family:var(--mono);font-size:11px;background:rgba(91,155,255,.1);
+  color:var(--accent);border:1px solid rgba(91,155,255,.15);border-radius:5px;
+  padding:2px 8px;white-space:nowrap}
+.builtin-badge{font-size:10px;font-family:var(--mono);color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:1px 6px}
+
+/* modal */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:200;align-items:center;justify-content:center}
+.ov.on{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:92%;max-width:500px;padding:26px}
+.modal h3{font-size:16px;margin-bottom:18px}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:11px;font-family:var(--mono);
+  color:var(--muted);margin-bottom:5px;letter-spacing:.5px}
+.form-row input,.form-row textarea{width:100%;background:var(--bg);
+  border:1px solid var(--border);border-radius:7px;padding:8px 12px;
+  color:var(--text);font-size:13px;outline:none;font-family:inherit}
+.form-row input:focus,.form-row textarea:focus{border-color:var(--accent)}
+.form-row textarea{resize:vertical;min-height:60px}
+.form-hint{font-size:11px;color:var(--muted);margin-top:4px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+/* .btn-cancel/.btn-save to były drugie nazwy na .btn-ghost/.btn-primary w tym samym
+   pliku — aliasy zamiast nowych stylów, żeby nie przepisywać znaczników modala. */
+.btn-cancel{background:var(--surface);border:1px solid var(--border);color:var(--muted);
+  border-radius:9px;padding:.5rem .9rem;cursor:pointer;font-size:13.5px;font-weight:600}
+.btn-save{background:var(--accent);color:#fff;border:1px solid transparent;border-radius:9px;
+  padding:.5rem .9rem;cursor:pointer;font-size:13.5px;font-weight:600}
+
+
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.count-note{font-size:12px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+</style>
+{% endblock %}
+
+{% block page_title %}Typy dokumentów{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Typy dokumentów</h1>
+  <p class="sub">Zarządzaj listą typów dokumentów dostępnych podczas analizy. Możesz dodawać własne, zmieniać kolejność i włączać/wyłączać poszczególne typy.</p>
+</div>
+
+<div class="toolbar">
+  <button type="button" class="btn btn-primary" onclick="openAdd()">＋ Dodaj typ</button>
+  <label for="searchInput" class="sr-only">Szukaj typów dokumentów</label>
+  <input class="search" type="search" id="searchInput" placeholder="Szukaj…" oninput="filterRows()" autocomplete="off">
+  <span class="count-note" id="countNote"></span>
+</div>
+
+<div class="tbl-wrap">
+<table id="mainTable">
+  <thead>
+    <tr>
+      <th scope="col" style="width:30px"></th>
+      <th scope="col" style="width:36px"></th>
+      <th scope="col" class="sortable" onclick="sortBy('code')">KOD ↕</th>
+      <th scope="col" class="sortable" onclick="sortBy('label')">NAZWA ↕</th>
+      <th scope="col">OPIS</th>
+      <th scope="col" style="width:90px">AKTYWNY</th>
+      <th scope="col" style="width:80px">KOLEJNOŚĆ</th>
+      <th scope="col" style="width:80px"></th>
+    </tr>
+  </thead>
+  <tbody id="tbody">
+    {% for t in doc_types %}
+    <tr id="row-{{ t.id }}"
+        data-id="{{ t.id }}"
+        data-code="{{ t.code }}"
+        data-label="{{ t.label|lower }}"
+        data-active="{{ t.active }}"
+        data-builtin="{{ 1 if t.code in ['auto','PO','PI','CI','PL','SAD','BL','WZ','FV','MULTI','CMR','SWIFT'] else 0 }}"
+        class="{{ '' if t.active else 'inactive' }}"
+        draggable="true"
+        ondragstart="onDragStart(event)"
+        ondragover="onDragOver(event)"
+        ondrop="onDrop(event)"
+        ondragend="onDragEnd(event)">
+      <td><span class="drag-handle" title="Przeciągnij aby zmienić kolejność">⠿</span></td>
+      <td>
+        <input class="editable icon-input" value="{{ t.icon }}"
+          onblur="saveField({{ t.id }},'icon',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          title="Kliknij aby edytować emoji">
+      </td>
+      <td>
+        <span class="code-badge">{{ t.code }}</span>
+        {% if t.code in ['auto','PO','PI','CI','PL','SAD','BL','WZ','FV','MULTI','CMR','SWIFT'] %}
+        <span class="builtin-badge" title="Typ wbudowany">built-in</span>
+        {% endif %}
+      </td>
+      <td>
+        <input class="editable" value="{{ t.label }}"
+          onblur="saveField({{ t.id }},'label',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          title="Kliknij aby edytować">
+      </td>
+      <td>
+        <input class="editable" value="{{ t.description or '' }}"
+          onblur="saveField({{ t.id }},'description',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"
+          style="color:var(--muted)"
+          title="Kliknij aby edytować opis">
+      </td>
+      <td>
+        <label class="toggle">
+          <input type="checkbox" {{ 'checked' if t.active else '' }}
+            onchange="toggleActive({{ t.id }}, this.checked)">
+          <span class="slider"></span>
+        </label>
+      </td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">{{ t.sort_order }}</td>
+      <td>
+        {% if t.code not in ['auto','PO','PI','CI','PL','SAD','BL','WZ','FV','MULTI','CMR','SWIFT'] %}
+        <button type="button" class="act-btn del" onclick="deleteType({{ t.id }},{{ t.label|tojson }})" title="Usuń">🗑</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if not doc_types %}
+<div class="empty">Brak typów dokumentów. Kliknij „+ Dodaj typ" aby dodać pierwszy.</div>
+{% endif %}
+
+<!-- ADD MODAL -->
+<div class="ov" id="addOv" onclick="closeIfBg(event,'addOv')" role="dialog" aria-modal="true" aria-labelledby="addDocTypeTitle">
+  <div class="modal">
+    <h3 id="addDocTypeTitle">Dodaj typ dokumentu</h3>
+    <div class="form-row">
+      <label for="newIcon">EMOJI (ikona)</label>
+      <input id="newIcon" value="📄" style="width:60px;font-size:20px;text-align:center">
+    </div>
+    <div class="form-row">
+      <label for="newCode">KOD * <span style="font-size:10px;color:var(--muted)">(max 12 znaków, wielkie litery)</span></label>
+      <input id="newCode" placeholder="np. PROFORMA" oninput="this.value=this.value.toUpperCase()" aria-required="true">
+      <div class="form-hint">Unikalny identyfikator — nie można zmienić po dodaniu</div>
+    </div>
+    <div class="form-row">
+      <label for="newLabel">NAZWA *</label>
+      <input id="newLabel" placeholder="np. Proforma Invoice (ACME)" aria-required="true">
+    </div>
+    <div class="form-row">
+      <label for="newDesc">OPIS</label>
+      <textarea id="newDesc" placeholder="Opcjonalny opis dla operatora…"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button type="button" class="btn-cancel" onclick="closeModal('addOv')">Anuluj</button>
+      <button type="button" class="btn-save" onclick="addType()">Dodaj</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+const BUILTIN = new Set(['auto','PO','PI','CI','PL','SAD','BL','WZ','FV','MULTI','CMR','SWIFT']);
+
+// ── Filter ────────────────────────────────────────────
+function filterRows(){
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const match = !q || tr.dataset.label.includes(q) || tr.dataset.code.toLowerCase().includes(q);
+    tr.style.display = match ? '' : 'none';
+    if(match) visible++;
+  });
+  document.getElementById('countNote').textContent = `${visible} typów`;
+}
+
+// ── Sort ──────────────────────────────────────────────
+let sortDir = {};
+function sortBy(field){
+  sortDir[field] = !(sortDir[field]);
+  const tbody = document.getElementById('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a,b)=>{
+    const va = a.dataset[field]||'', vb = b.dataset[field]||'';
+    return sortDir[field] ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+// ── Toggle active ─────────────────────────────────────
+async function toggleActive(id, checked){
+  const r = await fetch(`/api/doc-types/${id}`,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({active: checked ? 1 : 0})
+  });
+  const d = await r.json();
+  if(d.ok){
+    const row = document.getElementById('row-'+id);
+    row.dataset.active = checked ? '1' : '0';
+    row.classList.toggle('inactive', !checked);
+    toast(`${checked ? 'Włączono' : 'Wyłączono'} typ`, checked ? 'ok' : 'info');
+  } else {
+    toast(d.error||'Błąd', 'error');
+  }
+}
+
+// ── Save field inline ─────────────────────────────────
+async function saveField(id, field, value){
+  const r = await fetch(`/api/doc-types/${id}`,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({[field]: value})
+  });
+  const d = await r.json();
+  if(d.ok){
+    toast('Zapisano ✓','ok');
+    // Aktualizuj dataset dla wyszukiwania
+    if(field==='label'){
+      document.getElementById('row-'+id).dataset.label = value.toLowerCase();
+    }
+  } else {
+    toast(d.error||'Błąd zapisu','error');
+  }
+}
+
+// ── Add type ──────────────────────────────────────────
+function openAdd(){ document.getElementById('addOv').classList.add('on') }
+
+async function addType(){
+  const icon  = document.getElementById('newIcon').value.trim() || '📄';
+  const code  = document.getElementById('newCode').value.trim().toUpperCase();
+  const label = document.getElementById('newLabel').value.trim();
+  const desc  = document.getElementById('newDesc').value.trim();
+
+  if(!code || !label){ toast('Uzupełnij kod i nazwę','error'); return }
+
+  const r = await fetch('/api/doc-types',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({code, label, icon, description: desc})
+  });
+  const d = await r.json();
+  if(d.ok){
+    closeModal('addOv');
+    toast('Dodano typ dokumentu ✓','ok');
+    setTimeout(()=>location.reload(), 800);
+  } else {
+    toast(d.error||'Błąd','error');
+  }
+}
+
+// ── Delete ────────────────────────────────────────────
+async function deleteType(id, label){
+  confirmModal(`Usunąć typ "${label}"?`, async () => {
+    const r = await fetch(`/api/doc-types/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if(d.ok){
+      document.getElementById('row-'+id)?.remove();
+      toast('Usunięto typ','ok');
+      filterRows();
+    } else {
+      toast(d.error||'Błąd','error');
+    }
+  }, {okLabel:'Usuń', danger:true});
+}
+
+// ── Drag & drop reorder ───────────────────────────────
+let dragSrc = null;
+
+function onDragStart(e){
+  dragSrc = e.currentTarget;
+  dragSrc.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  const tr = e.currentTarget;
+  if(tr !== dragSrc) tr.classList.add('drag-over');
+}
+function onDrop(e){
+  e.preventDefault();
+  const target = e.currentTarget;
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  if(!dragSrc || dragSrc === target) return;
+  const tbody = document.getElementById('tbody');
+  // Wstaw dragSrc przed target
+  tbody.insertBefore(dragSrc, target);
+  saveOrder();
+}
+function onDragEnd(){
+  dragSrc?.classList.remove('dragging');
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  dragSrc = null;
+}
+
+async function saveOrder(){
+  const rows = Array.from(document.querySelectorAll('#tbody tr[data-id]'));
+  const items = rows.map((r,i)=>({id: parseInt(r.dataset.id), sort_order: i}));
+  // Aktualizuj wyświetlane numery
+  rows.forEach((r,i)=>{
+    const cell = r.querySelector('td:nth-child(7)');
+    if(cell) cell.textContent = i;
+  });
+  await fetch('/api/doc-types/reorder',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({items})
+  });
+  toast('Kolejność zapisana ✓','ok');
+}
+
+// ── Modal helpers ─────────────────────────────────────
+function closeModal(id){ document.getElementById(id).classList.remove('on') }
+function closeIfBg(e,id){ if(e.target.id===id) closeModal(id) }
+
+// Init
+filterRows();
+</script>
+{% endblock %}

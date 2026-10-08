@@ -1,0 +1,11 @@
+# Narzędzia deweloperskie (lint, format, testy). Nie są wymagane w produkcji —
+# instaluj lokalnie: pip install -r dev-requirements.txt
+ruff>=0.6
+pytest>=8.0
+pre-commit>=3.7
+
+# Lekkie zależności potrzebne do uruchomienia zestawu testów (tests/) bez
+# ciężkich pakietów ML z requirements.txt:
+python-dateutil>=2.8
+dateparser>=1.2
+babel>=2.12

@@ -1,0 +1,2607 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raport porownania artworkow{% if report and report.product_code %} — {{ report.product_code }}{% endif %}</title>
+<style>
+/* ── RESET & BASE ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  color: #222;
+  background: #f0f2f5;
+  line-height: 1.45;
+}
+.page {
+  max-width: none;
+  margin: 16px 24px 40px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,.12);
+  padding: 32px 40px 36px;
+}
+
+/* ── HEADER ────────────────────────────────────────────────────────────── */
+.rpt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #2980b9;
+}
+.rpt-header-left h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a5276;
+  margin-bottom: 4px;
+}
+.rpt-header-left .subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #444;
+}
+.rpt-header-right {
+  text-align: right;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.8;
+}
+.rpt-header-right span { font-weight: 600; color: #222; }
+
+/* ── STATS BAR ─────────────────────────────────────────────────────────── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 14px 12px 10px;
+  text-align: center;
+}
+.stat-num {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 14px;
+  color: #666;
+  margin-top: 5px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.stat-red  .stat-num { color: #c0392b; }
+.stat-orange .stat-num { color: #d35400; }
+.stat-green .stat-num { color: #1e8449; }
+.stat-blue  .stat-num { color: #1a5276; }
+
+/* ── SECTION ────────────────────────────────────────────────────────────── */
+.section {
+  margin-bottom: 24px;
+}
+.section-header {
+  background: #2980b9;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border-radius: 4px 4px 0 0;
+  margin-bottom: 0;
+}
+.section-header.summary-header {
+  background: #c0392b;
+}
+
+/* ── TABLES ─────────────────────────────────────────────────────────────── */
+.rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.rpt-table th {
+  background: #eaf2fb;
+  color: #1a4e73;
+  font-weight: 700;
+  padding: 7px 10px;
+  text-align: left;
+  border: 1px solid #d0dce8;
+  font-size: 15px;
+}
+.rpt-table td {
+  padding: 7px 10px;
+  border: 1px solid #dde3ea;
+  vertical-align: top;
+}
+.rpt-table tr:nth-child(even) td { background: #f9fbfd; }
+.rpt-table tr:hover td { background: #eef5fb; }
+
+/* ── STATUS BADGES ──────────────────────────────────────────────────────── */
+.status-ok        { color: #1e8449;  font-weight: 600; }
+.status-wzorzec   { color: #1a5276;  font-weight: 600; }
+.status-sprawdz   { color: #c0392b;  font-weight: 600; }
+.status-uwagi     { color: #d35400;  font-weight: 600; }
+.status-szablon   { color: #1a5276;  font-weight: 600; }
+.status-error     { color: #c0392b;  font-weight: 600; }
+.status-brak      { color: #d35400;  font-weight: 600; }
+.status-rozny     { color: #c0392b;  font-weight: 600; }
+.status-format    { color: #d35400;  font-weight: 600; }
+.status-info      { color: #1a5276;  font-weight: 600; }
+.status-literowka { color: #c0392b;  font-weight: 600; }
+
+/* ── GS1 / SUMMARY MESSAGES ─────────────────────────────────────────────── */
+.msg-box {
+  padding: 9px 13px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 16px;
+  line-height: 1.5;
+  border-left: 4px solid transparent;
+}
+.msg-ok {
+  background: #eafaf1;
+  border-left-color: #1e8449;
+  color: #1a3a25;
+}
+.msg-uwaga {
+  background: #fef9e7;
+  border-left-color: #d35400;
+  color: #5d3a00;
+}
+.msg-krytyczny {
+  background: #fdedec;
+  border-left-color: #c0392b;
+  color: #5b1a14;
+}
+.msg-info {
+  background: #eaf2fb;
+  border-left-color: #2980b9;
+  color: #154360;
+}
+.msg-label {
+  font-weight: 700;
+  margin-right: 5px;
+}
+
+/* ── COLOR NOTE ──────────────────────────────────────────────────────────── */
+.color-note {
+  background: #fffbeb;
+  border: 1px solid #f0c040;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 15px;
+  color: #5d3a00;
+  margin-top: 0;
+}
+
+/* ── LISTA KONTROLNA ─────────────────────────────────────────────────────── */
+.checklist-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  padding: 10px 14px;
+}
+.cl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #eef1f5;
+  font-size: 16px;
+}
+.cl-icon {
+  font-size: 19px;
+  line-height: 1.2;
+  flex-shrink: 0;
+  min-width: 18px;
+}
+.cl-ok   .cl-icon { color: #1e8449; }
+.cl-warn .cl-icon { color: #d35400; }
+.cl-err  .cl-icon { color: #c0392b; }
+.cl-info .cl-icon { color: #2980b9; }
+.cl-label { font-weight: 600; color: #222; }
+.cl-ok   .cl-label { color: #1a3a25; }
+.cl-err  .cl-label { color: #5b1414; }
+.cl-badge {
+  font-size: 13px; font-weight: 700; padding: 1px 6px;
+  border-radius: 10px; margin-left: 4px; vertical-align: middle;
+}
+.badge-critical { background:#fdecea; color:#c0392b; }
+.badge-important { background:#fef5ec; color:#d35400; }
+.badge-info { background:#eaf2fb; color:#1a5276; }
+.cl-note { color: #888; font-size: 14px; margin-top: 1px; }
+
+/* ── BOX ZATWIERDZENIA ────────────────────────────────────────────────────── */
+.approval-box {
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+  border-left: 5px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.approval-box.approved     { background:#eafaf1; border-color:#1e8449; }
+.approval-box.approved-notes { background:#fef9e7; border-color:#d35400; }
+.approval-box.needs-revision { background:#fdedec; border-color:#c0392b; }
+.approval-box.rejected     { background:#fdedec; border-color:#922b21; }
+.approval-icon { font-size: 35px; line-height: 1; }
+.approval-title { font-size: 19px; font-weight: 700; margin-bottom: 3px; }
+.approval-reason { font-size: 16px; color: #444; }
+.approval-summary { font-size: 15px; color: #666; margin-top: 4px; font-style: italic; }
+
+/* ── EXECUTIVE SUMMARY ────────────────────────────────────────────────────── */
+.exec-summary {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 22px;
+  background: #f8f9fb;
+}
+.exec-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.exec-progress-label { font-size: 14px; color: #555; font-weight: 600; }
+.exec-progress-bar {
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.exec-progress-fill { height: 100%; border-radius: 6px; transition: width .4s; }
+.fill-green  { background: #27ae60; }
+.fill-orange { background: #e67e22; }
+.fill-red    { background: #e74c3c; }
+.exec-issues-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.exec-issue { font-size: 14px; padding: 7px 12px; border-radius: 5px; line-height: 1.4; }
+.exec-issue-krytyczny { background: #fdf0f0; border-left: 3px solid #e74c3c; }
+.exec-issue-uwaga     { background: #fefaf0; border-left: 3px solid #e67e22; }
+.exec-issue-badge { font-size: 12px; font-weight: 700; margin-right: 6px; }
+
+/* ── FOOTER ──────────────────────────────────────────────────────────────── */
+.rpt-footer {
+  margin-top: 30px;
+  padding-top: 10px;
+  border-top: 1px solid #ccc;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #888;
+}
+
+/* ── REPORT LEVEL SWITCHER ────────────────────────────────────────────────── */
+.rpt-level-bar {
+  max-width: none;
+  margin: 0 24px 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rpt-level-btn {
+  padding: 6px 18px; border-radius: 20px; border: 2px solid #adb5bd;
+  background: #f8f9fa; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: #495057; transition: all .15s;
+}
+.rpt-level-btn:hover { border-color: #6c757d; background: #e9ecef; }
+.rpt-level-btn.active { background: #1a5276; color: #fff; border-color: #1a5276; }
+.rpt-level-btn.active-warn { background: #d35400; color: #fff; border-color: #d35400; }
+.rpt-level-btn.active-err  { background: #c0392b; color: #fff; border-color: #c0392b; }
+
+/* ── ROW HIGHLIGHTING ──────────────────────────────────────────────────────── */
+.comp-row[data-status="diff"] td { background: #fff3cd !important; }
+.comp-row[data-status="diff"]:hover td { background: #ffe69c !important; }
+tr.field-row-critical td { background: #fdecea !important; }
+tr.field-row-critical:hover td { background: #f9c4c4 !important; }
+tr.field-row-changed td { background: #fff3cd !important; }
+tr.field-row-changed:hover td { background: #ffe69c !important; }
+
+/* ── PRINT ────────────────────────────────────────────────────────────────── */
+@media print {
+  body { background: #fff; }
+  .page { box-shadow: none; margin: 0; padding: 20px; max-width: 100%; }
+  .msg-box { break-inside: avoid; }
+  .section { break-inside: avoid; }
+  .rpt-level-bar { display: none; }
+}
+
+/* ── EXPORT TOOLBAR ──────────────────────────────────────────────────────── */
+.toolbar {
+  max-width: none;
+  margin: 0 24px 10px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn-print  { background: #2980b9; color: #fff; }
+.btn-back   { background: #6c757d; color: #fff; }
+@media print { .toolbar { display: none; } .aw-nav { display: none; } }
+
+/* ── INLINE CHAR DIFF ────────────────────────────────────────────────────── */
+.diff-del { color:#c0392b; text-decoration:line-through; background:#fde8e8; padding:0 2px; border-radius:2px; }
+.diff-ins { color:#1e8449; background:#eafaf1; font-weight:700; padding:0 2px; border-radius:2px; }
+
+/* ── LIGHTBOX ──────────────────────────────────────────────────────────── */
+#rpt-lb {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.92); overflow: hidden; flex-direction: column;
+}
+#rpt-lb.show { display: flex; }
+.rpt-lb-bar {
+  flex-shrink: 0;
+  background: rgba(20,20,20,.9); padding: 8px 16px;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.rpt-lb-sep { width: 1px; height: 22px; background: rgba(255,255,255,.25); margin: 0 4px; }
+.rpt-lb-btn {
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  border-radius: 4px; padding: 5px 11px; cursor: pointer; font-size: 14px;
+}
+.rpt-lb-btn:hover { background: rgba(255,255,255,.3); }
+.rpt-lb-lbl { color: #aaa; font-size: 12px; }
+.rpt-lb-panels {
+  flex: 1; display: flex; overflow: hidden;
+}
+.rpt-lb-panel {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,.12);
+  position: relative;
+}
+.rpt-lb-panel:last-child { border-right: none; }
+.rpt-lb-panel-hdr {
+  flex-shrink: 0; padding: 5px 12px;
+  background: rgba(255,255,255,.06);
+  color: #ccc; font-size: 12px; font-weight: 700; letter-spacing: .5px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.rpt-lb-panel-hdr .rpt-lb-rot-btns { display: flex; gap: 4px; }
+.rpt-lb-panel-hdr .rpt-lb-btn { padding: 2px 8px; font-size: 13px; }
+.rpt-lb-canvas {
+  flex: 1; overflow: hidden; cursor: grab; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.rpt-lb-canvas.grabbing { cursor: grabbing; }
+.rpt-lb-canvas img {
+  max-width: 90%; max-height: 90%;
+  object-fit: contain; pointer-events: none;
+  transform-origin: center center;
+  transition: none;
+  image-rendering: high-quality;
+}
+</style>
+
+<!-- ── DESIGN TOKENS (nowy układ kart stref) ─────────────────── -->
+<style>
+:root{
+  --master-navy:#1e3a8a;--master-navy-soft:#2546a3;
+  --supplier-red:#7f1d1d;--supplier-red-soft:#9b2828;
+  --card-diff-bg:#fff7f7;--card-diff-border:#fca5a5;
+  --card-ok-bg:#f0fdf4;--card-ok-border:#bbf7d0;
+  --prio-critical:#dc2626;--prio-important:#d97706;--prio-info:#2563eb;
+  --result-diff:#dc2626;--result-ok:#16a34a;
+  --diff-text:#b91c1c;--diff-text-bg:#fee2e2;
+  --sift:#06b6d4;--ssim:#f59e0b;
+  --icon-ok:#16a34a;--icon-diff:#dc2626;--icon-layout:#7c3aed;--icon-missing:#d97706;
+  --pf-bg:#eef1f5;--pf-surface:#ffffff;--pf-surface-2:#f7f9fb;
+  --pf-ink:#14181f;--pf-ink-2:#475063;--pf-ink-3:#7c8597;
+  --pf-line:#dde3ec;--pf-line-2:#c7d0dd;
+  --pf-font-ui:"IBM Plex Sans",system-ui,"Helvetica Neue",sans-serif;
+  --pf-font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
+  --pf-r-sm:6px;--pf-r-md:10px;--pf-r-lg:14px;--pf-img-border:4px;
+  --pf-shadow-sm:0 1px 2px rgba(20,30,55,.06),0 1px 1px rgba(20,30,55,.04);
+  --pf-shadow-md:0 2px 8px rgba(20,30,55,.08),0 1px 2px rgba(20,30,55,.05);
+  --pf-pad-card:18px;--pf-gap-cards:18px;
+}
+/* ── PROFILE FIELDS REACT CONTAINER ─────────────────────────── */
+#pfroot{font-family:var(--pf-font-ui);color:var(--pf-ink);-webkit-font-smoothing:antialiased}
+#pfroot *{box-sizing:border-box}
+/* summary bar */
+#pfroot .pf-summary{background:var(--pf-surface);border:1px solid var(--pf-line);
+  border-radius:var(--pf-r-lg);padding:14px 20px;margin-bottom:var(--pf-gap-cards);
+  display:flex;align-items:center;gap:22px;flex-wrap:wrap;box-shadow:var(--pf-shadow-sm)}
+#pfroot .pf-stat{display:flex;align-items:baseline;gap:8px}
+#pfroot .pf-stat .num{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1}
+#pfroot .pf-stat .lbl{font-size:12px;color:var(--pf-ink-2)}
+#pfroot .pf-stat.diff .num{color:var(--result-diff)}
+#pfroot .pf-stat.ok .num{color:var(--result-ok)}
+#pfroot .pf-compliance{display:flex;align-items:center;gap:12px;flex:1;min-width:180px}
+#pfroot .pf-compliance .bar{flex:1;height:8px;border-radius:99px;background:#e7ebf2;overflow:hidden}
+#pfroot .pf-compliance .bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--result-ok),#4ade80)}
+#pfroot .pf-compliance .pct{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+#pfroot .pf-filters{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#pfroot .pf-fbtn{border:1px solid var(--pf-line-2);background:var(--pf-surface);color:var(--pf-ink-2);
+  border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:500;cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:.12s;font-family:inherit}
+#pfroot .pf-fbtn:hover{border-color:var(--pf-ink-3);color:var(--pf-ink)}
+#pfroot .pf-fbtn.active{background:var(--pf-ink);border-color:var(--pf-ink);color:#fff}
+#pfroot .pf-fbtn .dot{width:8px;height:8px;border-radius:99px}
+#pfroot .pf-fbtn .cnt{font-variant-numeric:tabular-nums;opacity:.7;font-size:11.5px}
+/* cards */
+#pfroot .pf-card{background:var(--pf-surface);border:1.5px solid var(--pf-line);border-radius:var(--pf-r-lg);box-shadow:var(--pf-shadow-sm);overflow:hidden;scroll-margin-top:80px}
+#pfroot .pf-card.r-diff{border-color:var(--card-diff-border);background:var(--card-diff-bg)}
+#pfroot .pf-card.r-ok{border-color:var(--card-ok-border);background:var(--card-ok-bg)}
+#pfroot .pf-card-head{display:flex;align-items:center;gap:12px;padding:14px var(--pf-pad-card);border-bottom:1px solid color-mix(in srgb,var(--pf-line) 70%,transparent)}
+#pfroot .pf-card-head .idx{font-family:var(--pf-font-mono);font-size:12px;color:var(--pf-ink-3);min-width:22px}
+#pfroot .pf-card-head .name{font-size:16px;font-weight:600;letter-spacing:-.01em;flex:1}
+#pfroot .pf-badge{font-size:11px;font-weight:700;letter-spacing:.04em;padding:4px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+#pfroot .pf-badge.prio-KR{background:color-mix(in srgb,var(--prio-critical) 12%,#fff);color:var(--prio-critical);border:1px solid color-mix(in srgb,var(--prio-critical) 35%,#fff)}
+#pfroot .pf-badge.prio-W{background:color-mix(in srgb,var(--prio-important) 14%,#fff);color:#b45309;border:1px solid color-mix(in srgb,var(--prio-important) 38%,#fff)}
+#pfroot .pf-badge.prio-I{background:color-mix(in srgb,var(--prio-info) 12%,#fff);color:var(--prio-info);border:1px solid color-mix(in srgb,var(--prio-info) 35%,#fff)}
+#pfroot .pf-badge.res-diff{background:var(--result-diff);color:#fff}
+#pfroot .pf-badge.res-ok{background:var(--result-ok);color:#fff}
+#pfroot .pf-badge .pin{width:7px;height:7px;border-radius:99px;background:currentColor}
+#pfroot .pf-card-body{padding:var(--pf-pad-card)}
+#pfroot .pf-panes{display:grid;gap:14px}
+#pfroot .pf-panes.side{grid-template-columns:repeat(var(--cols,2),minmax(0,1fr))}
+#pfroot .pf-panes.stack{grid-template-columns:1fr}
+#pfroot .pf-pane{display:flex;flex-direction:column;min-width:0}
+#pfroot .pf-pane-tab{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.05em;color:#fff;padding:7px 11px;border-radius:var(--pf-r-sm) var(--pf-r-sm) 0 0;width:max-content;white-space:nowrap}
+#pfroot .pf-pane-tab .ti{font-size:10px;opacity:.85}
+#pfroot .pf-pane.a .pf-pane-tab{background:var(--master-navy)}
+#pfroot .pf-pane.b .pf-pane-tab{background:var(--supplier-red)}
+#pfroot .pf-pane.c .pf-pane-tab{background:var(--sift);color:#06323a}
+#pfroot .pf-pane.d .pf-pane-tab{background:var(--ssim);color:#5a3a06}
+#pfroot .pf-pane-img{position:relative;border:var(--pf-img-border) solid var(--master-navy);border-radius:0 var(--pf-r-sm) var(--pf-r-sm) var(--pf-r-sm);background:#fff;overflow:auto;cursor:zoom-in;transition:box-shadow .15s;min-height:60px}
+#pfroot .pf-pane.b .pf-pane-img{border-color:var(--supplier-red)}
+#pfroot .pf-pane.c .pf-pane-img{border-color:var(--sift)}
+#pfroot .pf-pane.d .pf-pane-img{border-color:var(--ssim)}
+#pfroot .pf-pane-img:hover{box-shadow:0 6px 20px rgba(20,30,55,.16)}
+#pfroot .pf-expand-hint{position:absolute;top:8px;right:8px;z-index:2;background:rgba(17,22,31,.78);color:#fff;border-radius:6px;padding:4px 7px;font-size:11px;opacity:0;transition:opacity .15s;pointer-events:none}
+#pfroot .pf-pane-img:hover .pf-expand-hint{opacity:1}
+#pfroot .pf-pane-img img{width:100%;display:block;height:auto;object-fit:contain}
+#pfroot .pf-ocr{margin-top:9px;font-family:var(--pf-font-mono);font-size:12.5px;line-height:1.65;padding:9px 11px;border-radius:var(--pf-r-sm);border:1px solid transparent;word-break:break-word}
+#pfroot .pf-ocr.a{background:#eef3fc;border-color:#d6e2f7;color:#20355f}
+#pfroot .pf-ocr.b{background:#fdeef0;border-color:#f6d7dc;color:#5e2330}
+#pfroot .pf-ocr .lab{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;margin-bottom:3px;font-family:var(--pf-font-ui)}
+#pfroot .pf-ocr .d{background:var(--diff-text-bg);color:var(--diff-text);font-weight:700;padding:0 3px;border-radius:3px}
+#pfroot .pf-card-note{display:flex;gap:9px;align-items:flex-start;margin-top:13px;padding:10px 12px;border-radius:var(--pf-r-sm);background:color-mix(in srgb,var(--result-diff) 7%,#fff);border:1px solid color-mix(in srgb,var(--result-diff) 22%,#fff);font-size:13px;color:#7c2020;line-height:1.45}
+#pfroot .pf-card-note .ic{color:var(--result-diff);flex:none;margin-top:1px}
+/* icon grid */
+#pfroot .pf-sec-head{display:flex;align-items:center;gap:12px;margin:32px 0 16px}
+#pfroot .pf-sec-head h2{font-size:15px;font-weight:700;letter-spacing:.02em;margin:0;text-transform:uppercase;color:var(--pf-ink-2)}
+#pfroot .pf-sec-head .ln{flex:1;height:1px;background:var(--pf-line-2)}
+#pfroot .pf-sec-head .cnt{font-size:12px;color:var(--pf-ink-3);font-family:var(--pf-font-mono)}
+#pfroot .pf-istrip{display:flex;flex-wrap:wrap;gap:12px;padding:18px 16px}
+#pfroot .pf-itile{width:76px;height:76px;border-radius:10px;background:#fff;border:2px solid var(--pf-line-2);position:relative;display:flex;align-items:center;justify-content:center;font-size:22px;color:#1b2330;font-family:var(--pf-font-mono);font-weight:700;font-size:11px;text-align:center;padding:4px}
+#pfroot .pf-itile .pip{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;box-shadow:0 0 0 2px #fff}
+#pfroot .pf-itile.s-diff{border-color:var(--icon-diff)}
+#pfroot .pf-itile.s-diff .pip{background:var(--icon-diff)}
+#pfroot .pf-itile.s-layout{border-color:var(--icon-layout)}
+#pfroot .pf-itile.s-layout .pip{background:var(--icon-layout)}
+#pfroot .pf-itile.s-missing{border:2px dashed var(--icon-missing);color:var(--icon-missing)}
+#pfroot .pf-itile.s-missing .pip{background:var(--icon-missing)}
+#pfroot .pf-itile .num{position:absolute;bottom:3px;right:5px;font-size:9px;color:var(--pf-ink-3)}
+#pfroot .pf-ilegend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding:0 16px 16px}
+#pfroot .pf-ileg-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--pf-ink-2);background:var(--pf-surface-2);border:1px solid var(--pf-line);border-radius:8px;padding:6px 11px}
+#pfroot .pf-ileg-item .sw{width:10px;height:10px;border-radius:3px}
+#pfroot .pf-ileg-item b{color:var(--pf-ink);font-weight:600}
+#pfroot .pf-empty{text-align:center;padding:40px;color:var(--pf-ink-3)}
+/* lightbox */
+#pfroot .pf-lb{position:fixed;inset:0;z-index:9999;background:rgba(8,11,18,.86);display:flex;flex-direction:column;backdrop-filter:blur(2px)}
+#pfroot .pf-lb-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;background:#161b24;border-bottom:1px solid #2a3344;color:#e7ecf5}
+#pfroot .pf-lb-title{font-size:14px;font-weight:600;margin-right:auto;display:flex;align-items:center;gap:10px}
+#pfroot .pf-lb-title .b{font-family:var(--pf-font-mono);font-size:12px;color:#9fb0cc}
+#pfroot .pf-lb-grp{display:flex;align-items:center;gap:4px;background:#0f141d;border:1px solid #2a3344;border-radius:9px;padding:4px}
+#pfroot .pf-lb-btn{background:transparent;color:#cdd6e6;border:none;border-radius:6px;padding:6px 10px;font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit;white-space:nowrap}
+#pfroot .pf-lb-btn:hover{background:#222c3b;color:#fff}
+#pfroot .pf-lb-close{margin-left:4px;background:#2a3344;color:#fff}
+#pfroot .pf-lb-close:hover{background:var(--supplier-red)}
+#pfroot .pf-lb-zoom{font-family:var(--pf-font-mono);font-size:12px;min-width:50px;text-align:center;color:#aeb9cc}
+#pfroot .pf-lb-stage{flex:1;display:flex;min-height:0}
+#pfroot .pf-lb-panel{flex:1;min-width:0;position:relative;background:#111;overflow:hidden}
+#pfroot .pf-lb-panel+.pf-lb-panel{border-left:1px solid #fff}
+#pfroot .pf-lb-panel-head{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;gap:8px}
+#pfroot .pf-lb-tag{font-size:11px;font-weight:700;letter-spacing:.05em;color:#fff;padding:5px 9px;border-radius:6px;white-space:nowrap}
+#pfroot .pf-lb-tag.a{background:var(--master-navy)}
+#pfroot .pf-lb-tag.b{background:var(--supplier-red)}
+#pfroot .pf-lb-canvas{position:absolute;inset:0;cursor:grab;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#pfroot .pf-lb-canvas.grabbing{cursor:grabbing}
+#pfroot .pf-lb-canvas img{max-width:90%;max-height:90%;object-fit:contain;pointer-events:none;transform-origin:center center;user-select:none}
+#pfroot .pf-lb-rot{display:flex;gap:4px}
+#pfroot .pf-lb-rot button{width:28px;height:28px;border-radius:6px;background:rgba(20,26,36,.82);color:#dbe3f0;border:1px solid #313c4f;font-size:13px;cursor:pointer}
+#pfroot .pf-lb-rot button:hover{background:#2a3547}
+#pfroot .pf-lb-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:4;font-size:11.5px;color:#9fb0cc;background:rgba(15,20,29,.8);padding:5px 11px;border-radius:99px;pointer-events:none}
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+
+<!-- Lightbox overlay — dual-panel A↔B viewer -->
+<div id="rpt-lb">
+  <div class="rpt-lb-bar">
+    <span class="rpt-lb-lbl">Zoom:</span>
+    <button type="button" class="rpt-lb-btn" onclick="lbZoomAll(+0.25)" title="Powiększ oba (scroll też działa)">＋</button>
+    <button type="button" class="rpt-lb-btn" onclick="lbZoomAll(-0.25)">－</button>
+    <button type="button" class="rpt-lb-btn" onclick="lbResetAll()" title="Reset widoku">↩ Reset</button>
+    <div class="rpt-lb-sep"></div>
+    <span class="rpt-lb-lbl" id="rpt-lb-zoom-lbl">100%</span>
+    <div class="rpt-lb-sep"></div>
+    <button type="button" class="rpt-lb-btn" onclick="rptLbClose()" style="background:rgba(200,40,40,.6);">✕ Zamknij</button>
+  </div>
+  <div class="rpt-lb-panels">
+    <!-- Panel A -->
+    <div class="rpt-lb-panel" id="rpt-lb-panel-a">
+      <div class="rpt-lb-panel-hdr">
+        <span id="rpt-lb-lbl-a">Wzorzec A</span>
+        <span class="rpt-lb-rot-btns">
+          <button type="button" class="rpt-lb-btn" onclick="lbRotate('a',-90)" title="Obróć w lewo">↺</button>
+          <button type="button" class="rpt-lb-btn" onclick="lbRotate('a',+90)" title="Obróć w prawo">↻</button>
+        </span>
+      </div>
+      <div class="rpt-lb-canvas" id="rpt-lb-canvas-a">
+        <img id="rpt-lb-img-a" src="" alt="Wzorzec A" />
+      </div>
+    </div>
+    <!-- Panel B -->
+    <div class="rpt-lb-panel" id="rpt-lb-panel-b">
+      <div class="rpt-lb-panel-hdr">
+        <span id="rpt-lb-lbl-b">Fabryczna B</span>
+        <span class="rpt-lb-rot-btns">
+          <button type="button" class="rpt-lb-btn" onclick="lbRotate('b',-90)" title="Obróć w lewo">↺</button>
+          <button type="button" class="rpt-lb-btn" onclick="lbRotate('b',+90)" title="Obróć w prawo">↻</button>
+        </span>
+      </div>
+      <div class="rpt-lb-canvas" id="rpt-lb-canvas-b">
+        <img id="rpt-lb-img-b" src="" alt="Fabryczna B" />
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var _state = {
+    a: {s:1, x:0, y:0, rot:0, drag:false, dx:0, dy:0},
+    b: {s:1, x:0, y:0, rot:0, drag:false, dx:0, dy:0}
+  };
+  var _globalS = 1;
+
+  function _applyPanel(p){
+    var st = _state[p];
+    var img = document.getElementById('rpt-lb-img-'+p);
+    if(img) img.style.transform =
+      'translate('+st.x+'px,'+st.y+'px) rotate('+st.rot+'deg) scale('+st.s+')';
+  }
+  function _applyAll(){
+    _applyPanel('a'); _applyPanel('b');
+    document.getElementById('rpt-lb-zoom-lbl').textContent = Math.round(_globalS*100)+'%';
+  }
+
+  window.lbZoomAll = function(d){
+    _globalS = Math.min(10, Math.max(0.1, _globalS+d));
+    _state.a.s = _globalS; _state.b.s = _globalS;
+    _applyAll();
+  };
+  window.lbRotate = function(p, d){
+    _state[p].rot = (_state[p].rot + d + 360) % 360;
+    _applyPanel(p);
+  };
+  window.lbResetAll = function(){
+    ['a','b'].forEach(function(p){
+      _state[p] = {s:1, x:0, y:0, rot:0, drag:false, dx:0, dy:0};
+    });
+    _globalS = 1;
+    _applyAll();
+  };
+
+  // Keep backward-compat: single-image open still works
+  window.rptLbOpen = function(src){
+    window.rptLbOpenPair(src, '', '', '');
+  };
+  window.rptLbOpenPair = function(srcA, srcB, lblA, lblB){
+    lbResetAll();
+    var imgA = document.getElementById('rpt-lb-img-a');
+    var imgB = document.getElementById('rpt-lb-img-b');
+    var panelB = document.getElementById('rpt-lb-panel-b');
+    imgA.src = srcA || '';
+    imgB.src = srcB || '';
+    document.getElementById('rpt-lb-lbl-a').textContent = lblA || 'Wzorzec A';
+    document.getElementById('rpt-lb-lbl-b').textContent = lblB || 'Fabryczna B';
+    panelB.style.display = srcB ? '' : 'none';
+    document.getElementById('rpt-lb').classList.add('show');
+  };
+  window.rptLbClose = function(){
+    document.getElementById('rpt-lb').classList.remove('show');
+    document.getElementById('rpt-lb-img-a').src='';
+    document.getElementById('rpt-lb-img-b').src='';
+  };
+
+  // Drag per panel
+  ['a','b'].forEach(function(p){
+    var canvas = document.getElementById('rpt-lb-canvas-'+p);
+    if(!canvas) return;
+    canvas.addEventListener('mousedown', function(e){
+      if(e.button!==0) return;
+      _state[p].drag=true; _state[p].dx=e.clientX-_state[p].x; _state[p].dy=e.clientY-_state[p].y;
+      canvas.classList.add('grabbing');
+    });
+    canvas.addEventListener('mousemove', function(e){
+      if(!_state[p].drag) return;
+      _state[p].x=e.clientX-_state[p].dx; _state[p].y=e.clientY-_state[p].dy;
+      _applyPanel(p);
+    });
+    function endDrag(){ _state[p].drag=false; canvas.classList.remove('grabbing'); }
+    canvas.addEventListener('mouseup', endDrag);
+    canvas.addEventListener('mouseleave', endDrag);
+  });
+
+  // Scroll to zoom (whole lightbox)
+  document.getElementById('rpt-lb').addEventListener('wheel', function(e){
+    e.preventDefault(); lbZoomAll(e.deltaY<0 ? +0.15 : -0.15);
+  }, {passive:false});
+
+  // Keyboard
+  document.addEventListener('keydown', function(e){
+    if(!document.getElementById('rpt-lb').classList.contains('show')) return;
+    if(e.key==='Escape') rptLbClose();
+    if(e.key==='+'||e.key==='=') lbZoomAll(+0.25);
+    if(e.key==='-') lbZoomAll(-0.25);
+    if(e.key==='0') lbResetAll();
+    if(e.key==='a'||e.key==='A') lbRotate('a', 90);
+    if(e.key==='b'||e.key==='B') lbRotate('b', 90);
+  });
+
+  // Click backdrop to close
+  document.getElementById('rpt-lb').addEventListener('click', function(e){
+    if(e.target===this) rptLbClose();
+  });
+
+  // ── Profile-field zoom: click any field crop → open dual-panel viewer ─
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t && t.tagName === 'IMG' && t.getAttribute('data-pf-zoom') === '1') {
+      e.stopPropagation();
+      var a = t.getAttribute('data-pf-partner-a') || t.src;
+      var b = t.getAttribute('data-pf-partner-b') || '';
+      window.rptLbOpenPair(a, b, 'Master', 'Dostawca');
+    }
+  }, true);
+
+  // ── Word-level red highlighting in val_a / val_b text rows ───────────
+  // Only tokens present in surplus on one side are colored red. Tokens that
+  // match the other side stay neutral. This is the multiset diff matching
+  // the OCR-box diff in _diff_text_boxes server-side.
+  function _pfEsc(s){ return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  }); }
+  function _pfNorm(t){
+    // Keep every Unicode letter + digit and strip diacritics so words match
+    // across locales (Czech "chirurgické" vs "chirurgicke", German "ü" vs "u",
+    // Hungarian "ő" vs "o"). Without NFD-strip the previous Polish-only
+    // pattern flagged identical words across languages as differences.
+    return String(t).toLowerCase().normalize('NFD').replace(/\p{M}+/gu,'')
+      .replace(/[^\p{L}\p{N}]+/gu,'');
+  }
+  function _pfWordDiff(a, b) {
+    var partsA = String(a||'').split(/(\s+)/);
+    var partsB = String(b||'').split(/(\s+)/);
+    var tokA = [], tokB = [];
+    partsA.forEach(function(p, i){ if (!/^\s*$/.test(p)) tokA.push({n:_pfNorm(p), i:i}); });
+    partsB.forEach(function(p, i){ if (!/^\s*$/.test(p)) tokB.push({n:_pfNorm(p), i:i}); });
+    // SET semantics (same as image box diff in _diff_text_boxes) — flag a
+    // token only if it is entirely absent from the other side. Multiset diff
+    // (the old code below) marked the n-th occurrence red whenever counts
+    // drifted by 1, which produced lots of false positives whenever OCR read
+    // the same word a different number of times on the two crops.
+    var setA = {}, setB = {};
+    tokA.forEach(function(t){ if(t.n) setA[t.n] = 1; });
+    tokB.forEach(function(t){ if(t.n) setB[t.n] = 1; });
+    // Segmentation-noise filter — mirrors the Python _seg_artifact() logic.
+    // Two patterns suppressed:
+    //   JOIN:  token T == concat of two other-side tokens (T='plastikust',
+    //          other has 'plastik'+'ust') → segmentation artifact, not a diff.
+    //   SPLIT: token T is a proper substring of some longer other-side token
+    //          ('plastik' ⊂ 'plastikust' on other side) → same artifact.
+    // Previous approach (Object.keys(set).join('') + indexOf) was buggy:
+    // without separators, e.g. keys=['ref','cat'] → stream='refcat', and the
+    // real diff token 'efc' (a cross-boundary substring) was silently dropped.
+    function _pfSegArtifact(token, otherSet) {
+      // JOIN: token === prefix + suffix where both are in otherSet
+      for (var n = 1; n < token.length; n++) {
+        if (otherSet[token.slice(0, n)] && otherSet[token.slice(n)]) return true;
+      }
+      // SPLIT: token is a proper sub-string of some longer otherSet key
+      var keys = Object.keys(otherSet);
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].length > token.length && keys[i].indexOf(token) >= 0) return true;
+      }
+      return false;
+    }
+    var diffA = {}, diffB = {};
+    Object.keys(setA).forEach(function(t){
+      if (!setB[t] && !_pfSegArtifact(t, setB)) diffA[t] = 1;
+    });
+    Object.keys(setB).forEach(function(t){
+      if (!setA[t] && !_pfSegArtifact(t, setA)) diffB[t] = 1;
+    });
+    var red = 'color:#dc2626;font-weight:700;font-size:1.15em;background:#fee2e2;padding:0 2px;border-radius:2px';
+    function render(parts, tokens, diffSet){
+      var marks = {};
+      tokens.forEach(function(t){ if (t.n && diffSet[t.n]) marks[t.i] = true; });
+      return parts.map(function(p, i){
+        if (/^\s*$/.test(p)) return _pfEsc(p);
+        return marks[i] ? '<span style="' + red + '">' + _pfEsc(p) + '</span>' : _pfEsc(p);
+      }).join('');
+    }
+    return { a: render(partsA, tokA, diffA), b: render(partsB, tokB, diffB) };
+  }
+  // Pair by document order — each field card emits one [data-pf-diff-a] then
+  // one [data-pf-diff-b] in sequence.
+  var diffAs = document.querySelectorAll('[data-pf-diff-a]');
+  var diffBs = document.querySelectorAll('[data-pf-diff-b]');
+  for (var i = 0; i < diffAs.length && i < diffBs.length; i++) {
+    var elA = diffAs[i], elB = diffBs[i];
+    var rawA = elA.textContent.trim();
+    var rawB = elB.textContent.trim();
+    if (rawA === '—' && rawB === '—') continue;
+    if (rawA === rawB) continue;
+    var d = _pfWordDiff(rawA, rawB);
+    elA.innerHTML = d.a || '—';
+    elB.innerHTML = d.b || '—';
+  }
+})();
+</script>
+{% set active_tab = 'reports' %}
+{% include '_artwork_nav.html' %}
+
+<!-- toolbar (nie drukowany) -->
+<div class="toolbar">
+  <a href="/artwork" class="btn btn-back">&#8592; Powrót</a>
+  {% if not expired %}
+  <button type="button" class="btn btn-print" onclick="window.print()">&#128438; Drukuj / PDF</button>
+  {% if cache_id or comp_id %}
+  {% set _export_param = ("cache_id=" ~ cache_id) if cache_id else ("id=" ~ comp_id) %}
+  {% if cache_id %}
+  {# Porównanie stref wymaga cache_id (żywego wyniku) — raport jest jedynym miejscem,
+     gdzie ten identyfikator istnieje, więc tu jest jedyne sensowne wejście. Bez tego
+     linku cała funkcja była nieosiągalna. #}
+  <a href="/artwork/zone-select?cache_id={{ cache_id }}" class="btn" style="background:#0891b2;color:#fff" title="Porównaj ręcznie zaznaczone strefy artworku">&#9635; Porównaj strefy</a>
+  {% endif %}
+  <a href="/artwork/report/export-html?{{ _export_param }}" class="btn" style="background:#16a34a;color:#fff" title="Pobierz pełny raport HTML ze zdjęciami">&#128229; Eksportuj HTML</a>
+  <a href="/artwork/report/export-docx?{{ _export_param }}" class="btn" style="background:#1d4ed8;color:#fff" title="Pobierz raport Word (.docx)">&#128196; Eksportuj DOCX</a>
+  <a href="/artwork/report/export-pdf?{{ _export_param }}" class="btn" style="background:#b91c1c;color:#fff" title="Pobierz raport PDF ze zdjęciami i kodami">&#128229; Eksportuj PDF</a>
+  <div style="display:inline-flex;gap:4px;align-items:center">
+    <select id="reanalyzeModel" style="padding:6px 10px;border-radius:5px;border:1px solid #adb5bd;font-size:13px;cursor:pointer;background:#fff">
+      <option value="claude-haiku-4-5-20251001">Haiku 4.5 — szybki</option>
+      <option value="claude-sonnet-4-6" selected>Sonnet 4.6 — domyślny</option>
+      <option value="claude-opus-4-7">Opus 4.7 — najdokładniejszy</option>
+    </select>
+    <button type="button" class="btn" style="background:#7c3aed;color:#fff" onclick="reanalyzeWithModel()">&#x21BA; Przeanalizuj ponownie</button>
+  </div>
+  <script>
+  var _rptCacheId = {{ cache_id | tojson }};
+  function reanalyzeWithModel(){
+    var sel = document.getElementById('reanalyzeModel');
+    var model = sel.value;
+    var label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : model;
+    // Płatna operacja AI — potwierdź przed ponowną analizą (koszt Claude).
+    // Ta strona jest samodzielna (nie rozszerza base.html), więc bez confirmModal —
+    // natywny confirm jest tu świadomym guardem, nie zastąpieniem komponentu.
+    if (!window.confirm('Ponowna analiza AI modelem „' + label + '" wygeneruje koszt API. Kontynuować?')) return;
+    window.location.href = '/artwork?reanalyze=' + encodeURIComponent(_rptCacheId) + '&model=' + encodeURIComponent(model);
+  }
+  </script>
+  {% endif %}
+  {% endif %}
+</div>
+
+{% if not expired %}
+<div class="rpt-level-bar" id="rptLevelBar">
+  <span style="font-size:12px;font-weight:700;color:#555;margin-right:4px">Poziom raportu:</span>
+  <button type="button" class="rpt-level-btn active" id="lvlSzczeg" onclick="rptSetLevel('szczegolowy')">Szczegółowy</button>
+  <button type="button" class="rpt-level-btn" id="lvlOgolny" onclick="rptSetLevel('ogolny')">Ogólny</button>
+  <button type="button" class="rpt-level-btn" id="lvlUproszcz" onclick="rptSetLevel('uproszczony')">Uproszczony (tylko błędy)</button>
+  <span id="rptLevelInfo" style="margin-left:10px;font-size:12px;color:#888"></span>
+</div>
+{% endif %}
+
+{% if expired %}
+<div style="max-width:640px;margin:80px auto;text-align:center;padding:48px 40px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1)">
+  <div style="font-size:52px;margin-bottom:16px">⏳</div>
+  <h2 style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:10px">Sesja raportu wygasła</h2>
+  <p style="color:#6b7280;font-size:15px;line-height:1.6;margin-bottom:8px">
+    Raport tymczasowy wygasa po <strong>2 godzinach</strong> od wygenerowania.<br>
+    Zapisane raporty są dostępne w historii porównań.
+  </p>
+  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 18px;margin-bottom:24px;text-align:left">
+    <div style="font-weight:700;font-size:14px;color:#0369a1;margin-bottom:6px">Co możesz zrobić?</div>
+    <ul style="margin:0;padding-left:18px;color:#374151;font-size:14px;line-height:2">
+      <li>Wróć do <strong>Artworki</strong> i wgraj pliki ponownie</li>
+      <li>Sprawdź <strong>Historię</strong> — raport mógł zostać zapisany</li>
+      <li>Użyj <strong>Drukuj / PDF</strong> po wygenerowaniu nowego raportu, aby zachować wyniki</li>
+    </ul>
+  </div>
+  <a href="/artwork" style="display:inline-block;padding:12px 28px;background:#5b9bff;color:#fff;border-radius:10px;font-weight:600;text-decoration:none;font-size:15px">← Wróć do artworków</a>
+  <a href="/artwork/history" style="display:inline-block;margin-left:12px;padding:12px 28px;background:#f3f4f6;color:#374151;border-radius:10px;font-weight:600;text-decoration:none;font-size:15px">📋 Historia</a>
+</div>
+{% else %}
+<div class="page">
+
+  {# Sekcje zbiorcze/podsumowujące wyłączone na życzenie — raport pokazuje
+     WYŁĄCZNIE porównanie pole-po-polu oraz sekcję wydajności. Ustaw na true,
+     by przywrócić statystyki, rekomendację, executive summary i podsumowania. #}
+  {% set _SHOW_SUMMARIES = false %}
+
+  {# Wyłączone na życzenie: sekcje „Elementy graficzne i symbole" (5 + 5b) oraz
+     „Dane producenta i dystrybutora / EU REP" (7). Ustaw na true, by przywrócić. #}
+  {% set _SHOW_ICONS_GRAPHICS = false %}
+  {% set _SHOW_MANUFACTURER = false %}
+
+  <!-- ══ NAGŁÓWEK ══════════════════════════════════════════════════════════ -->
+  <div class="rpt-header">
+    <div class="rpt-header-left">
+      <h1>Raport porownania artworkow</h1>
+      <div class="subtitle">{{ report.product_code }} &mdash; {{ report.product_name }}</div>
+    </div>
+    <div class="rpt-header-right">
+      Data analizy: <span>{{ report.analysis_date }}</span><br>
+      Analizowane pliki: <span>{{ report.files_count }}</span><br>
+      Wersja mastera: <span>{{ report.master_version }}</span><br>
+      Wersja fabryczna: <span>{{ report.factory_version }}</span>
+    </div>
+  </div>
+
+  <!-- ══ STATYSTYKI ═════════════════════════════════════════════════════════ -->
+  {% if _SHOW_SUMMARIES %}
+  <div class="stats-bar">
+    <div class="stat-card stat-red">
+      <div class="stat-num">{{ report.critical_count }}</div>
+      <div class="stat-lbl">Bledy krytyczne</div>
+    </div>
+    <div class="stat-card stat-orange">
+      <div class="stat-num">{{ report.warning_count }}</div>
+      <div class="stat-lbl">Ostrzezenia</div>
+    </div>
+    <div class="stat-card stat-green">
+      <div class="stat-num">{{ report.ok_count }}</div>
+      <div class="stat-lbl">Zgodne elementy</div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-num">{{ report.files_count }}</div>
+      <div class="stat-lbl">Pliki analizowane</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ══ REKOMENDACJA ZATWIERDZENIA ══════════════════════════════════════ -->
+  {% if _SHOW_SUMMARIES and report.approval_recommendation %}
+  {% set aprec = report.approval_recommendation %}
+  {% set apclass = 'approved' if aprec == 'APPROVED' else
+                   'approved-notes' if aprec == 'APPROVED_WITH_NOTES' else
+                   'needs-revision' if aprec == 'NEEDS_REVISION' else 'rejected' %}
+  {% set apicon = '✅' if aprec == 'APPROVED' else
+                  '⚠️' if aprec == 'APPROVED_WITH_NOTES' else
+                  '🔄' if aprec == 'NEEDS_REVISION' else '❌' %}
+  {% set aplabel = 'ZATWIERDZONE' if aprec == 'APPROVED' else
+                   'ZATWIERDZONE Z UWAGAMI' if aprec == 'APPROVED_WITH_NOTES' else
+                   'WYMAGA KOREKTY' if aprec == 'NEEDS_REVISION' else 'ODRZUCONE' %}
+  <div class="approval-box {{ apclass }}">
+    <div class="approval-icon">{{ apicon }}</div>
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="approval-title">{{ aplabel }}</div>
+        {% if report.approval_confidence %}
+        <div style="font-size:13px;color:#555;background:#f0f0f0;border-radius:12px;padding:2px 10px;font-weight:600">
+          Pewność: {{ report.approval_confidence }}%
+        </div>
+        {% endif %}
+      </div>
+      {% if report.approval_reason %}
+      <div class="approval-reason">{{ report.approval_reason }}</div>
+      {% endif %}
+      {% if report.ai_summary %}
+      <div class="approval-summary">{{ report.ai_summary }}</div>
+      {% endif %}
+      {% set top3 = report.summary_errors[:3] %}
+      {% if top3 %}
+      <ul style="margin-top:8px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:3px">
+        {% for e in top3 %}
+        <li style="font-size:13px;color:#7b1e1e;padding:4px 8px;background:rgba(220,38,38,.08);border-radius:4px">
+          ⚠ {{ e.text[:150] }}{% if e.text|length > 150 %}…{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ══ EXECUTIVE SUMMARY ═══════════════════════════════════════════════ -->
+  {% set total_fields = report.critical_count + report.warning_count + report.ok_count %}
+  {% if _SHOW_SUMMARIES and total_fields > 0 %}
+  {% set ok_pct = ((report.ok_count / total_fields) * 100) | round | int %}
+  <div class="exec-summary">
+    <div class="exec-summary-header">
+      <span style="font-weight:700;font-size:16px">📋 Executive Summary</span>
+      <span class="exec-progress-label">{{ report.ok_count }}/{{ total_fields }} pól bez błędów ({{ ok_pct }}%)</span>
+    </div>
+    <div class="exec-progress-bar">
+      <div class="exec-progress-fill {% if ok_pct >= 90 %}fill-green{% elif ok_pct >= 70 %}fill-orange{% else %}fill-red{% endif %}" style="width:{{ ok_pct }}%"></div>
+    </div>
+    {% set top_issues = [] %}
+    {% for e in report.summary_errors[:3] %}{% if top_issues.append({'level':'krytyczny','text':e.text}) %}{% endif %}{% endfor %}
+    {% for w in report.summary_warnings[:2] if top_issues|length < 5 %}{% if top_issues.append({'level':'uwaga','text':w.text}) %}{% endif %}{% endfor %}
+    {% if report.diff_items %}
+      {% for d in report.diff_items[:5] if top_issues|length < 5 %}{% if top_issues.append({'level':'uwaga','text':d}) %}{% endif %}{% endfor %}
+    {% endif %}
+    {% if top_issues %}
+    <ul class="exec-issues-list">
+      {% for issue in top_issues %}
+      <li class="exec-issue exec-issue-{{ issue.level }}">
+        <span class="exec-issue-badge">{{ '🔴 KRYT.' if issue.level == 'krytyczny' else '🟡 UWAGA' }}</span>
+        {{ issue.text[:180] }}{% if issue.text|length > 180 %}…{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif report.ok_count > 0 %}
+    <div style="color:#1e8449;font-size:15px;padding:8px 0">✓ Brak wykrytych błędów — artwork zgodny z wzorcem</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ══ PORÓWNANIE WIZUALNE — SPLIT-SCREEN ══════════════════════════════════ -->
+  {% if not report.profile_active %}
+  {% if report.page_diffs %}
+  <div class="section" id="visualDiffSection">
+    <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Porownanie wizualne — split-screen</span>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="vs-global-btn" onclick="vsSetAllMode('clean')" style="font-size:12px;padding:3px 10px;border-radius:4px;border:1px solid #aaa;background:#f9fafb;cursor:pointer">Wszystkie: Czysty</button>
+        <button type="button" class="vs-global-btn" onclick="vsSetAllMode('overlay')" style="font-size:12px;padding:3px 10px;border-radius:4px;border:1px solid #aaa;background:#f9fafb;cursor:pointer">Wszystkie: Overlay</button>
+      </div>
+    </div>
+    <p style="color:#6b7280;font-size:0.82em;margin:8px 0 14px">
+      Strony master (A) i dostawcy (B) obok siebie z synchronicznym przewijaniem.
+      Kliknij <strong>Overlay</strong> aby nałożyć zaznaczenia różnic. Najedź na ramkę aby zobaczyć szczegóły.
+    </p>
+
+    <style>
+    .vs-page-pair { margin-bottom: 28px; }
+    .vs-page-label { font-size:12px; font-weight:700; color:#1a5276; text-transform:uppercase;
+                     letter-spacing:.4px; margin-bottom:8px; display:flex; align-items:center; gap:10px; }
+    .vs-page-badge { display:inline-block; padding:2px 8px; border-radius:10px;
+                     font-size:11px; font-weight:700; }
+    .vs-badge-ok     { background:#dcfce7; color:#15803d; }
+    .vs-badge-warn   { background:#fef9c3; color:#854d0e; }
+    .vs-badge-crit   { background:#fee2e2; color:#b91c1c; }
+    .vs-columns { display:flex; gap:16px; flex-wrap:wrap; }
+    .vs-col { flex:1; min-width:260px; }
+    @media(max-width:600px){ .vs-columns { flex-direction:column; } }
+    .vs-col-header { display:flex; justify-content:space-between; align-items:center;
+                     margin-bottom:6px; }
+    .vs-col-title { font-size:12px; font-weight:700; color:#444; text-transform:uppercase; letter-spacing:.3px; }
+    .vs-toggle { display:inline-flex; border:1px solid #d1d5db; border-radius:5px; overflow:hidden; }
+    .vs-toggle button { padding:3px 10px; font-size:11px; border:none; cursor:pointer;
+                        background:#f9fafb; color:#374151; transition:all .15s; }
+    .vs-toggle button.active { background:#1d4ed8; color:#fff; }
+    .vs-scroll { overflow-y:auto; max-height:75vh; border:1px solid #e5e7eb;
+                 border-radius:6px; position:relative; background:#f9fafb; }
+    .vs-img-wrap { position:relative; display:inline-block; width:100%; }
+    .vs-img-wrap img { display:block; width:100%; height:auto; }
+    .vs-region { position:absolute; box-sizing:border-box; cursor:pointer;
+                 transition:opacity .15s; }
+    .vs-region:hover { z-index:10; }
+    .vs-region-high   { border:2px solid rgba(220,38,38,.9);   background:rgba(220,38,38,.15); }
+    .vs-region-medium { border:2px solid rgba(234,179,8,.9);   background:rgba(234,179,8,.12); }
+    .vs-region-low    { border:2px solid rgba(59,130,246,.8);  background:rgba(59,130,246,.10); }
+    .vs-tooltip { display:none; position:absolute; bottom:calc(100% + 6px); left:50%;
+                  transform:translateX(-50%); background:rgba(15,23,42,.92); color:#f8fafc;
+                  border-radius:6px; padding:6px 10px; font-size:11px; line-height:1.5;
+                  white-space:nowrap; z-index:100; pointer-events:none; min-width:140px; }
+    .vs-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+                         border:5px solid transparent; border-top-color:rgba(15,23,42,.92); }
+    .vs-region:hover .vs-tooltip { display:block; }
+    .vs-zone-label { position:absolute; top:0; left:0; right:0; padding:2px 6px;
+                     font-size:10px; font-weight:700; color:#fff; opacity:.85;
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .vs-region-high   .vs-zone-label { background:rgba(220,38,38,.85); }
+    .vs-region-medium .vs-zone-label { background:rgba(180,130,0,.85); }
+    .vs-region-low    .vs-zone-label { background:rgba(37,99,235,.85); }
+    </style>
+
+    {% for pd in report.page_diffs %}
+    {% set has_img = pd.img_a_b64 or pd.img_b_b64 %}
+    {% if has_img %}
+    {% set diff_pct = pd.pixel_diff_pct %}
+    {% set badge_cls = 'vs-badge-crit' if diff_pct > 20 else ('vs-badge-warn' if diff_pct > 3 else 'vs-badge-ok') %}
+    {% set badge_lbl = ('DUŻE RÓŻNICE ' ~ diff_pct|round(1)|string ~ '%') if diff_pct > 20 else (('RÓŻNICE ' ~ diff_pct|round(1)|string ~ '%') if diff_pct > 3 else 'ZGODNE') %}
+
+    <div class="vs-page-pair" data-page="{{ loop.index }}">
+      <div class="vs-page-label">
+        Strona {{ pd.page_num }}
+        <span class="vs-page-badge {{ badge_cls }}">{{ badge_lbl }}</span>
+        {% if pd.summary %}<span style="font-weight:400;font-size:11px;color:#6b7280">{{ pd.summary }}</span>{% endif %}
+      </div>
+
+      <div class="vs-columns">
+
+        <!-- ─── Wzorzec A ─── -->
+        <div class="vs-col">
+          <div class="vs-col-header">
+            <span class="vs-col-title">&#9312; Master (wzorzec A)</span>
+            {% if pd.img_a_annot_b64 and pd.img_a_annot_b64 != pd.img_a_b64 %}
+            <div class="vs-toggle" id="toggleA-{{ loop.index }}">
+              <button type="button" onclick="vsToggle('A','clean',{{ loop.index }})">Czysty</button>
+              <button type="button" class="active" onclick="vsToggle('A','overlay',{{ loop.index }})">Overlay</button>
+            </div>
+            {% endif %}
+          </div>
+          <div class="vs-scroll" id="scrollA-{{ loop.index }}"
+               onscroll="vsSyncScroll({{ loop.index }},'A',this)">
+            <div class="vs-img-wrap" id="wrapA-{{ loop.index }}">
+              <img id="imgA-{{ loop.index }}"
+                   src="data:image/jpeg;base64,{{ pd.img_a_annot_b64 or pd.img_a_b64 }}"
+                   data-clean="data:image/jpeg;base64,{{ pd.img_a_b64 }}"
+                   data-overlay="data:image/jpeg;base64,{{ pd.img_a_annot_b64 or pd.img_a_b64 }}"
+                   alt="Master A — strona {{ pd.page_num }}"
+                   onclick="rptLbOpen(this.src)" style="cursor:zoom-in" />
+              {% for reg in pd.diff_regions %}
+              {% set sev = reg.severity %}
+              <div class="vs-region vs-region-{{ sev }}"
+                   style="left:{{ reg.x_pct }}%;top:{{ reg.y_pct }}%;width:{{ reg.w_pct }}%;height:{{ reg.h_pct }}%">
+                {% if reg.label %}<div class="vs-zone-label">{{ reg.label }}</div>{% endif %}
+                <div class="vs-tooltip">
+                  {% if sev == 'high' %}🔴 Strefa krytyczna{% elif sev == 'medium' %}🟡 Strefa ważna{% else %}🔵 Różnica informacyjna{% endif %}
+                  {% if reg.label %}<br><strong>{{ reg.label }}</strong>{% endif %}<br>
+                  Podobieństwo: {{ (100 - reg.avg_diff)|round(0)|int }}%
+                  {% if reg.area %}<br>Pow.: {{ reg.area }} px{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Dostawca B ─── -->
+        <div class="vs-col">
+          <div class="vs-col-header">
+            <span class="vs-col-title">&#9313; Dostawca (fabryczna B)</span>
+            {% if pd.img_b_annot_b64 and pd.img_b_annot_b64 != pd.img_b_b64 %}
+            <div class="vs-toggle" id="toggleB-{{ loop.index }}">
+              <button type="button" onclick="vsToggle('B','clean',{{ loop.index }})">Czysty</button>
+              <button type="button" class="active" onclick="vsToggle('B','overlay',{{ loop.index }})">Overlay</button>
+            </div>
+            {% endif %}
+          </div>
+          <div class="vs-scroll" id="scrollB-{{ loop.index }}"
+               onscroll="vsSyncScroll({{ loop.index }},'B',this)">
+            <div class="vs-img-wrap" id="wrapB-{{ loop.index }}">
+              <img id="imgB-{{ loop.index }}"
+                   src="data:image/jpeg;base64,{{ pd.img_b_annot_b64 or pd.img_b_b64 }}"
+                   data-clean="data:image/jpeg;base64,{{ pd.img_b_b64 }}"
+                   data-overlay="data:image/jpeg;base64,{{ pd.img_b_annot_b64 or pd.img_b_b64 }}"
+                   alt="Dostawca B — strona {{ pd.page_num }}"
+                   onclick="rptLbOpen(this.src)" style="cursor:zoom-in" />
+              {% for reg in pd.diff_regions %}
+              {% set sev = reg.severity %}
+              <div class="vs-region vs-region-{{ sev }}"
+                   style="left:{{ reg.x_pct }}%;top:{{ reg.y_pct }}%;width:{{ reg.w_pct }}%;height:{{ reg.h_pct }}%">
+                {% if reg.label %}<div class="vs-zone-label">{{ reg.label }}</div>{% endif %}
+                <div class="vs-tooltip">
+                  {% if sev == 'high' %}🔴 Strefa krytyczna{% elif sev == 'medium' %}🟡 Strefa ważna{% else %}🔵 Różnica informacyjna{% endif %}
+                  {% if reg.label %}<br><strong>{{ reg.label }}</strong>{% endif %}<br>
+                  Podobieństwo: {{ (100 - reg.avg_diff)|round(0)|int }}%
+                  {% if reg.area %}<br>Pow.: {{ reg.area }} px{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+      </div>{# /vs-columns #}
+    </div>{# /vs-page-pair #}
+    {% endif %}
+    {% endfor %}
+
+    <script>
+    (function(){
+      var _syncing = {};
+
+      window.vsSyncScroll = function(idx, side, el){
+        if(_syncing[idx]) return;
+        _syncing[idx] = true;
+        var other = document.getElementById('scroll' + (side==='A'?'B':'A') + '-' + idx);
+        if(other){
+          var ratio = el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight);
+          other.scrollTop = ratio * Math.max(1, other.scrollHeight - other.clientHeight);
+        }
+        _syncing[idx] = false;
+      };
+
+      window.vsToggle = function(side, mode, idx){
+        var img = document.getElementById('img' + side + '-' + idx);
+        if(!img) return;
+        img.src = mode === 'overlay' ? img.dataset.overlay : img.dataset.clean;
+        var btns = document.querySelectorAll('#toggle' + side + '-' + idx + ' button');
+        btns.forEach(function(b, i){ b.classList.toggle('active', (i===0&&mode==='clean')||(i===1&&mode==='overlay')); });
+      };
+
+      window.vsSetAllMode = function(mode){
+        ['A','B'].forEach(function(side){
+          document.querySelectorAll('[id^="img' + side + '-"]').forEach(function(img){
+            img.src = mode === 'overlay' ? img.dataset.overlay : img.dataset.clean;
+          });
+          document.querySelectorAll('[id^="toggle' + side + '-"] button').forEach(function(b, i){
+            var inToggle = parseInt(i) % 2;
+            b.classList.toggle('active', (inToggle===0&&mode==='clean')||(inToggle===1&&mode==='overlay'));
+          });
+        });
+      };
+    })();
+    </script>
+  </div>
+  {% endif %}
+  {% endif %}{# /not profile_active — visual diff #}
+
+  <!-- ══ LISTA KONTROLNA MDR ══════════════════════════════════════════════ -->
+  {% if not report.profile_active %}
+  {% if report.checklist %}
+  <div class="section">
+    <div class="section-header">Lista kontrolna MDR &mdash; elementy obowi&#261;zkowe</div>
+    <div class="checklist-grid">
+      {% for item in report.checklist %}
+        {% set cl_class = 'cl-ok' if item.status == 'ok' else
+                          'cl-err' if item.status == 'error' else
+                          'cl-warn' if item.status == 'warning' else 'cl-info' %}
+        {% set cl_icon = '✓' if item.status == 'ok' else
+                         '✗' if item.status == 'error' else
+                         '!' if item.status == 'warning' else '—' %}
+        {% set badge_class = 'badge-critical' if item.severity == 'critical' else
+                             'badge-important' if item.severity == 'important' else 'badge-info' %}
+        {% set badge_label = 'KR' if item.severity == 'critical' else
+                             'W' if item.severity == 'important' else 'I' %}
+        <div class="cl-item {{ cl_class }}">
+          <div class="cl-icon">{{ cl_icon }}</div>
+          <div>
+            <div>
+              <span class="cl-label">{{ item.label }}</span>
+              <span class="cl-badge {{ badge_class }}">{{ badge_label }}</span>
+            </div>
+            {% if item.note %}
+            <div class="cl-note">{{ item.note }}</div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}{# /not profile_active — MDR checklist #}
+
+  <!-- ══ PLIKI ANALIZOWANE ═════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">Pliki analizowane</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Plik</th><th scope="col">Rola</th><th scope="col">Rozmiar</th>
+          <th scope="col">EAN</th><th scope="col">Rewizja</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in report.analyzed_files %}
+        <tr>
+          <td>{{ f.filename }}</td>
+          <td>{{ f.role }}</td>
+          <td>{{ f.size }}</td>
+          <td>{{ f.ean }}</td>
+          <td>{{ f.revision }}</td>
+          <td class="{{ f.status_class }}">{{ f.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ GLOBALNE PORÓWNANIE KOLORÓW (cała strona master vs dostawca) ════════ -->
+  {% if report.global_color and report.global_color.palette_a %}
+  {% set gc = report.global_color %}
+  <div class="section" style="margin-top:8px">
+    <div class="section-header" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🎨 Globalne porównanie kolorów — cała strona</span>
+      <span style="padding:3px 12px;border-radius:5px;font-size:12px;font-weight:700;color:#fff;background:{{ '#c0392b' if gc.changed else '#1e8449' }}">
+        {{ 'RÓŻNICA' if gc.changed else 'ZGODNE' }}
+      </span>
+    </div>
+    <div style="padding:12px 2px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        {% for side, pal, avg in [('Master (wzorzec A)', gc.palette_a, gc.avg_hex_a), ('Dostawca (plik B)', gc.palette_b, gc.avg_hex_b)] %}
+        <div>
+          <div style="font-weight:700;font-size:12px;color:#555;margin-bottom:6px">{{ side }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            {% for c in pal %}
+            <div style="text-align:center">
+              <div style="width:46px;height:34px;border-radius:4px;border:1px solid #ccc;background:{{ c.hex }}"></div>
+              <div style="font-size:9px;font-family:monospace;color:#444;margin-top:2px">{{ c.hex }}</div>
+              <div style="font-size:9px;color:#888">{{ c.pct }}%</div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:6px">Średni kolor:
+            <span style="display:inline-block;width:12px;height:12px;border:1px solid #ccc;vertical-align:middle;background:{{ avg }}"></span>
+            <span style="font-family:monospace">{{ avg }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:12px;font-size:12.5px;color:#333">{{ gc.note }}</div>
+      {% if gc.pairs %}
+      <table class="rpt-table" style="margin-top:10px">
+        <thead><tr>
+          <th scope="col">Kolor mastera</th><th scope="col">Najbliższy u dostawcy</th>
+          <th scope="col">ΔE</th><th scope="col">Status</th>
+        </tr></thead>
+        <tbody>
+        {% for p in gc.pairs %}
+        <tr>
+          <td><span style="display:inline-block;width:16px;height:16px;border:1px solid #ccc;vertical-align:middle;background:{{ p.a_hex }}"></span> <span style="font-family:monospace">{{ p.a_hex }}</span> ({{ p.a_pct }}%)</td>
+          <td><span style="display:inline-block;width:16px;height:16px;border:1px solid #ccc;vertical-align:middle;background:{{ p.b_hex }}"></span> <span style="font-family:monospace">{{ p.b_hex }}</span></td>
+          <td style="font-family:monospace">{{ p.delta_e }}</td>
+          <td class="{{ 'status-error' if p.changed else 'status-ok' }}">{{ '⚠ RÓŻNICA' if p.changed else '✓ zgodny' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <div style="font-size:11px;color:#999;margin-top:8px">
+        ΔE wg CIEDE2000 · próg różnicy: {{ gc.threshold }} · ΔE tła (średni kolor): {{ gc.avg_delta_e }} · maks ΔE: {{ gc.max_delta_e }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if report.profile_active and report.profile_fields %}
+  <!-- ── React-based profile fields (new design) ── -->
+  <script>
+  window.REPORT_META = {
+    jobId: {{ (report.analysis_date or '') | tojson }},
+    productName: {{ (report.product_code or report.profile_name or '') | tojson }},
+    master: { file: {{ (report.master_version or 'Wzorzec A') | tojson }} },
+    supplier: { file: {{ (report.factory_version or 'Fabryczna B') | tojson }} },
+    operator: '',
+    reviewedAt: {{ (report.analysis_date or '') | tojson }},
+  };
+  window.REPORT_FIELDS = [
+  {% for pf in report.profile_fields %}
+  {
+    id: {{ ('f' ~ loop.index) | tojson }},
+    name: {{ pf.field | tojson }},
+    priority: {{ ('KR' if pf.severity == 'critical' else ('W' if pf.severity == 'important' else 'I')) | tojson }},
+    result: {{ ('diff' if pf.changed else 'ok') | tojson }},
+    layout: {{ (pf.display_layout if pf.display_layout else 'side_by_side') | tojson }},
+    cutout: {
+      imgA: {{ pf.crop_a_b64 | tojson if pf.crop_a_b64 else 'null' }},
+      imgB: {{ pf.crop_b_b64 | tojson if pf.crop_b_b64 else 'null' }},
+      imgC: {{ pf.crop_b_aligned_b64 | tojson if pf.crop_b_aligned_b64 else 'null' }},
+      imgD: {{ pf.diff_overlay_b64 | tojson if pf.diff_overlay_b64 else 'null' }},
+    },
+    ocrA: {{ (pf.val_a or '') | tojson }},
+    ocrB: {{ (pf.val_b or '') | tojson }},
+    note: {{ pf.note | tojson if pf.note else 'null' }},
+  },
+  {% endfor %}
+  ];
+  window.REPORT_ICONS = [
+  {% if report.checklist %}{% for item in report.checklist %}{
+    id: {{ loop.index | tojson }},
+    label: {{ item.label | tojson }},
+    status: {{ ('ok' if item.status == 'ok' else ('diff' if item.status == 'error' else ('missing' if item.status == 'missing' else 'layout'))) | tojson }},
+    glyph: {{ (item.label[:4] if item.label else '?') | tojson }},
+  },{% endfor %}{% endif %}
+  ];
+  </script>
+  <div id="pfroot" style="margin:16px 0"></div>
+  {% raw %}<script type="text/babel">
+  // ── LCS word diff ─────────────────────────────────────────────────────────
+  function diffWords(a, b) {
+    const A = (a||'').split(/(\s+)/), B = (b||'').split(/(\s+)/);
+    const aw = A.filter(t => t.trim()), bw = B.filter(t => t.trim());
+    const n = aw.length, m = bw.length;
+    const dp = Array.from({length:n+1},()=>new Array(m+1).fill(0));
+    for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)
+      dp[i][j]=aw[i].toLowerCase()===bw[j].toLowerCase()?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+    const aFlag=new Array(n).fill(true),bFlag=new Array(m).fill(true);
+    let i=0,j=0;
+    while(i<n&&j<m){
+      if(aw[i].toLowerCase()===bw[j].toLowerCase()){aFlag[i]=false;bFlag[j]=false;i++;j++;}
+      else if(dp[i+1][j]>=dp[i][j+1])i++;else j++;
+    }
+    return{aw,bw,aFlag,bFlag};
+  }
+
+  // ── OcrLine ───────────────────────────────────────────────────────────────
+  function OcrLine({words,flags,side}){
+    return(
+      <div className={"pf-ocr "+(side==='A'?'a':'b')}>
+        <span className="lab">OCR — {side==='A'?'Master A':'Dostawca B'}</span>
+        {words.map((w,i)=>(<React.Fragment key={i}>{flags[i]?<span className="d">{w}</span>:w}{" "}</React.Fragment>))}
+      </div>
+    );
+  }
+
+  // ── ImagePane ─────────────────────────────────────────────────────────────
+  const MIN_CROP_HEIGHT = 90; // px — scale up crops shorter than this
+
+  function ImagePane({side,field,onOpen}){
+    const MAP={
+      a:{tag:'①',title:'MASTER (WZORZEC A)',cls:'a'},
+      b:{tag:'②',title:'DOSTAWCA (PLIK B)',cls:'b'},
+      c:{tag:'③',title:'DOSTAWCA W SKALI · SIFT',cls:'c'},
+      d:{tag:'④',title:'MAPA RÓŻNIC · SSIM',cls:'d'},
+    }[side];
+    const imgKey={a:'imgA',b:'imgB',c:'imgC',d:'imgD'}[side];
+    const src=field.cutout[imgKey];
+    const wrapRef=React.useRef(null);
+
+    function scaleThinCrop(img){
+      if(!img||!wrapRef.current) return;
+      const ar=img.naturalHeight/img.naturalWidth;
+      if(!ar||ar===0) return;
+      const displayW=img.offsetWidth;
+      const displayH=displayW*ar;
+      if(displayH>0 && displayH<MIN_CROP_HEIGHT){
+        const scale=Math.min(MIN_CROP_HEIGHT/displayH, 6);
+        img.style.transformOrigin='top left';
+        img.style.transform=`scale(${scale})`;
+        img.style.width=`${100/scale}%`;
+        wrapRef.current.style.height=`${Math.round(displayH*scale)+2}px`;
+        wrapRef.current.style.overflow='hidden';
+      }
+    }
+
+    return(
+      <div className={"pf-pane "+MAP.cls}>
+        <div className="pf-pane-tab"><span className="ti">{MAP.tag}</span>{MAP.title}</div>
+        <div className="pf-pane-img" ref={wrapRef} onClick={()=>onOpen&&src&&onOpen()}>
+          <div className="pf-expand-hint">⤢ Powiększ</div>
+          {src
+            ? <img src={"data:image/jpeg;base64,"+src} alt={"Kadr — "+MAP.title}
+                   onLoad={e=>scaleThinCrop(e.target)} />
+            : <div style={{padding:24,textAlign:'center',color:'#9ca3af',fontSize:13}}>Brak obrazu</div>
+          }
+        </div>
+      </div>
+    );
+  }
+
+  // ── FieldCard ─────────────────────────────────────────────────────────────
+  function FieldCard({field,idx,openLb}){
+    const stacked=field.layout==='stacked';
+    const{aw,bw,aFlag,bFlag}=diffWords(field.ocrA,field.ocrB);
+    const hasD=!!field.cutout.imgD;
+    // Panel „DOSTAWCA W SKALI · SIFT" (c) ukryty na życzenie — zostają A, B i mapa różnic (d).
+    const sides=stacked?['a','b']:['a','b',...(hasD?['d']:[])];
+    const cols=stacked?1:sides.length;
+    const prioLabel={KR:'KR · krytyczne',W:'W · ważne',I:'I · informacyjne'}[field.priority];
+    return(
+      <div className={"pf-card r-"+field.result} id={"pf-"+field.id}>
+        <div className="pf-card-head">
+          <span className="idx">{String(idx+1).padStart(2,'0')}</span>
+          <span className="name">{field.name}</span>
+          <span className={"pf-badge prio-"+field.priority} title={prioLabel}>
+            <span className="pin"/>{field.priority}
+          </span>
+          <span className={"pf-badge res-"+field.result}>
+            {field.result==='diff'?'RÓŻNICA':'ZGODNE'}
+          </span>
+        </div>
+        <div className="pf-card-body">
+          <div className={"pf-panes "+(stacked?'stack':'side')} style={{"--cols":cols}}>
+            {stacked?(
+              <React.Fragment>
+                <div>
+                  <ImagePane side="a" field={field} onOpen={()=>openLb(field,'a')}/>
+                  <OcrLine words={aw} flags={aFlag} side="A"/>
+                </div>
+                <div>
+                  <ImagePane side="b" field={field} onOpen={()=>openLb(field,'b')}/>
+                  <OcrLine words={bw} flags={bFlag} side="B"/>
+                </div>
+              </React.Fragment>
+            ):(
+              sides.map(s=>(
+                <div key={s}>
+                  <ImagePane side={s} field={field} onOpen={()=>openLb(field,s)}/>
+                  {s==='a'&&<OcrLine words={aw} flags={aFlag} side="A"/>}
+                  {s==='b'&&<OcrLine words={bw} flags={bFlag} side="B"/>}
+                </div>
+              ))
+            )}
+          </div>
+          {field.note&&(
+            <div className="pf-card-note">
+              <span className="ic">⚠</span>
+              <span>{field.note}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Lightbox ──────────────────────────────────────────────────────────────
+  function Lightbox({field,onClose}){
+    const [zoom,setZoom]=React.useState(1);
+    const [off,setOff]=React.useState({x:0,y:0});
+    const [rotA,setRotA]=React.useState(0);
+    const [rotB,setRotB]=React.useState(0);
+    const drag=React.useRef(null);
+    const [grabbing,setGrabbing]=React.useState(false);
+
+    const bump=d=>setZoom(z=>Math.min(6,Math.max(0.2,+(z+d).toFixed(2))));
+    const reset=React.useCallback(()=>{setZoom(1);setOff({x:0,y:0});setRotA(0);setRotB(0);},[]);
+
+    React.useEffect(()=>{
+      const h=e=>{
+        if(e.key==='Escape')onClose();
+        else if(e.key==='+'||e.key==='=')bump(0.25);
+        else if(e.key==='-')bump(-0.25);
+        else if(e.key==='0')reset();
+      };
+      window.addEventListener('keydown',h);
+      return()=>window.removeEventListener('keydown',h);
+    },[onClose,reset]);
+
+    const onWheel=e=>{e.preventDefault();bump(e.deltaY<0?0.18:-0.18);};
+    const onDown=e=>{drag.current={x:e.clientX,y:e.clientY,ox:off.x,oy:off.y};setGrabbing(true);};
+    const onMove=e=>{if(!drag.current)return;setOff({x:drag.current.ox+(e.clientX-drag.current.x),y:drag.current.oy+(e.clientY-drag.current.y)});};
+    const onUp=()=>{drag.current=null;setGrabbing(false);};
+
+    const holderStyle=rot=>({
+      position:'absolute',top:'50%',left:'50%',
+      transform:`translate(calc(-50% + ${off.x}px),calc(-50% + ${off.y}px)) scale(${zoom}) rotate(${rot}deg)`,
+      transformOrigin:'center',
+    });
+
+    const sides=[{key:'a',src:field.cutout.imgA,rot:rotA,setRot:setRotA,tag:'① MASTER A',cls:'a'},
+                 {key:'b',src:field.cutout.imgB,rot:rotB,setRot:setRotB,tag:'② DOSTAWCA B',cls:'b'}];
+
+    return(
+      <div className="pf-lb" onMouseUp={onUp}>
+        <div className="pf-lb-toolbar">
+          <div className="pf-lb-title">
+            {field.name}
+            <span className="b">{field.priority} · {field.result==='diff'?'RÓŻNICA':'ZGODNE'}</span>
+          </div>
+          <div className="pf-lb-grp">
+            <button className="pf-lb-btn" onClick={()=>bump(-0.25)}>−</button>
+            <span className="pf-lb-zoom">{Math.round(zoom*100)}%</span>
+            <button className="pf-lb-btn" onClick={()=>bump(0.25)}>＋</button>
+            <button className="pf-lb-btn" onClick={reset}>↩ Reset</button>
+          </div>
+          <button className="pf-lb-btn pf-lb-close" onClick={onClose}>✕ Zamknij</button>
+        </div>
+        <div className="pf-lb-stage">
+          {sides.map(({key,src,rot,setRot,tag,cls})=>(
+            <div className="pf-lb-panel" key={key}>
+              <div className="pf-lb-panel-head">
+                <span className={"pf-lb-tag "+cls}>{tag}</span>
+                <div className="pf-lb-rot">
+                  <button onClick={()=>setRot(r=>r-90)}>↺</button>
+                  <button onClick={()=>setRot(r=>r+90)}>↻</button>
+                </div>
+              </div>
+              <div className={"pf-lb-canvas"+(grabbing?' grabbing':'')}
+                   onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}>
+                {src&&<img src={"data:image/jpeg;base64,"+src} style={holderStyle(rot)} alt={tag}/>}
+                {!src&&<div style={{color:'#9fb0cc',fontSize:14}}>Brak obrazu</div>}
+              </div>
+              {key==='b'&&<div className="pf-lb-hint">Scroll = zoom · przeciągnij = przesuń · rotacja osobno</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── IconGrid ──────────────────────────────────────────────────────────────
+  function IconGrid(){
+    const icons=window.REPORT_ICONS||[];
+    if(!icons.length)return null;
+    const PIP={diff:'≠',layout:'⇅',missing:'∅'};
+    const anyDiff=icons.some(i=>i.status!=='ok');
+    const counts=[
+      {key:'diff',label:'różnica',color:'var(--icon-diff)'},
+      {key:'layout',label:'inny układ',color:'var(--icon-layout)'},
+      {key:'missing',label:'brak w B',color:'var(--icon-missing)'},
+    ].map(g=>({...g,n:icons.filter(i=>i.status===g.key).length})).filter(g=>g.n);
+    return(
+      <React.Fragment>
+        <div className="pf-sec-head">
+          <h2>Siatka ikon i symboli</h2>
+          <span className="ln"/>
+          <span className="cnt">{icons.length} symboli · {icons.filter(i=>i.status!=='ok').length} odchyleń</span>
+        </div>
+        <div className={"pf-card r-"+(anyDiff?'diff':'ok')}>
+          <div className="pf-card-head">
+            <span className="idx">∑</span>
+            <span className="name">Siatka ikon i symboli</span>
+            <span className="pf-badge prio-KR"><span className="pin"/>KR</span>
+            <span className={"pf-badge res-"+(anyDiff?'diff':'ok')}>{anyDiff?'RÓŻNICA':'ZGODNE'}</span>
+          </div>
+          <div className="pf-card-body">
+            <div className="pf-panes side" style={{"--cols":2}}>
+              {['A','B'].map(side=>(
+                <div className={"pf-pane "+(side==='A'?'a':'b')} key={side}>
+                  <div className="pf-pane-tab">
+                    <span className="ti">{side==='A'?'①':'②'}</span>
+                    {side==='A'?'MASTER (WZORZEC A)':'DOSTAWCA (PLIK B)'}
+                  </div>
+                  <div className="pf-pane-img" style={{cursor:'default'}}>
+                    <div className="pf-istrip">
+                      {icons.map((ic,n)=>{
+                        const showStatus=side==='B'&&ic.status!=='ok';
+                        const cls="pf-itile"+(showStatus?" s-"+ic.status:"");
+                        return(
+                          <div className={cls} key={ic.id} title={ic.label+(showStatus?' — '+ic.status.toUpperCase():'')}>
+                            {side==='B'&&ic.status==='missing'?'BRAK':ic.glyph}
+                            {showStatus&&<span className="pip">{PIP[ic.status]||'!'}</span>}
+                            <span className="num">{n+1}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {counts.length>0&&(
+              <div className="pf-ilegend">
+                {counts.map(g=>(
+                  <div className="pf-ileg-item" key={g.key}>
+                    <span className="sw" style={{background:g.color}}/>
+                    <b>{g.n}</b> {g.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </React.Fragment>
+    );
+  }
+
+  // ── App ───────────────────────────────────────────────────────────────────
+  function PfApp(){
+    const fields=window.REPORT_FIELDS||[];
+    const [resFilter,setResFilter]=React.useState('all');
+    const [prioFilter,setPrioFilter]=React.useState('all');
+    const [lb,setLb]=React.useState(null);
+
+    const diffCount=fields.filter(f=>f.result==='diff').length;
+    const okCount=fields.length-diffCount;
+    const pct=fields.length?Math.round((okCount/fields.length)*100):100;
+
+    const shown=fields.filter(f=>
+      (resFilter==='all'||f.result===resFilter)&&
+      (prioFilter==='all'||f.priority===prioFilter)
+    );
+
+    return(
+      <React.Fragment>
+        {/* summary bar */}
+        <div className="pf-summary">
+          <div className="pf-stat diff">
+            <span className="num">{diffCount}</span>
+            <span className="lbl">różnic do<br/>weryfikacji</span>
+          </div>
+          <div className="pf-stat ok">
+            <span className="num">{okCount}</span>
+            <span className="lbl">pól<br/>zgodnych</span>
+          </div>
+          <div className="pf-compliance">
+            <div className="bar"><i style={{width:pct+'%'}}/></div>
+            <span className="pct">{pct}%</span>
+          </div>
+          <div className="pf-filters">
+            <button className={"pf-fbtn"+(resFilter==='all'&&prioFilter==='all'?' active':'')}
+                    onClick={()=>{setResFilter('all');setPrioFilter('all');}}>Wszystkie</button>
+            <button className={"pf-fbtn"+(resFilter==='diff'?' active':'')}
+                    onClick={()=>setResFilter(resFilter==='diff'?'all':'diff')}>
+              <span className="dot" style={{background:'var(--result-diff)'}}/>
+              Różnice<span className="cnt">{diffCount}</span>
+            </button>
+            <button className={"pf-fbtn"+(prioFilter==='KR'?' active':'')}
+                    onClick={()=>setPrioFilter(prioFilter==='KR'?'all':'KR')}>
+              <span className="dot" style={{background:'var(--prio-critical)'}}/>
+              Krytyczne
+            </button>
+          </div>
+        </div>
+
+        {/* cards */}
+        <div style={{display:'grid',gap:'var(--pf-gap-cards)'}}>
+          {shown.map((f,i)=>(
+            <FieldCard key={f.id} field={f} idx={fields.indexOf(f)}
+                       openLb={(field)=>setLb(field)}/>
+          ))}
+          {shown.length===0&&(
+            <div className="pf-empty">Brak pól dla wybranego filtra.</div>
+          )}
+        </div>
+
+        {/* lightbox */}
+        {lb&&<Lightbox field={lb} onClose={()=>setLb(null)}/>}
+      </React.Fragment>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('pfroot')).render(<PfApp/>);
+  </script>{% endraw %}
+  {% endif %}
+
+  <!-- ══ 1. DANE ZMIENNE ═══════════════════════════════════════════════════ -->
+  {% if not report.profile_active %}
+  <div class="section">
+    <div class="section-header">1. Dane zmienne &mdash; LOT, daty, kody EAN</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Element</th><th scope="col">Master (wzorzec)</th>
+          <th scope="col">Carton sticker</th><th scope="col">Pouch label</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.variable_data %}
+        <tr>
+          <td>{{ row.element }}</td>
+          <td>{{ row.master }}</td>
+          <td>{{ row.carton }}</td>
+          <td>{{ row.pouch }}</td>
+          <td class="{{ row.status_class }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ 2. WERYFIKACJA KODÓW KRESKOWYCH (EAN-13 / GS1-128 / Code 128) ═══ -->
+  <div class="section">
+    <div class="section-header">2. Weryfikacja kodow kreskowych &mdash; EAN-13 / GS1-128 / Code 128</div>
+    {% if report.barcode_summary and (report.barcode_summary.eans_a or report.barcode_summary.eans_b) %}
+    <div style="padding:10px 14px 0;display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:#1a5276;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Wzorzec A — EAN</div>
+        {% for ean in report.barcode_summary.eans_a[:3] %}
+        <div onclick="bcShow('{{ ean }}', 'Wzorzec A — EAN')" title="Kliknij, aby powiększyć kod" style="cursor:zoom-in;font-family:monospace;font-size:17px;font-weight:700;letter-spacing:2px;padding:6px 12px;background:#f0fdf4;border:1.5px solid #22c55e;border-radius:6px;display:inline-block;margin-bottom:4px">{{ ean }} 🔍</div>
+        {% else %}
+        <div style="color:#9ca3af;font-size:14px">Nie wykryto EAN</div>
+        {% endfor %}
+        {% if report.barcode_summary.lot_a %}
+        <div style="margin-top:6px;font-size:13px;color:#555">LOT: <strong>{{ report.barcode_summary.lot_a }}</strong></div>
+        {% endif %}
+      </div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:12px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Fabryczna B — EAN</div>
+        {% for ean in report.barcode_summary.eans_b[:3] %}
+        {% set ean_match = ean in report.barcode_summary.eans_a %}
+        <div onclick="bcShow('{{ ean }}', 'Fabryczna B — EAN')" title="Kliknij, aby powiększyć kod" style="cursor:zoom-in;font-family:monospace;font-size:17px;font-weight:700;letter-spacing:2px;padding:6px 12px;background:{% if ean_match %}#f0fdf4{% else %}#fef2f2{% endif %};border:1.5px solid {% if ean_match %}#22c55e{% else %}#ef4444{% endif %};border-radius:6px;display:inline-block;margin-bottom:4px">{{ ean }} {% if ean_match %}✓{% else %}✗{% endif %} 🔍</div>
+        {% else %}
+        <div style="color:#9ca3af;font-size:14px">Nie wykryto EAN</div>
+        {% endfor %}
+        {% if report.barcode_summary.lot_b %}
+        <div style="margin-top:6px;font-size:13px;color:#555">LOT: <strong>{{ report.barcode_summary.lot_b }}</strong></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <div style="padding:10px 0 0">
+      {% if report.barcode_messages %}
+        {% for msg in report.barcode_messages %}
+        <div class="msg-box {{ msg.msg_class }}">
+          <span class="msg-label">{{ msg.label }}</span>{{ msg.text }}
+        </div>
+        {% endfor %}
+      {% else %}
+        {% for msg in report.gs1_messages %}
+        <div class="msg-box {{ msg.msg_class }}">
+          <span class="msg-label">{{ msg.label }}</span>{{ msg.text }}
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ══ 2b. WERYFIKACJA WYDRUKU DOSTAWCY — DANE ZMIENNE ════════════════════ -->
+  {% if report.supplier_validation %}
+  <div class="section" style="border-left:4px solid #7c3aed">
+    <div class="section-header" style="background:#f3e8ff;color:#4c1d95">
+      2b. Weryfikacja wydruku dostawcy — dane zmienne (LOT, EXP, EAN, kody)
+    </div>
+    <p style="color:#6b7280;font-size:0.82em;margin:8px 0 12px">
+      Sprawdzenie czy dostawca prawidłowo nadrukował dane zmienne na etykiecie (Fabr. B).
+      Wykrywa brakujące lub niepoprawne LOT, daty ważności, EAN-13 i spójność GS1-128.
+    </p>
+
+    {% set sv_errors   = report.supplier_validation | selectattr('status','equalto','error')   | list %}
+    {% set sv_warnings = report.supplier_validation | selectattr('status','equalto','warning') | list %}
+    {% set sv_ok       = report.supplier_validation | selectattr('status','equalto','ok')      | list %}
+
+    <!-- Podsumowanie -->
+    <div style="display:flex;gap:14px;margin-bottom:12px;font-size:0.85em;flex-wrap:wrap">
+      {% if sv_errors   %}<span style="color:#dc2626;font-weight:700">&#10007; Błędy: {{ sv_errors|length }}</span>{% endif %}
+      {% if sv_warnings %}<span style="color:#d97706;font-weight:600">&#9888; Ostrzeżenia: {{ sv_warnings|length }}</span>{% endif %}
+      {% if sv_ok       %}<span style="color:#16a34a">&#10003; OK: {{ sv_ok|length }}</span>{% endif %}
+    </div>
+
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col" style="width:22%">Pole</th>
+          <th scope="col" style="width:38%">Wartość na etykiecie dostawcy</th>
+          <th scope="col" style="width:28%">Uwaga</th>
+          <th scope="col" style="width:12%">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sv in report.supplier_validation %}
+        <tr>
+          <td style="font-weight:600">{{ sv.field }}</td>
+          <td style="font-family:monospace;font-size:0.9em">{{ sv.value or '—' }}</td>
+          <td style="color:#555;font-size:0.88em">{{ sv.note or '' }}</td>
+          <td class="{% if sv.status=='ok' %}status-ok{% elif sv.status=='error' %}status-error{% elif sv.status=='warning' %}status-rozny{% else %}status-info{% endif %}"
+              style="font-weight:700;text-align:center">
+            {% if sv.status=='ok' %}✓ OK
+            {% elif sv.status=='error' %}✗ BŁĄD
+            {% elif sv.status=='warning' %}⚠ SPRAWDŹ
+            {% else %}ℹ INFO{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if sv_errors %}
+    <div class="msg-box msg-krytyczny" style="margin-top:12px">
+      <span class="msg-label">AKCJA</span>
+      Wykryto {{ sv_errors|length }} błędy na etykiecie dostawcy. Skontaktuj się z dostawcą w celu korekty wydruku przed zatwierdzeniem.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ══ 3. SPECYFIKACJA KOLOROW ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">3. Specyfikacja kolorow</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Element</th><th scope="col">Master</th>
+          <th scope="col">Carton sticker</th><th scope="col">Pouch label</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.color_spec %}
+        <tr>
+          <td>{{ row.element }}</td>
+          <td>{{ row.master }}</td>
+          <td>{{ row.carton }}</td>
+          <td>{{ row.pouch }}</td>
+          <td class="{{ row.status_class }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if report.color_note %}
+    <div class="color-note">{{ report.color_note }}</div>
+    {% endif %}
+  </div>
+
+  <!-- ══ 4. TEKSTY I TLUMACZENIA ══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">4. Teksty i tlumaczenia — porownanie sekcja po sekcji</div>
+
+    {% if report.section_comparison %}
+      {% for sec in report.section_comparison %}
+      <div style="margin-bottom:16px;">
+        <!-- Naglowek sekcji -->
+        <div style="background:{% if sec.has_diff %}#fef3c7{% else %}#f0fdf4{% endif %};
+                    border-left:4px solid {% if sec.has_diff %}#f59e0b{% else %}#22c55e{% endif %};
+                    padding:6px 12px; font-weight:600; font-size:0.85em;
+                    display:flex; justify-content:space-between; align-items:center;">
+          <span>{{ sec.label }}</span>
+          <span style="font-weight:400; color:#6b7280;">
+            {% if sec.diff_count > 0 %}
+              <span style="color:#dc2626;">{{ sec.diff_count }} roznic</span>
+            {% else %}
+              <span style="color:#16a34a;">zgodne</span>
+            {% endif %}
+            {% if sec.ai %}&nbsp;· AI{% endif %}
+          </span>
+        </div>
+        <!-- Wiersze sekcji -->
+        <table class="rpt-table" style="margin-top:0; border-top:none;">
+          <thead>
+            <tr>
+              <th scope="col" style="width:46%">Wzorzec (A)</th>
+              <th scope="col" style="width:46%">Fabryczna (B)</th>
+              <th scope="col" style="width:8%">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in sec.rows %}
+            <tr style="{% if r.is_diff %}background:#fff7ed;{% endif %}">
+              <td style="font-family:monospace;font-size:0.82em">
+                {% if r.is_diff and r.content_a and r.content_b %}
+                  <span class="inline-diff" data-a="{{ r.content_a|e }}" data-b="{{ r.content_b|e }}">{{ r.content_a }}</span>
+                {% else %}
+                  <span {% if r.status == 'only_master' %}style="color:#dc2626;font-weight:600"{% endif %}>{{ r.content_a or '—' }}</span>
+                {% endif %}
+              </td>
+              <td style="font-family:monospace;font-size:0.82em">
+                {% if r.is_diff and r.content_a and r.content_b %}
+                  <span class="inline-diff-b" data-a="{{ r.content_a|e }}" data-b="{{ r.content_b|e }}">{{ r.content_b }}</span>
+                {% else %}
+                  <span {% if r.status == 'only_factory' %}style="color:#dc2626;font-weight:600"{% endif %}>{{ r.content_b or '—' }}</span>
+                {% endif %}
+              </td>
+              <td class="{{ r.status_class }}">{{ r.status_label }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+
+    {% elif report.texts %}
+      <!-- Fallback: stare text_diffs bez AI -->
+      <table class="rpt-table">
+        <thead>
+          <tr><th scope="col">Tekst wzorzec (A)</th><th scope="col">Tekst fabryczny (B)</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          {% for row in report.texts %}
+          <tr>
+            <td>{{ row.master }}</td>
+            <td>{{ row.carton }}</td>
+            <td class="{{ row.status_class }}">{{ row.status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+    {% else %}
+      <p style="color:#6b7280; font-style:italic; padding:8px 0;">
+        Brak danych tekstowych — OCR nie wyciagnal tekstu lub AI nie jest skonfigurowane.
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- ══ 5. ELEMENTY GRAFICZNE I SYMBOLE ══════════════════════════════════ -->
+  {% if _SHOW_ICONS_GRAPHICS %}
+  <div class="section">
+    <div class="section-header">5. Elementy graficzne i symbole</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Element</th><th scope="col">Master</th>
+          <th scope="col">Carton sticker</th><th scope="col">Pouch</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.graphics %}
+        <tr>
+          <td>{{ row.element }}</td>
+          <td>{{ row.master }}</td>
+          <td>{{ row.carton }}</td>
+          <td>{{ row.pouch }}</td>
+          <td class="{{ row.status_class }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ 5b. POROWNANIE ELEMENTOW GRAFICZNYCH (IKONY / PIKTOGRAMY) ══════════ -->
+  {% if report.icon_comparison %}
+  <div class="section" id="iconSection">
+    <div class="section-header">5b. Elementy graficzne — porownanie para po parze</div>
+    <p style="color:#555; font-size:0.85em; margin:10px 0 14px;">
+      Kazdy wykryty element graficzny zestawiony para po parze.
+      <strong>Kliknij miniaturke</strong> aby powiekszyc w lightboxie.
+      Przycisk <strong>↻</strong> obraca oba obrazki o 90° (do czytelnosci oboroconych drukow).
+    </p>
+
+    <!-- Statystyki + filtry -->
+    {% set n_ok     = report.icon_comparison | selectattr('status','equalto','OK')           | list | length %}
+    {% set n_diff   = report.icon_comparison | selectattr('status','equalto','Roznica')      | list | length %}
+    {% set n_err    = report.icon_comparison | selectattr('status','equalto','Blad')         | list | length %}
+    {% set n_layout = report.icon_comparison | selectattr('status','equalto','Inny układ')   | list | length %}
+    {% set n_miss   = report.icon_comparison | selectattr('status','in',['Brak w A','Brak w B']) | list | length %}
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
+      <button type="button" onclick="icFilter('all')"       id="icf-all"    class="ic-filter-btn ic-filter-active">Wszystkie ({{ report.icon_comparison|length }})</button>
+      <button type="button" onclick="icFilter('OK')"        id="icf-OK"     class="ic-filter-btn ic-filter-ok">&#10003; Zgodne ({{ n_ok }})</button>
+      {% if n_diff > 0 %}
+      <button type="button" onclick="icFilter('Roznica')"   id="icf-Roznica" class="ic-filter-btn ic-filter-warn">&#9888; Roznice ({{ n_diff }})</button>
+      {% endif %}
+      {% if n_err > 0 %}
+      <button type="button" onclick="icFilter('Blad')"      id="icf-Blad"   class="ic-filter-btn ic-filter-err">&#10007; Bledy ({{ n_err }})</button>
+      {% endif %}
+      {% if n_layout > 0 %}
+      <button type="button" onclick="icFilter('Inny układ')" id="icf-Inny układ" class="ic-filter-btn ic-filter-layout">&#8646; Inny uklad ({{ n_layout }})</button>
+      {% endif %}
+      {% if n_miss > 0 %}
+      <button type="button" onclick="icFilter('brak')"      id="icf-brak"   class="ic-filter-btn ic-filter-miss">? Brakujace ({{ n_miss }})</button>
+      {% endif %}
+    </div>
+
+    <!-- Siatka par ikon -->
+    <div id="icGrid" style="display:flex; flex-wrap:wrap; gap:14px;">
+      {% for ic in report.icon_comparison %}
+      {%- if ic.status == 'OK' %}
+        {%- set bw='2px' %}{%- set bc='#16a34a' %}{%- set bg='#f0fdf4' %}{%- set sh='' %}
+      {%- elif ic.status == 'Inny układ' %}
+        {%- set bw='3px' %}{%- set bc='#7c3aed' %}{%- set bg='#faf5ff' %}{%- set sh='0 0 6px rgba(124,58,237,.2)' %}
+      {%- elif ic.status in ['Brak w A','Brak w B'] %}
+        {%- set bw='3px' %}{%- set bc='#d97706' %}{%- set bg='#fffbeb' %}{%- set sh='0 0 6px rgba(217,119,6,.2)' %}
+      {%- elif ic.status == 'Roznica' %}
+        {%- set bw='3px' %}{%- set bc='#ea580c' %}{%- set bg='#fff7ed' %}{%- set sh='0 0 8px rgba(234,88,12,.25)' %}
+      {%- else %}
+        {%- set bw='4px' %}{%- set bc='#dc2626' %}{%- set bg='#fef2f2' %}{%- set sh='0 0 10px rgba(220,38,38,.3)' %}
+      {%- endif %}
+      <div class="ic-card"
+           data-status="{{ ic.status }}"
+           style="border:{{ bw }} solid {{ bc }};
+                  border-radius:10px; padding:10px 10px 8px; background:{{ bg }};
+                  display:flex; flex-direction:column; align-items:center;
+                  width:fit-content; min-width:0;
+                  {% if sh %}box-shadow:{{ sh }};{% endif %}
+                  position:relative;">
+
+        <!-- Para miniatur + przycisk "otwórz porównanie" -->
+        {% set _srcA = 'data:image/jpeg;base64,' + (ic.crop_a_hires_annot or ic.crop_a_hires or ic.crop_a_b64) if ic.crop_a_b64 else '' %}
+        {% set _srcB = 'data:image/jpeg;base64,' + (ic.crop_b_hires_annot or ic.crop_b_hires or ic.crop_b_b64) if ic.crop_b_b64 else '' %}
+        <button type="button" onclick="rptLbOpenPair('{{ _srcA }}','{{ _srcB }}',{{ ('Wzorzec A — ' ~ ic.label|default(''))|tojson }},{{ ('Fabryczna B — ' ~ ic.label|default(''))|tojson }})"
+                title="Otwórz porównanie A↔B"
+                aria-label="Otwórz porównanie A↔B dla {{ ic.label|default('pola') }}"
+                style="position:absolute; top:5px; right:5px;
+                       background:rgba(91,155,255,.85); border:none; border-radius:4px;
+                       padding:2px 7px; cursor:pointer; font-size:12px; color:#fff; font-weight:700;">⤢</button>
+
+        <div class="ic-imgs" style="display:flex; gap:8px; align-items:center; margin-bottom:8px; margin-top:4px;">
+          <!-- Wzorzec A -->
+          <div style="text-align:center;">
+            {% if ic.crop_a_b64 %}
+            {% set _thumbA = ic.crop_a_hires_annot or ic.crop_a_b64 %}
+            <img src="data:image/jpeg;base64,{{ _thumbA }}"
+                 class="ic-img"
+                 alt="Wzorzec A — miniatura pola {{ ic.label|default('') }}"
+                 title="Kliknij aby otworzyć porównanie A↔B{% if ic.crop_a_hires_annot %} (z zaznaczonymi różnicami){% endif %}"
+                 onclick="rptLbOpenPair('{{ _srcA }}','{{ _srcB }}','Wzorzec A','Fabryczna B')"
+                 style="max-width:88px; max-height:88px; image-rendering:high-quality;
+                        cursor:zoom-in; border-radius:4px;
+                        border: {% if ic.crop_a_hires_annot %}2px solid #dc2626{% else %}1px solid #d1d5db{% endif %};
+                        background:white;" />
+            {% else %}
+            <div style="width:88px;height:88px;background:#f3f4f6;border:2px dashed #d1d5db;
+                        border-radius:4px;display:flex;align-items:center;justify-content:center;
+                        color:#9ca3af;font-size:0.7em;text-align:center;">Brak<br>w A</div>
+            {% endif %}
+            <div style="font-size:0.68em; color:#6b7280; margin-top:3px; font-weight:600;">Wzorzec A</div>
+          </div>
+
+          <!-- Strzalka -->
+          <div style="color:#9ca3af; font-size:1.3em; flex-shrink:0;">&#8596;</div>
+
+          <!-- Fabryczna B -->
+          <div style="text-align:center;">
+            {% if ic.crop_b_b64 %}
+            {% set _thumbB = ic.crop_b_hires_annot or ic.crop_b_b64 %}
+            <img src="data:image/jpeg;base64,{{ _thumbB }}"
+                 class="ic-img"
+                 alt="Dostawca B — miniatura pola {{ ic.label|default('') }}"
+                 title="Kliknij aby otworzyć porównanie A↔B{% if ic.crop_b_hires_annot %} (z zaznaczonymi różnicami){% endif %}"
+                 onclick="rptLbOpenPair('{{ _srcA }}','{{ _srcB }}','Wzorzec A','Fabryczna B')"
+                 style="max-width:88px; max-height:88px; image-rendering:high-quality;
+                        cursor:zoom-in; border-radius:4px;
+                        border: {% if ic.crop_b_hires_annot %}2px solid #dc2626{% else %}1px solid #d1d5db{% endif %};
+                        background:white;" />
+            {% else %}
+            <div style="width:88px;height:88px;background:#f3f4f6;border:2px dashed #d1d5db;
+                        border-radius:4px;display:flex;align-items:center;justify-content:center;
+                        color:#9ca3af;font-size:0.7em;text-align:center;">Brak<br>w B</div>
+            {% endif %}
+            <div style="font-size:0.68em; color:#6b7280; margin-top:3px; font-weight:600;">Fabr. B</div>
+          </div>
+        </div>
+
+        <!-- Status badge -->
+        <div style="font-size:0.78em; padding:4px 12px; border-radius:20px; text-align:center;
+                    font-weight:700; color:{{ bc }}; background:{{ bg }};
+                    border:1.5px solid {{ bc }}; margin-bottom:3px;">
+          {% if ic.status == 'Inny układ' %}&#8646; {{ ic.status }}
+          {% elif ic.status == 'OK' %}&#10003; {{ ic.status }}
+          {% elif ic.status in ['Brak w A','Brak w B'] %}? {{ ic.status }}
+          {% elif ic.status == 'Roznica' %}&#9888; {{ ic.status }}
+          {% else %}&#10007; {{ ic.status }}{% endif %}
+        </div>
+
+        {% if ic.similarity is not none and ic.similarity|float > 0 %}
+        <div style="font-size:0.72em; color:#555; margin-top:2px;">
+          {{ ic.similarity }}% podobienstwa
+        </div>
+        {% endif %}
+
+        <!-- Pozycja -->
+        {% if ic.layout_shift and ic.pos_b_x is not none and ic.pos_b_y is not none %}
+        <div style="font-size:0.66em; color:#7c3aed; margin-top:4px; text-align:center; line-height:1.5;">
+          A: x={{ (ic.x_pct or 0)|round(0)|int }}% y={{ (ic.y_pct or 0)|round(0)|int }}%<br>
+          B: x={{ ic.pos_b_x|round(0)|int }}% y={{ ic.pos_b_y|round(0)|int }}%
+        </div>
+        {% elif ic.x_pct is not none and ic.y_pct is not none %}
+        <div style="font-size:0.64em; color:#bbb; margin-top:2px;">
+          x={{ ic.x_pct|round(0)|int }}% y={{ ic.y_pct|round(0)|int }}%
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <style>
+  .ic-filter-btn {
+    padding: 5px 14px; border-radius: 20px; border: 2px solid #d1d5db;
+    background: #f9fafb; cursor: pointer; font-size: 0.78em; font-weight: 600;
+    transition: all .15s; color: #374151;
+  }
+  .ic-filter-btn:hover { border-color: #9ca3af; background: #f3f4f6; }
+  .ic-filter-active  { background: #1d4ed8 !important; color: #fff !important; border-color: #1d4ed8 !important; }
+  .ic-filter-ok      { border-color: #16a34a; color: #15803d; }
+  .ic-filter-warn    { border-color: #ea580c; color: #c2410c; }
+  .ic-filter-err     { border-color: #dc2626; color: #b91c1c; }
+  .ic-filter-layout  { border-color: #7c3aed; color: #6d28d9; }
+  .ic-filter-miss    { border-color: #d97706; color: #b45309; }
+  </style>
+  <script>
+  (function(){
+    window.icFilter = function(val){
+      var cards = document.querySelectorAll('#icGrid .ic-card');
+      cards.forEach(function(c){
+        var st = c.getAttribute('data-status');
+        var show = val === 'all' ||
+                   val === st ||
+                   (val === 'brak' && (st === 'Brak w A' || st === 'Brak w B'));
+        c.style.display = show ? '' : 'none';
+      });
+      document.querySelectorAll('.ic-filter-btn').forEach(function(b){ b.classList.remove('ic-filter-active'); });
+      var btn = document.getElementById('icf-' + val);
+      if(btn) btn.classList.add('ic-filter-active');
+    };
+    window.icRotate = function(btn){
+      var rot = (parseInt(btn.getAttribute('data-rot') || 0) + 90) % 360;
+      btn.setAttribute('data-rot', rot);
+      var card = btn.closest('.ic-card');
+      card.querySelectorAll('.ic-img').forEach(function(img){
+        img.style.transform = 'rotate(' + rot + 'deg)';
+        /* Reserve space so rotated 90/270 doesn't squash the card */
+        if(rot === 90 || rot === 270){
+          img.style.maxWidth = '88px'; img.style.maxHeight = '88px';
+          img.style.margin = '10px 0';
+        } else {
+          img.style.margin = '';
+        }
+      });
+    };
+  })();
+  </script>
+  {% endif %}
+  {% endif %}{# /_SHOW_ICONS_GRAPHICS — sekcje 5 + 5b #}
+
+  <!-- ══ 6. ROZMIARY I SPECYFIKACJA TECHNICZNA ═════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">6. Rozmiary i specyfikacja techniczna</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Element</th><th scope="col">Master</th>
+          <th scope="col">Carton sticker</th><th scope="col">Pouch</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.dimensions %}
+        <tr>
+          <td>{{ row.element }}</td>
+          <td>{{ row.master }}</td>
+          <td>{{ row.carton }}</td>
+          <td>{{ row.pouch }}</td>
+          <td class="{{ row.status_class }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ 7. DANE PRODUCENTA I DYSTRYBUTORA ════════════════════════════════ -->
+  {% if _SHOW_MANUFACTURER %}
+  <div class="section">
+    <div class="section-header">7. Dane producenta i dystrybutora</div>
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th scope="col">Pole</th><th scope="col">Master</th>
+          <th scope="col">Carton sticker</th><th scope="col">Pouch</th><th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.manufacturer %}
+        <tr>
+          <td>{{ row.element }}</td>
+          <td>{{ row.master }}</td>
+          <td>{{ row.carton }}</td>
+          <td>{{ row.pouch }}</td>
+          <td class="{{ row.status_class }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}{# /_SHOW_MANUFACTURER — sekcja 7 #}
+
+  {% endif %}{# /not profile_active — sections 1-7 #}
+
+  <!-- ══ PODSUMOWANIE ═══════════════════════════════════════════════════════ -->
+  {% if _SHOW_SUMMARIES and report.has_summary %}
+  <div class="section">
+    <div class="section-header summary-header">
+      Podsumowanie &mdash; bledy wymagajace korekty przed akceptacja
+    </div>
+    <div style="padding:10px 0 4px">
+      {% for msg in report.summary_errors %}
+      <div class="msg-box msg-krytyczny">
+        <span class="msg-label">{{ msg.label }}</span>{{ msg.text }}
+      </div>
+      {% endfor %}
+      {% for msg in report.summary_warnings %}
+      <div class="msg-box msg-uwaga">
+        <span class="msg-label">{{ msg.label }}</span>{{ msg.text }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ══ TABELA PORÓWNAWCZA (format Word) ══════════════════════════════════ -->
+  {% if report.comparison_sections %}
+  <div class="section" style="margin-top:28px" id="compSectionsWrap">
+    <div class="section-header" style="background:#1a5276;color:#fff;font-size:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span>Tabela porównawcza elementów</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="filterStatus" onchange="filterCompTable()" style="font-size:12px;padding:3px 8px;border-radius:4px;border:none;background:#fff;color:#1a5276;cursor:pointer">
+          <option value="all">Pokaż wszystkie</option>
+          <option value="diff">Tylko różnice ⚠</option>
+          <option value="ok">Tylko zgodne ✓</option>
+          <option value="brak">Tylko brak —</option>
+        </select>
+        <select id="sortOrder" onchange="sortCompTable()" style="font-size:12px;padding:3px 8px;border-radius:4px;border:none;background:#fff;color:#1a5276;cursor:pointer">
+          <option value="default">Sortuj: domyślnie</option>
+          <option value="diff_first">Różnice na górze</option>
+          <option value="ok_first">Zgodne na górze</option>
+          <option value="az">A → Z (pole)</option>
+        </select>
+      </div>
+    </div>
+
+    {% for sec in report.comparison_sections %}
+    {% if sec.rows %}
+    <div class="comp-section-group" style="margin-top:14px">
+      <div style="background:#d6eaf8;font-weight:700;font-size:11px;padding:6px 10px;border:1px solid #aed6f1;text-transform:uppercase;letter-spacing:.5px;color:#1a5276">
+        {{ sec.title }}
+      </div>
+      <table class="rpt-table comp-table" style="margin-top:0">
+        <thead>
+          <tr>
+            <th scope="col" style="width:22%">Pole / Element</th>
+            <th scope="col" style="width:32%">{{ report.product_code }}</th>
+            <th scope="col" style="width:32%">{{ report.product_name }}</th>
+            <th scope="col" style="width:14%">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sec.rows %}
+          {% set st = row.status|lower %}
+          {% set is_diff = st in ('niezgodnosc','rozny','zmiana','error') %}
+          {% set is_ok   = st in ('zgodny','ok') %}
+          {% set is_brak = st in ('brak','n/d') or (row.val_a == 'N/D' and row.val_b == 'N/D') %}
+          {% set sev = row.severity if row.severity is defined else ('critical' if st == 'niezgodnosc' else 'important' if st in ('rozny','zmiana') else 'info') %}
+          <tr class="comp-row{% if is_diff and sev == 'critical' %} field-row-critical{% elif is_diff %} field-row-changed{% endif %}"
+              data-status="{{ 'diff' if is_diff else 'ok' if is_ok else 'brak' if is_brak else 'other' }}"
+              data-sev="{{ sev }}"
+              data-field="{{ row.field|lower }}">
+            <td style="font-weight:600">{{ row.field }}</td>
+            <td>{{ row.val_a or 'N/D' }}</td>
+            <td>{{ row.val_b or 'N/D' }}</td>
+            <td class="{% if is_diff and sev == 'critical' %}status-error{% elif is_diff %}status-rozny{% elif is_ok %}status-ok{% elif is_brak %}status-brak{% else %}status-info{% endif %}">
+              {% if is_diff and sev == 'critical' %}✗ BŁĄD{% elif is_diff %}⚠ RÓŻNICA{% elif is_ok %}✓ ZGODNE{% elif is_brak %}— N/D{% else %}{{ row.status }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+    <div id="noRowsMsg" style="display:none;text-align:center;padding:18px;color:#888;font-size:14px">Brak wierszy pasujących do filtru.</div>
+  </div>
+  <script>
+  function filterCompTable(){
+    var val=document.getElementById('filterStatus').value;
+    var any=false;
+    document.querySelectorAll('.comp-row').forEach(function(r){
+      var show=val==='all'||r.dataset.status===val;
+      r.style.display=show?'':'none';
+      if(show)any=true;
+    });
+    document.getElementById('noRowsMsg').style.display=any?'none':'';
+  }
+  function sortCompTable(){
+    var val=document.getElementById('sortOrder').value;
+    document.querySelectorAll('.comp-table tbody').forEach(function(tbody){
+      var rows=Array.from(tbody.querySelectorAll('.comp-row'));
+      rows.sort(function(a,b){
+        if(val==='diff_first') return (a.dataset.status==='diff'?0:1)-(b.dataset.status==='diff'?0:1);
+        if(val==='ok_first')   return (a.dataset.status==='ok'?0:1)-(b.dataset.status==='ok'?0:1);
+        if(val==='az')         return a.dataset.field.localeCompare(b.dataset.field);
+        return 0;
+      });
+      rows.forEach(function(r){tbody.appendChild(r);});
+    });
+  }
+  </script>
+
+  <!-- ══ PODSUMOWANIE TABELI ════════════════════════════════════════════════ -->
+  {% if _SHOW_SUMMARIES %}
+  <div class="section" style="margin-top:18px">
+    <div class="section-header summary-header">Podsumowanie i wnioski</div>
+    <div style="padding:12px 0 4px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      {% if report.matched_items %}
+      <div>
+        <div style="font-weight:700;color:#1e8449;margin-bottom:6px">
+          ✓ ELEMENTY ZGODNE ({{ report.matched_items|length }})
+        </div>
+        {% for item in report.matched_items %}
+        <div style="font-size:12px;padding:2px 0;color:#333">• {{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if report.diff_items %}
+      <div>
+        <div style="font-weight:700;color:#c0392b;margin-bottom:6px">
+          ⚠ RÓŻNICE WYMAGAJĄCE WERYFIKACJI ({{ report.diff_items|length }})
+        </div>
+        {% for item in report.diff_items %}
+        <div style="font-size:12px;padding:2px 0;color:#333">• {{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+
+    {% if report.ai_comment %}
+    <div style="margin-top:14px;padding:12px 16px;background:#fdfefe;border:1px solid #d5d8dc;border-radius:5px">
+      <div style="font-weight:700;font-size:12px;color:#555;margin-bottom:6px">Komentarz:</div>
+      <div style="font-size:12.5px;line-height:1.6;color:#333">{{ report.ai_comment }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}{# /_SHOW_SUMMARIES — podsumowanie tabeli #}
+  {% endif %}
+
+  {# ══ WYDAJNOŚĆ — szczegółowy rozkład czasów (tylko gdy profilowanie włączone) ══ #}
+  {% if report.performance and report.performance.enabled %}
+  {% set perf = report.performance %}
+  {%- macro fmt_ms(ms) -%}
+    {%- set s = (ms|float) / 1000.0 -%}
+    {%- if s >= 60 -%}{{ (s // 60)|int }} min {{ '%.0f'|format(s % 60) }} s
+    {%- elif s >= 10 -%}{{ '%.1f'|format(s) }} s
+    {%- else -%}{{ '%.2f'|format(s) }} s{%- endif -%}
+  {%- endmacro -%}
+  <div class="section" style="margin-top:18px">
+    <details>
+      <summary class="section-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;list-style:none">
+        <span>⏱ Wydajność — szczegółowy rozkład czasów</span>
+        <span style="font-family:var(--mono,monospace);font-weight:700">
+          {{ fmt_ms(perf.total_ms or 0) }}
+        </span>
+      </summary>
+
+      <div style="padding:14px 4px 4px">
+        {# Metadane uruchomienia #}
+        {% if perf.meta %}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+          {% set m = perf.meta %}
+          {% set _chip = 'font-size:11px;background:#f4f6f8;border:1px solid #e2e6ea;border-radius:6px;padding:3px 9px;color:#445' %}
+          <span style="{{ _chip }}">Stron: {{ m.pages_a }} ↔ {{ m.pages_b }}</span>
+          <span style="{{ _chip }}">Podgląd: {{ m.render_dpi }} DPI · OCR: {{ m.ocr_dpi }} DPI</span>
+          {% if m.profile_active %}<span style="{{ _chip }}">Szablon: {{ m.profile_name or '—' }} ({{ m.mapped_field_count }} pól)</span>{% endif %}
+          <span style="{{ _chip }}">AI: {{ 'tak' if m.use_ai else 'nie' }}</span>
+          <span style="{{ _chip }}">Wyrównanie: {{ 'tak' if m.align_enabled else 'nie' }}</span>
+          <span style="{{ _chip }}">Lokalne OCR: {{ 'tak' if m.ocr_local_engines else 'nie' }}</span>
+        </div>
+        {% endif %}
+
+        {# Etapy — pasek udziału procentowego #}
+        {% if perf.stages %}
+        <div style="font-weight:700;font-size:12px;color:#1a5276;margin-bottom:8px">Etapy przetwarzania</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">
+          {% for s in perf.stages %}
+          <tr style="border-bottom:1px solid #f0f2f4">
+            <td style="padding:5px 8px 5px 0;white-space:nowrap">{{ s.label }}</td>
+            <td style="padding:5px 8px;width:55%">
+              <div style="background:#eef1f4;border-radius:4px;height:14px;position:relative;overflow:hidden">
+                <div style="background:{{ '#dc2626' if s.pct >= 40 else ('#f59e0b' if s.pct >= 15 else '#3b82f6') }};height:100%;width:{{ s.pct if s.pct <= 100 else 100 }}%;border-radius:4px"></div>
+              </div>
+            </td>
+            <td style="padding:5px 0 5px 8px;text-align:right;font-family:var(--mono,monospace);white-space:nowrap">
+              {{ fmt_ms(s.ms) }} · {{ s.pct }}%
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+
+        {# Pola szablonu — najwolniejsze na górze (ujawnia wąskie gardła typu Opis_*) #}
+        {% if perf.fields %}
+        <div style="font-weight:700;font-size:12px;color:#1a5276;margin-bottom:8px">
+          Czas przetwarzania pól ({{ perf.fields|length }}) — od najwolniejszego
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">
+          {% for f in perf.fields %}
+          <tr style="border-bottom:1px solid #f0f2f4{% if loop.index0 < 3 %};background:#fffaf2{% endif %}">
+            <td style="padding:5px 8px 5px 0">{% if loop.index0 < 3 %}🐢 {% endif %}{{ f.name }}</td>
+            <td style="padding:5px 0;text-align:right;font-family:var(--mono,monospace);white-space:nowrap">
+              {{ fmt_ms(f.ms) }} · {{ f.pct }}%
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+
+        {# Diff pikselowy per strona #}
+        {% if perf.pages %}
+        <div style="font-weight:700;font-size:12px;color:#1a5276;margin-bottom:8px">Diff pikselowy — per strona</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <tr style="color:#667;font-size:11px;text-align:left">
+            <th style="padding:4px 8px 4px 0;font-weight:600">Strona</th>
+            <th style="padding:4px 8px;font-weight:600">Czas</th>
+            <th style="padding:4px 8px;font-weight:600">Różnica</th>
+            <th style="padding:4px 8px;font-weight:600">Regiony</th>
+          </tr>
+          {% for p in perf.pages %}
+          <tr style="border-top:1px solid #f0f2f4;font-family:var(--mono,monospace)">
+            <td style="padding:4px 8px 4px 0">{{ p.page }}</td>
+            <td style="padding:4px 8px">{{ fmt_ms(p.ms) }}</td>
+            <td style="padding:4px 8px">{{ p.diff_pct }}%</td>
+            <td style="padding:4px 8px">{{ p.regions }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+
+        <div style="font-size:10.5px;color:#94a3b8;margin-top:12px">
+          Pomiar czasu rzeczywistego (wall-clock). Etapy mogą się nakładać przez równoległość,
+          więc suma etapów bywa większa niż czas całkowity.
+        </div>
+      </div>
+    </details>
+  </div>
+  {% endif %}
+
+  <!-- ══ STOPKA ═════════════════════════════════════════════════════════════ -->
+  <div class="rpt-footer">
+    <span>Raport wygenerowany automatycznie &mdash; system porownania artworkow ACME</span>
+    <span>{{ report.analysis_date }} | {{ report.product_code }}{% if report.master_version and report.master_version != '—' %} | {{ report.master_version }} vs {{ report.factory_version }}{% endif %}</span>
+  </div>
+
+</div><!-- /page -->
+{% endif %}{# end expired/else #}
+<script>
+// ─── REPORT LEVEL SWITCHER ────────────────────────────────────────────────────
+(function(){
+  var _level = 'szczegolowy';
+  var _LEVELS = {
+    'szczegolowy': { label: '' },
+    'ogolny':      { label: 'Pokaż tylko wiersze z różnicami lub brakami' },
+    'uproszczony': { label: 'Pokaż tylko błędy krytyczne' },
+  };
+
+  window.rptSetLevel = function(lvl){
+    _level = lvl;
+    ['szczegolowy','ogolny','uproszczony'].forEach(function(l){
+      var btn = document.getElementById('lvl' + ({
+        'szczegolowy':'Szczeg','ogolny':'Ogolny','uproszczony':'Uproszcz'
+      }[l]));
+      if(!btn) return;
+      btn.className = 'rpt-level-btn' + (l === lvl ? ' active' : '');
+    });
+    var info = document.getElementById('rptLevelInfo');
+    if(info) info.textContent = _LEVELS[lvl].label;
+
+    // Filter comp-rows
+    document.querySelectorAll('.comp-row').forEach(function(tr){
+      var st  = tr.dataset.status;
+      var sev = tr.dataset.sev;
+      var show;
+      if(lvl === 'szczegolowy'){
+        show = true;
+      } else if(lvl === 'ogolny'){
+        show = (st === 'diff' || st === 'brak' || st === 'other');
+      } else {
+        // uproszczony: only critical diffs
+        show = (st === 'diff' && sev === 'critical');
+      }
+      tr.style.display = show ? '' : 'none';
+    });
+
+    // Hide/show section groups that have no visible rows
+    document.querySelectorAll('.comp-section-group').forEach(function(grp){
+      if(lvl === 'szczegolowy'){ grp.style.display = ''; return; }
+      var visible = grp.querySelectorAll('.comp-row:not([style*="none"])').length;
+      var anyVisible = Array.from(grp.querySelectorAll('.comp-row')).some(function(r){ return r.style.display !== 'none'; });
+      grp.style.display = anyVisible ? '' : 'none';
+    });
+
+    // Hide/show compSectionsWrap empty msg
+    var wrap = document.getElementById('compSectionsWrap');
+    if(wrap){
+      var anyRow = Array.from(wrap.querySelectorAll('.comp-row')).some(function(r){ return r.style.display !== 'none'; });
+      var msg = document.getElementById('noRowsMsg');
+      if(msg) msg.style.display = anyRow ? 'none' : '';
+    }
+  };
+})();
+</script>
+<script>
+(function(){
+  function charDiff(a, b){
+    if(a.length > 400 || b.length > 400) return null;
+    var la=a.length, lb=b.length;
+    var dp=[];
+    for(var i=0;i<=la;i++){dp[i]=new Array(lb+1).fill(0);}
+    for(var i=la-1;i>=0;i--)
+      for(var j=lb-1;j>=0;j--)
+        dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+    var ops=[],i=0,j=0;
+    while(i<la||j<lb){
+      if(i<la&&j<lb&&a[i]===b[j]){ops.push({t:'s',c:a[i]});i++;j++;}
+      else if(j<lb&&(i>=la||dp[i][j+1]>=dp[i+1][j])){ops.push({t:'i',c:b[j]});j++;}
+      else{ops.push({t:'d',c:a[i]});i++;}
+    }
+    return ops;
+  }
+  function renderA(ops){
+    return ops.map(function(o){
+      if(o.t==='s') return esc(o.c);
+      if(o.t==='d') return '<span class="diff-del">'+esc(o.c)+'</span>';
+      return '';
+    }).join('');
+  }
+  function renderB(ops){
+    return ops.map(function(o){
+      if(o.t==='s') return esc(o.c);
+      if(o.t==='i') return '<span class="diff-ins">'+esc(o.c)+'</span>';
+      return '';
+    }).join('');
+  }
+  function esc(c){return c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  document.querySelectorAll('.inline-diff').forEach(function(el){
+    var a=el.dataset.a||'', b=el.dataset.b||'';
+    var ops=charDiff(a,b);
+    if(ops) el.innerHTML=renderA(ops); else el.textContent=a;
+  });
+  document.querySelectorAll('.inline-diff-b').forEach(function(el){
+    var a=el.dataset.a||'', b=el.dataset.b||'';
+    var ops=charDiff(a,b);
+    if(ops) el.innerHTML=renderB(ops); else el.textContent=b;
+  });
+})();
+</script>
+
+<!-- ══ Barcode magnifier (suggestion 8) — click a decoded EAN to enlarge it ══ -->
+<div id="bcMag" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(8,11,18,.9);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)bcHide()">
+  <div style="background:#fff;border-radius:12px;max-width:560px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span id="bcMagSide" style="font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a5276"></span>
+      <span style="flex:1"></span>
+      <button type="button" id="bcCopyBtn" onclick="bcCopy()" style="padding:5px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:12px">&#10697; Kopiuj</button>
+      <button type="button" onclick="bcHide()" style="padding:5px 12px;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;font-size:12px;font-weight:600">&#10007; Zamknij</button>
+    </div>
+    <div style="text-align:center">
+      <canvas id="bcCanvas" style="max-width:100%;image-rendering:pixelated;background:#fff"></canvas>
+      <div id="bcValue" style="font-family:monospace;font-size:30px;font-weight:700;letter-spacing:6px;margin-top:12px;color:#111"></div>
+      <div id="bcStatus" style="font-size:14px;margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  // EAN-13 module encoding (L/G/R sets + first-digit parity pattern).
+  var L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+  var G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+  var R=['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+  var P=['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+  function ean13Checksum(d){ var s=0; for(var i=0;i<12;i++){ s += parseInt(d[i],10)*(i%2===0?1:3); } return (10-(s%10))%10; }
+  function buildModules(ean){
+    var pat=P[parseInt(ean[0],10)], bits='101', i;
+    for(i=0;i<6;i++){ bits += (pat[i]==='L'?L:G)[parseInt(ean[i+1],10)]; }
+    bits+='01010';
+    for(i=0;i<6;i++){ bits += R[parseInt(ean[i+7],10)]; }
+    return bits+'101';
+  }
+  function render(ean){
+    var c=document.getElementById('bcCanvas'), mod=3, h=130, quiet=11, bits=buildModules(ean);
+    c.width=(bits.length+quiet*2)*mod; c.height=h+8;
+    var ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); ctx.fillStyle='#000';
+    for(var i=0;i<bits.length;i++){ if(bits[i]==='1'){ ctx.fillRect((i+quiet)*mod,4,mod,h); } }
+  }
+  var _cur='';
+  window.bcShow=function(value, side){
+    value=String(value||'').replace(/[^0-9]/g,''); _cur=value;
+    document.getElementById('bcMagSide').textContent = side||'';
+    var canvas=document.getElementById('bcCanvas'),
+        statusEl=document.getElementById('bcStatus'),
+        valEl=document.getElementById('bcValue');
+    if(value.length===13){
+      var ck=ean13Checksum(value), ok = ck===parseInt(value[12],10);
+      canvas.style.display='block'; render(value);
+      valEl.textContent = value.replace(/(.)(.{6})(.{6})/, '$1 $2 $3');
+      statusEl.innerHTML = ok
+        ? '<span style="color:#16a34a;font-weight:700">&#10003; Suma kontrolna EAN-13 poprawna</span>'
+        : '<span style="color:#dc2626;font-weight:700">&#10007; Błędna suma kontrolna (oczekiwano '+ck+')</span>';
+    } else {
+      canvas.style.display='none';
+      valEl.textContent = value || '—';
+      statusEl.innerHTML='<span style="color:#6b7280">Wartość niestandardowa — podgląd bez generowania kodu EAN-13</span>';
+    }
+    document.getElementById('bcMag').style.display='flex';
+  };
+  window.bcHide=function(){ document.getElementById('bcMag').style.display='none'; };
+  window.bcCopy=function(){
+    try{ navigator.clipboard.writeText(_cur); var b=document.getElementById('bcCopyBtn'), t=b.textContent;
+      b.textContent='✓ Skopiowano'; setTimeout(function(){ b.textContent=t; },1200); }catch(e){}
+  };
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') bcHide(); });
+})();
+</script>
+<script>
+// UX-10: gdy React/Babel z CDN nie załadują się (offline/CSP), sekcja pól (#pfroot)
+// zostawała pusta bez sygnału. Pokaż widoczny komunikat zamiast cichej pustki.
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var root = document.getElementById('pfroot');
+    if (root && !root.hasChildNodes() && (typeof React==='undefined' || typeof Babel==='undefined')) {
+      root.innerHTML = '<div style="padding:16px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px;color:#92400e">'
+        + '⚠ Sekcja porównania pól nie została załadowana (biblioteka React/Babel z CDN niedostępna — brak połączenia lub blokada). '
+        + 'Odśwież stronę przy działającym połączeniu z internetem.</div>';
+    }
+  }, 1500);
+});
+</script>
+</body>
+</html>

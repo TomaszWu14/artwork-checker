@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Zmiany rewizji artworków — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.rv-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.rv-badge{font-size:13px;font-weight:800;border-radius:20px;padding:4px 12px}
+.rv-badge.warn{background:#fef3c7;color:#b45309}
+.rv-badge.ok{background:#dcfce7;color:#15803d}
+table.rv{width:100%;border-collapse:collapse;font-size:13px}
+table.rv th,table.rv td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+table.rv th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.rv-mono{font-family:var(--mono)}
+.rv-old{color:var(--muted);text-decoration:line-through}
+.rv-new{color:#b45309;font-weight:700}
+.rv-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Zmiany rewizji artworków{% endblock %}
+
+{% block content %}
+<div x-data="revApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>♻️ Zmiany rewizji do ponownego potwierdzenia</h1>
+    <p>REF-y, dla których potwierdzono stary plik, a w indeksie Z:\ pojawiła się <b>nowsza rewizja</b>. Potwierdź najnowszą, by zaktualizować mapowanie.</p>
+  </div>
+
+  <div class="rv-bar">
+    <span class="rv-badge" :class="items.length ? 'warn' : 'ok'"
+          x-text="items.length ? (items.length + ' do potwierdzenia') : 'Wszystko aktualne'"></span>
+    <button class="btn btn-sm btn-ghost" @click="load()">Odśwież</button>
+    <span x-show="msg" x-text="msg" style="font-size:12px" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+  </div>
+
+  <template x-if="loaded && items.length===0">
+    <div class="rv-empty">Brak zmian rewizji — wszystkie potwierdzone artworki są aktualne. ✓</div>
+  </template>
+  <template x-if="items.length">
+    <table class="rv">
+      <thead><tr>
+        <th>REF</th><th>Potwierdzony (stary)</th><th>Najnowszy w indeksie</th>
+        {% if role in ['manager','superuser','admin'] %}<th></th>{% endif %}
+      </tr></thead>
+      <tbody>
+        <template x-for="(it,ix) in items" :key="ix">
+          <tr>
+            <td class="rv-mono" style="font-weight:700" x-text="it.ref_code"></td>
+            <td class="rv-mono rv-old" x-text="it.confirmed_file || it.confirmed_path"></td>
+            <td class="rv-mono rv-new" x-text="it.newest_file || it.newest_path"></td>
+            {% if role in ['manager','superuser','admin'] %}
+            <td><button class="btn btn-sm btn-primary" @click="confirm(it)">Potwierdź najnowszą</button></td>
+            {% endif %}
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </template>
+</div>
+
+<script>
+function revApp(){
+  return {
+    items:[], loaded:false, msg:'', ok:false,
+    async load(){ try{ const r=await fetch('/api/artwork/confirmations/stale'); if(!r.ok) throw 0; const d=await r.json();
+      this.items=d.items||[]; this.loaded=true; }catch(e){ this.loaded=true; if(window.toast) toast('Nie udało się wczytać rewizji','error'); } },
+    async confirm(it){
+      this.msg='';
+      try{
+        const r=await fetch('/api/artwork/confirm',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ref:it.ref_code, rel_path:it.newest_path})});
+        const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Potwierdzono najnowszą dla '+it.ref_code; this.ok=true; this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+    },
+  };
+}
+</script>
+{% endblock %}

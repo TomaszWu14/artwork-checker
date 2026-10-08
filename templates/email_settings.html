@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Ustawienia — Email{% endblock %}
+{% block page_title %}Ustawienia → Email (SMTP){% endblock %}
+
+{% block content %}
+<div style="max-width:680px;margin:24px auto;padding:0 16px" x-data="emailSettings()" x-init="load()">
+
+  <div class="page-header">
+    <h1>📧 Konfiguracja e-mail (SMTP)</h1>
+    <p style="font-size:13px;color:var(--muted)">Adres nadawcy używany do powiadomień systemowych oraz wysyłki zamówień do dostawców.</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:14px">
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:var(--muted)">Szybki preset serwera</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button type="button" class="btn btn-sm btn-ghost" @click="preset('m365')">Microsoft 365 / Outlook</button>
+        <button type="button" class="btn btn-sm btn-ghost" @click="preset('google')">Google Workspace / Gmail</button>
+        <button type="button" class="btn btn-sm btn-ghost" @click="preset('custom')">Własny</button>
+      </div>
+      <p x-show="presetHint" x-text="presetHint" style="font-size:12px;color:#1d4ed8;margin-top:6px"></p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 110px;gap:12px">
+      <div>
+        <label style="font-size:12px;font-weight:600">Serwer SMTP (host)</label>
+        <input type="text" x-model="cfg.smtp_host" placeholder="np. smtp.office365.com"
+               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600">Port</label>
+        <input type="text" x-model="cfg.smtp_port" placeholder="587"
+               style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label style="font-size:12px;font-weight:600">Login (zwykle pełny adres e-mail)</label>
+      <input type="text" x-model="cfg.smtp_user" placeholder="tomasz.wierzbowski@example.com"
+             autocomplete="username"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+    </div>
+
+    <div style="margin-top:12px">
+      <label style="font-size:12px;font-weight:600">Hasło / hasło aplikacji</label>
+      <input type="password" x-model="cfg.smtp_pass" :placeholder="hasPass ? '•••••••• (zapisane — wpisz, by zmienić)' : 'hasło SMTP'"
+             autocomplete="new-password"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">
+        Przy włączonym MFA użyj <b>hasła aplikacji</b> (App Password), nie zwykłego hasła do konta.
+      </p>
+    </div>
+
+    <div style="margin-top:12px">
+      <label style="font-size:12px;font-weight:600">Adres nadawcy (From)</label>
+      <input type="text" x-model="cfg.smtp_from" placeholder="tomasz.wierzbowski@example.com"
+             style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">
+        To zobaczy dostawca jako nadawcę. Zwykle ten sam co login. (Niektóre serwery wymagają, by From = login.)
+      </p>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:18px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-primary" @click="save()" :disabled="busy">
+        <span x-show="!busy">💾 Zapisz</span><span x-show="busy">Zapisuję…</span>
+      </button>
+      <span style="flex:1"></span>
+      <input type="email" x-model="testTo" placeholder="e-mail do testu (domyślnie From)"
+             style="padding:8px;border:1px solid var(--border);border-radius:6px;min-width:230px">
+      <button type="button" class="btn btn-ghost" @click="sendTest()" :disabled="testing">
+        <span x-show="!testing">✉ Wyślij testowy</span><span x-show="testing">Wysyłam…</span>
+      </button>
+    </div>
+
+    <p x-show="msg" x-text="msg" :style="ok ? 'color:#16a34a' : 'color:#dc2626'"
+       style="font-size:13px;margin-top:12px;font-weight:600"></p>
+  </div>
+
+  <div style="font-size:12px;color:var(--muted);margin-top:14px;line-height:1.6">
+    <b>Typowe wartości:</b><br>
+    • <b>Microsoft 365 / Outlook:</b> host <code>smtp.office365.com</code>, port <code>587</code> (STARTTLS), login = pełny adres e-mail.<br>
+    • <b>Google Workspace / Gmail:</b> host <code>smtp.gmail.com</code>, port <code>587</code>, login = pełny adres, hasło = App Password.<br>
+    Po zapisaniu kliknij „Wyślij testowy" — jeśli przyjdzie, wysyłka „Wyślij do dostawcy" zadziała.
+  </div>
+</div>
+
+<script>
+function emailSettings(){
+  return {
+    cfg: { smtp_host:'', smtp_port:'587', smtp_user:'', smtp_pass:'', smtp_from:'' },
+    hasPass:false, busy:false, testing:false, testTo:'', msg:'', ok:false, presetHint:'',
+    async load(){
+      try{
+        const r = await fetch('/api/email/config');
+        if(!r.ok) return;
+        const d = await r.json();
+        // password is never returned; keep field empty and show placeholder hint
+        this.hasPass = false;
+        this.cfg.smtp_host = d.smtp_host || '';
+        this.cfg.smtp_port = d.smtp_port || '587';
+        this.cfg.smtp_user = d.smtp_user || '';
+        this.cfg.smtp_from = d.smtp_from || '';
+      }catch(e){}
+    },
+    preset(kind){
+      if(kind==='m365'){ this.cfg.smtp_host='smtp.office365.com'; this.cfg.smtp_port='587';
+        this.presetHint='Microsoft 365: login = pełny adres e-mail, port 587 (STARTTLS). Przy MFA — hasło aplikacji.'; }
+      else if(kind==='google'){ this.cfg.smtp_host='smtp.gmail.com'; this.cfg.smtp_port='587';
+        this.presetHint='Google Workspace/Gmail: login = pełny adres, hasło = App Password (wymagane przy 2FA).'; }
+      else { this.presetHint='Wpisz host i port swojego serwera SMTP.'; }
+    },
+    async save(){
+      this.busy=true; this.msg='';
+      const payload = { smtp_host:this.cfg.smtp_host.trim(), smtp_port:String(this.cfg.smtp_port).trim(),
+                        smtp_user:this.cfg.smtp_user.trim(), smtp_from:(this.cfg.smtp_from||this.cfg.smtp_user).trim() };
+      // tylko wyślij hasło, gdy wpisano nowe (puste = nie nadpisuj)
+      if(this.cfg.smtp_pass) payload.smtp_pass = this.cfg.smtp_pass;
+      try{
+        const r = await fetch('/api/email/config', { method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const d = await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd zapisu'; this.ok=false; }
+        else { this.msg='Zapisano konfigurację SMTP.'; this.ok=true; if(this.cfg.smtp_pass) this.hasPass=true; this.cfg.smtp_pass=''; }
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+      this.busy=false;
+    },
+    async sendTest(){
+      this.testing=true; this.msg='';
+      try{
+        const r = await fetch('/api/email/test', { method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({ recipient:this.testTo.trim() }) });
+        const d = await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd wysyłki'; this.ok=false; }
+        else { this.msg='✅ Testowy e-mail wysłany do: '+(d.sent_to||''); this.ok=true; }
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+      this.testing=false;
+    },
+  };
+}
+</script>
+{% endblock %}

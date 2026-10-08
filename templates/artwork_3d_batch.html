@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Masowe modele 3D{% endblock %}
+{% block page_title %}Masowe modele 3D{% endblock %}
+{% block extra_head %}
+<style>
+  .b3d-wrap{max-width:1100px}
+  .b3d-drop{border:2px dashed var(--border);border-radius:12px;padding:26px;text-align:center;background:var(--surface);cursor:pointer}
+  .b3d-drop:hover{border-color:var(--accent)}
+  .b3d-bar{height:10px;border-radius:6px;background:var(--surface2,#e5e7eb);overflow:hidden;margin:12px 0 6px}
+  .b3d-bar > i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+  .b3d-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:16px}
+  .b3d-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .b3d-card img{width:100%;height:150px;object-fit:contain;background:#eef2f7}
+  .b3d-card .body{padding:8px 10px;font-size:12px}
+  .b3d-card .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b3d-card .err{color:var(--error)}
+  .b3d-spin{display:inline-block;width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:b3dspin .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes b3dspin{to{transform:rotate(360deg)}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="b3d-wrap">
+  <div class="page-header">
+    <h1>📦 Masowe modele 3D opakowań</h1>
+    <p>Wgraj wiele dielineów PDF naraz (do 50). Każdy dostanie model 3D (GLB) + podgląd PNG.
+       Generacja idzie w tle, model po modelu — możesz zamknąć kartę i wrócić.</p>
+  </div>
+
+  <label class="b3d-drop" id="b3dDrop">
+    <div style="font-size:15px;font-weight:600">Kliknij lub upuść pliki PDF (wiele)</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px" id="b3dCount">Nie wybrano plików</div>
+    <input type="file" id="b3dFiles" accept=".pdf" multiple style="display:none">
+  </label>
+
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+    <button class="btn btn-primary" id="b3dStart" disabled>Generuj modele</button>
+    <a class="btn" id="b3dZip" style="display:none">⬇ Pobierz wszystko (ZIP)</a>
+  </div>
+
+  <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">albo: z biblioteki po rodzinie
+      <span style="font-weight:400;color:var(--muted)">(profile masterów z przypiętym plikiem PDF)</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="b3dRef" placeholder="Prefiks REF, np. BT lub RNBS"
+             style="padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);min-width:200px">
+      <input type="text" id="b3dPack" placeholder="Typ opakowania (opcjonalnie)"
+             style="padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+      <button class="btn" id="b3dLib">Generuj z biblioteki</button>
+    </div>
+  </div>
+
+  <div id="b3dProgWrap" style="display:none;margin-top:14px">
+    <div class="b3d-bar"><i id="b3dBar"></i></div>
+    <div style="font-size:12px;color:var(--muted)" id="b3dStep"></div>
+  </div>
+  <div id="b3dMsg" style="margin-top:8px"></div>
+
+  <div class="b3d-grid" id="b3dGrid"></div>
+</div>
+{% endblock %}
+{% block body_scripts %}
+<script>
+(function(){
+  const inp=document.getElementById('b3dFiles'), drop=document.getElementById('b3dDrop');
+  const startBtn=document.getElementById('b3dStart'), cnt=document.getElementById('b3dCount');
+  const bar=document.getElementById('b3dBar'), step=document.getElementById('b3dStep');
+  const progWrap=document.getElementById('b3dProgWrap'), grid=document.getElementById('b3dGrid');
+  const msg=document.getElementById('b3dMsg'), zip=document.getElementById('b3dZip');
+  let files=[];
+
+  function setFiles(fl){ files=Array.from(fl).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+    cnt.textContent = files.length ? (files.length+' plik(ów) PDF') : 'Nie wybrano plików';
+    startBtn.disabled = files.length===0; }
+  drop.addEventListener('click', ()=>inp.click());
+  inp.addEventListener('change', e=>setFiles(e.target.files));
+  drop.addEventListener('dragover', e=>{e.preventDefault();drop.style.borderColor='var(--accent)';});
+  drop.addEventListener('dragleave', ()=>drop.style.borderColor='');
+  drop.addEventListener('drop', e=>{e.preventDefault();drop.style.borderColor='';setFiles(e.dataTransfer.files);});
+
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function renderItems(items){
+    grid.innerHTML = items.map(it=>{
+      if(it.error) return `<div class="b3d-card"><div class="body"><div class="nm" title="${esc(it.src_name)}">${esc(it.src_name)}</div><div class="err">✕ ${esc(it.error)}</div></div></div>`;
+      const img = it.preview_url ? `<img src="${it.preview_url}" alt="podgląd">` : `<div style="height:150px;background:#eef2f7"></div>`;
+      const dims = (it.dims_mm||[]).map(v=>Math.round(v)).join('×');
+      return `<div class="b3d-card">${img}<div class="body"><div class="nm" title="${esc(it.src_name)}">${esc(it.src_name)}</div><div style="color:var(--muted)">${dims} mm · ${esc(it.package_type||'')}</div><div style="margin-top:6px"><a href="${it.glb_url}" download class="btn btn-sm">⬇ GLB</a></div></div></div>`;
+    }).join('');
+  }
+
+  async function runJob(jid){
+    grid.innerHTML=''; msg.innerHTML=''; zip.style.display='none'; progWrap.style.display='';
+    for(let i=0;i<600;i++){                   // do ~20 min (600 × 2 s)
+      await new Promise(res=>setTimeout(res,2000));
+      const sr=await fetch('/api/artwork/3d/batch/status/'+jid);
+      const s=await sr.json();
+      if(sr.status===404||s.status==='expired') throw new Error('Zadanie wygasło');
+      bar.style.width=(s.pct||0)+'%'; step.textContent=s.step_label||('Ukończono '+(s.done||0)+'/'+(s.total||0));
+      renderItems(s.items||[]);
+      if(s.status==='error') throw new Error(s.error||'Błąd generowania');
+      if(s.status==='done'){
+        bar.style.width='100%'; step.textContent='Gotowe: '+(s.total||0)+' modeli';
+        if((s.items||[]).some(it=>it.glb_url)){ zip.href='/api/artwork/3d/batch/zip/'+jid; zip.style.display=''; }
+        return;
+      }
+    }
+    throw new Error('Przekroczono czas (20 min)');
+  }
+
+  async function trigger(startFetch, btn, label){
+    btn.disabled=true; btn.innerHTML='<span class="b3d-spin"></span>Start…';
+    try{
+      const r=await startFetch();
+      const d=await r.json();
+      if(!r.ok||d.error) throw new Error(d.error||('HTTP '+r.status));
+      await runJob(d.job_id);
+    }catch(err){
+      msg.innerHTML='<div class="a3d-err"></div>'; msg.firstChild.textContent='Błąd: '+err.message;
+    }finally{ btn.disabled=false; btn.textContent=label; }
+  }
+
+  startBtn.addEventListener('click', ()=>{
+    if(!files.length) return;
+    const fd=new FormData(); files.forEach(f=>fd.append('files[]', f));
+    trigger(()=>fetch('/api/artwork/3d/batch/start',{method:'POST',body:fd}), startBtn, 'Generuj modele');
+  });
+  document.getElementById('b3dLib').addEventListener('click', ()=>{
+    const body={ref_prefix:document.getElementById('b3dRef').value, packaging:document.getElementById('b3dPack').value};
+    trigger(()=>fetch('/api/artwork/3d/batch/from-library',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+            document.getElementById('b3dLib'), 'Generuj z biblioteki');
+  });
+})();
+</script>
+{% endblock %}

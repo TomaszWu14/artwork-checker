@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1020" viewBox="0 0 1300 1020" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#334155"/>
+    </marker>
+    <style>
+      .h{font-size:20px;font-weight:800;fill:#0f172a}
+      .h2{font-size:14px;font-weight:800;fill:#0f172a}
+      .t{font-size:14px;font-weight:700}
+      .s{font-size:11px;fill:#475569}
+      .fb{font-size:11px;fill:#b91c1c;font-style:italic}
+      .lg{font-size:11px;fill:#334155}
+    </style>
+  </defs>
+  <rect width="1300" height="1020" fill="#ffffff"/>
+  <text x="40" y="42" class="h">Kolejność porównywania / ekstrakcji — kaskady fallback (DocCompare)</text>
+  <text x="40" y="64" class="s">Każda kolejna biblioteka wchodzi DOPIERO, gdy poprzednia nie da wyniku. Zasada: od taniego i pewnego (wektor) → po ciężkie (AI/OCR).</text>
+
+  <!-- LEGENDA -->
+  <rect x="40" y="80" width="14" height="14" rx="3" fill="#dcfce7" stroke="#16a34a"/><text x="60" y="92" class="lg">wektor / natywny tekst (najtańsze)</text>
+  <rect x="300" y="80" width="14" height="14" rx="3" fill="#fef3c7" stroke="#f59e0b"/><text x="320" y="92" class="lg">OCR klasyczny</text>
+  <rect x="470" y="80" width="14" height="14" rx="3" fill="#f3e8ff" stroke="#9333ea"/><text x="490" y="92" class="lg">AI (Claude / Mistral) — najcięższe</text>
+  <line x1="720" y1="87" x2="760" y2="87" stroke="#334155" stroke-width="1.6" marker-end="url(#a)"/><text x="766" y="91" class="fb">↓ gdy brak wyniku → następna warstwa</text>
+
+  <!-- ===== KOLUMNA A: DOKUMENTY ===== -->
+  <text x="40" y="128" class="h2">A) TABELE / POZYCJE Z DOKUMENTÓW  (table_extractor)</text>
+
+  <!-- primary -->
+  <rect x="40" y="142" width="300" height="56" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.8"/>
+  <text x="56" y="166" class="t" fill="#15803d">① pdfplumber  (ścieżka podstawowa)</text>
+  <text x="56" y="186" class="s">tabele + auto-detekcja + fuzzy dopasowanie kolumn</text>
+
+  <line x1="190" y1="198" x2="190" y2="226" stroke="#334155" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="200" y="218" class="fb">brak tabel / skan / obraz ↓ (kaskada OCR)</text>
+
+  <!-- cascade boxes -->
+  <rect x="40" y="228" width="300" height="50" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="56" y="250" class="t" fill="#15803d">②+③ Camelot</text>
+  <text x="56" y="268" class="s">lattice (po liniach) → stream (bez linii)</text>
+  <line x1="190" y1="278" x2="190" y2="300" stroke="#334155" stroke-width="1.4" marker-end="url(#a)"/>
+
+  <rect x="40" y="302" width="300" height="46" rx="10" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.6"/>
+  <text x="56" y="324" class="t" fill="#7e22ce">④ Claude Vision (Anthropic)</text>
+  <text x="56" y="340" class="s">render strony → JSON wierszy</text>
+  <line x1="190" y1="348" x2="190" y2="370" stroke="#334155" stroke-width="1.4" marker-end="url(#a)"/>
+
+  <rect x="40" y="372" width="300" height="46" rx="10" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.6"/>
+  <text x="56" y="394" class="t" fill="#7e22ce">⑤ Mistral OCR</text>
+  <text x="56" y="410" class="s">markdown → wiersze</text>
+  <line x1="190" y1="418" x2="190" y2="440" stroke="#334155" stroke-width="1.4" marker-end="url(#a)"/>
+
+  <rect x="40" y="442" width="300" height="46" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.6"/>
+  <text x="56" y="464" class="t" fill="#b45309">⑥ img2table</text>
+  <text x="56" y="480" class="s">detekcja komórek (borderless)</text>
+  <line x1="190" y1="488" x2="190" y2="510" stroke="#334155" stroke-width="1.4" marker-end="url(#a)"/>
+
+  <rect x="40" y="512" width="300" height="46" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.6"/>
+  <text x="56" y="534" class="t" fill="#b45309">⑦ Tesseract (PSM 6)</text>
+  <text x="56" y="550" class="s">OCR + podział po spacjach — ostatnia deska</text>
+
+  <!-- ===== KOLUMNA B: ARTWORK ===== -->
+  <text x="400" y="128" class="h2">B) TEKST / OCR ARTWORKU  (artwork_comparator)</text>
+
+  <rect x="400" y="142" width="300" height="50" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.8"/>
+  <text x="416" y="164" class="t" fill="#15803d">① PyMuPDF (fitz) get_text</text>
+  <text x="416" y="182" class="s">natywna warstwa tekstu („za darmo")</text>
+  <line x1="550" y1="192" x2="550" y2="214" stroke="#334155" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="560" y="208" class="fb">strona graficzna ↓</text>
+
+  <rect x="400" y="216" width="300" height="50" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.6"/>
+  <text x="416" y="238" class="t" fill="#b45309">② Tesseract OCR</text>
+  <text x="416" y="256" class="s">fallback dla stron bez tekstu</text>
+  <line x1="550" y1="266" x2="550" y2="288" stroke="#334155" stroke-width="1.4" marker-end="url(#a)"/>
+  <text x="560" y="282" class="fb">odczyt pól ↓</text>
+
+  <rect x="400" y="290" width="300" height="58" rx="10" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.6"/>
+  <text x="416" y="312" class="t" fill="#7e22ce">③ Claude (haiku) OCR — per pole</text>
+  <text x="416" y="330" class="s">wycinki pól + region color masking</text>
+  <text x="416" y="344" class="s">(DocTR — głęboki OCR jako dodatkowy)</text>
+
+  <!-- B2: CV -->
+  <text x="400" y="392" class="h2">B2) RÓŻNICE GRAFICZNE (CV)</text>
+  <rect x="400" y="404" width="300" height="84" rx="10" fill="#e0e7ff" stroke="#4338ca" stroke-width="1.6"/>
+  <text x="416" y="428" class="t" fill="#3730a3">SSIM (scikit-image) + pixel-diff</text>
+  <text x="416" y="448" class="s">główna metryka różnic (mapy intensywności)</text>
+  <text x="416" y="468" class="s">+ LightGlue / DINOv2 / Table Transformer /</text>
+  <text x="416" y="482" class="s">GroundingDINO (PyTorch) — cechy / regiony</text>
+
+  <!-- B3: barcode -->
+  <text x="400" y="528" class="h2">B3) KODY KRESKOWE (barcode_validator)</text>
+  <rect x="400" y="540" width="300" height="56" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="416" y="562" class="t" fill="#15803d">① zxingcpp (preferowany)</text>
+  <text x="416" y="582" class="s">→ ② pyzbar (fallback); EAN-13 / GS1-128</text>
+  <text x="416" y="610" class="s">Na Py 3.11 zxingcpp często niedostępny → aktywny pyzbar.</text>
+
+  <!-- ===== KOLUMNA C: SEMANTIC + ZASADA ===== -->
+  <text x="760" y="128" class="h2">C) DOPASOWANIE POZYCJI PO REF  (semantic_matcher)</text>
+  <rect x="760" y="142" width="320" height="86" rx="10" fill="#ecfeff" stroke="#06b6d4" stroke-width="1.6"/>
+  <text x="776" y="166" class="t" fill="#0e7490">rapidfuzz  +  scikit-learn TF-IDF</text>
+  <text x="776" y="188" class="s">KOMBINACJA (nie kaskada) — oba liczone i łączone</text>
+  <text x="776" y="208" class="s">łapie warianty nazw: NL753-S-40 ≈ NL753S40</text>
+
+  <text x="760" y="262" class="h2">D) WALIDACJA / RYZYKO (AI)</text>
+  <rect x="760" y="274" width="320" height="70" rx="10" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.6"/>
+  <text x="776" y="298" class="t" fill="#7e22ce">Claude API (ai_validator / ai_learning)</text>
+  <text x="776" y="318" class="s">ocena ryzyka wyniku (ok/uwaga/błąd/krytyczny)</text>
+  <text x="776" y="334" class="s">+ podpowiedzi mapowań kolumn</text>
+
+  <!-- ZASADA -->
+  <rect x="760" y="372" width="320" height="186" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="776" y="398" class="h2">DLACZEGO TAKA KOLEJNOŚĆ</text>
+  <text x="776" y="424" class="lg">• Najpierw <tspan font-weight="700">deterministyczne i tanie</tspan></text>
+  <text x="776" y="442" class="lg">  (wektorowy tekst / tabele) — szybko, pewnie.</text>
+  <text x="776" y="466" class="lg">• Potem <tspan font-weight="700">OCR klasyczny</tspan> (Tesseract / img2table).</text>
+  <text x="776" y="490" class="lg">• Na końcu <tspan font-weight="700">AI (Claude / Mistral)</tspan> —</text>
+  <text x="776" y="508" class="lg">  droższe i wolniejsze, ratuje skany / nietypowe layouty.</text>
+  <text x="776" y="534" class="s">Efekt: większość dokumentów obrabia się szybko,</text>
+  <text x="776" y="550" class="s">a „trudne" i tak przechodzą.</text>
+
+  <text x="40" y="600" class="s">Uwaga: zależności AI (Claude, Mistral) wymagają kluczy API (ANTHROPIC_API_KEY, MISTRAL_API_KEY); brak klucza = dana warstwa jest pomijana w kaskadzie.</text>
+</svg>

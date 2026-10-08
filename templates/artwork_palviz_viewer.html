@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Podgląd 3D + eksport PalViz{% endblock %}
+{% block extra_head %}<style>
+  .a3d-wrap{display:grid;grid-template-columns:1fr 340px;gap:20px}
+  @media(max-width:900px){.a3d-wrap{grid-template-columns:1fr}}
+  model-viewer{width:100%;height:70vh;background:#f4f2ee;border:1px solid #e2ddd4;border-radius:12px}
+  .a3d-drop{border:2px dashed #cfc7b8;border-radius:12px;padding:40px;text-align:center;color:#7a7263;cursor:pointer}
+  .a3d-drop:hover{background:#faf8f4}
+  .a3d-card{background:#fff;border:1px solid #e2ddd4;border-radius:12px;padding:18px}
+  .a3d-card h3{margin:0 0 10px;font-size:15px}
+  .a3d-card label{display:block;font-size:12px;color:#7a7263;margin:10px 0 4px}
+  .a3d-card select,.a3d-card input{width:100%;padding:7px;border:1px solid #cfc7b8;border-radius:6px;box-sizing:border-box}
+  .a3d-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0ece4;font-size:13px}
+  .a3d-warn{background:#fff7e6;border:1px solid #ffe0a3;color:#8a6d1f;border-radius:8px;padding:10px;font-size:13px;margin-top:10px}
+  .a3d-dims{display:none;margin-top:10px}
+  .a3d-dims input{width:64px;display:inline-block;margin-right:4px}
+  .a3d-btn{background:#2f6f4f;color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px;width:100%;margin-top:14px}
+  .a3d-err{color:#b23b3b;font-size:13px;margin-top:10px}
+  .fname{font-size:12px;color:#2f6f4f;margin-top:8px}
+</style>{% endblock %}
+{% block content %}
+<script type="module" src="{{ url_for('static', filename='vendor/model-viewer/model-viewer.min.js') }}"></script>
+
+<h1 style="font-size:22px;margin-bottom:6px">🧊 Podgląd 3D + eksport PalViz</h1>
+<p style="color:#7a7263;margin-bottom:18px">Wgraj dieline PDF, podaj poziom i SKU — dostaniesz obracalny podgląd 3D oraz gotowy ZIP dla PalViz.
+  <a href="/artwork/palviz/batch" style="color:#2f6f4f;margin-left:6px">Tryb wsadowy (wiele indeksów) →</a></p>
+
+<div class="a3d-wrap">
+  <div>
+    <model-viewer id="mv" camera-controls auto-rotate exposure="0.9"
+                  shadow-intensity="0.6" style="display:none"></model-viewer>
+    <label class="a3d-drop" id="drop">
+      <input type="file" id="file" accept="application/pdf" hidden>
+      <div style="font-size:34px">📄⇢🧊</div>
+      <div style="margin-top:8px">Kliknij lub upuść dieline PDF</div>
+      <div class="fname" id="fname"></div>
+    </label>
+    <div class="a3d-err" id="err"></div>
+  </div>
+
+  <div>
+    <div class="a3d-card">
+      <h3>Parametry</h3>
+      <label>Poziom opakowania</label>
+      <select id="level">
+        <option value="box">box (pudełko)</option>
+        <option value="carton">carton (karton)</option>
+        <option value="carton_print">carton_print</option>
+        <option value="sztuka">sztuka</option>
+        <option value="opz">opz</option>
+        <option value="karton">karton</option>
+      </select>
+      <label>SKU / indeks</label>
+      <input id="sku" placeholder="np. ZAR-KRT-290">
+      <div class="a3d-dims" id="dimsBox">
+        <div style="font-size:12px;color:#8a6d1f;margin-bottom:4px">Nie znaleziono wymiarów — podaj W × H × D (mm):</div>
+        <input type="number" id="w_mm" placeholder="W"> ×
+        <input type="number" id="h_mm" placeholder="H"> ×
+        <input type="number" id="d_mm" placeholder="D">
+      </div>
+      <button class="a3d-btn" id="gen">Generuj podgląd + ZIP</button>
+    </div>
+
+    <div class="a3d-card" style="margin-top:16px">
+      <h3>Wynik</h3>
+      <div id="meta" style="color:#9a9385;font-size:13px">— wgraj plik i kliknij Generuj —</div>
+      <div id="zipbox" style="margin-top:10px"></div>
+      <div id="warns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const drop=document.getElementById('drop'), input=document.getElementById('file');
+  const mv=document.getElementById('mv'), meta=document.getElementById('meta');
+  const warns=document.getElementById('warns'), err=document.getElementById('err');
+  const dimsBox=document.getElementById('dimsBox'), gen=document.getElementById('gen');
+  const zipbox=document.getElementById('zipbox'), fname=document.getElementById('fname');
+  let pendingFile=null;
+
+  ['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>ev.preventDefault()));
+  drop.addEventListener('drop',ev=>{ev.preventDefault(); if(ev.dataTransfer.files[0]) pick(ev.dataTransfer.files[0]);});
+  input.addEventListener('change',()=>{ if(input.files[0]) pick(input.files[0]); });
+  function pick(f){ pendingFile=f; fname.textContent='📄 '+f.name; err.textContent=''; }
+
+  gen.addEventListener('click',()=>{
+    err.textContent='';
+    if(!pendingFile){ err.textContent='Najpierw wgraj plik PDF.'; return; }
+    const sku=document.getElementById('sku').value.trim();
+    if(!sku){ err.textContent='Podaj SKU.'; return; }
+    if(gen.disabled) return;                          // blokada podwójnego submitu
+    gen.disabled=true;
+    meta.textContent='Generowanie…'; warns.innerHTML=''; zipbox.innerHTML='';
+    const fd=new FormData();
+    fd.append('file', pendingFile);
+    fd.append('level', document.getElementById('level').value);
+    fd.append('sku', sku);
+    const w=document.getElementById('w_mm').value, h=document.getElementById('h_mm').value, d=document.getElementById('d_mm').value;
+    if(w&&h&&d){ fd.append('w_mm',w); fd.append('h_mm',h); fd.append('d_mm',d); }
+    fetch('/api/artwork/palviz',{method:'POST',body:fd})
+      .then(r=>r.json()).then(res=>{
+        if(res.error){ err.textContent=res.error; meta.textContent='—'; return; }
+        if(res.needs_manual_dims){ dimsBox.style.display='block'; meta.textContent='Podaj wymiary ręcznie i ponów.'; showWarns(res.warnings); return; }
+        dimsBox.style.display='none'; drop.style.display='none';
+        mv.style.display='block'; mv.src=res.glb_url;
+        const dm=res.dims_mm;
+        meta.innerHTML =
+          `<div class="a3d-row"><span>Typ</span><b>${res.pkg_type||'—'}</b></div>`+
+          `<div class="a3d-row"><span>Wymiary</span><b>${dm.w}×${dm.h}×${dm.d} mm</b></div>`+
+          `<div class="a3d-row"><span>Ścianki</span><b>${res.faces_written}/6</b></div>`;
+        const faces=Object.keys(res.manifest.faces).join(', ');
+        zipbox.innerHTML=`<a class="a3d-btn" style="display:block;text-align:center;text-decoration:none" href="${res.zip_url}">⬇ Pobierz ZIP dla PalViz</a>`+
+                         `<div style="color:#9a9385;font-size:12px;margin-top:6px">Ścianki w paczce: ${faces}</div>`;
+        showWarns(res.warnings);
+      })
+      .catch(e=>{ err.textContent='Błąd sieci: '+e; meta.textContent='—'; })
+      .finally(()=>{ gen.disabled=false; });
+  });
+  function showWarns(ws){ warns.innerHTML=(ws||[]).map(w=>`<div class="a3d-warn">⚠ ${w}</div>`).join(''); }
+})();
+</script>
+{% endblock %}

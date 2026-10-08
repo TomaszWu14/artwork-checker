@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+{% block title %}Słownik tłumaczeń — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.td-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px; }
+.td-tab  { padding:9px 22px; font-size:13px; font-weight:600; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s,border-color .15s; }
+.td-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.td-tab:hover:not(.active) { color:var(--text); }
+
+.td-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+.td-card h2 { font-size:15px; font-weight:700; margin-bottom:14px; color:var(--text); }
+
+.td-table { width:100%; border-collapse:collapse; font-size:13px; }
+.td-table th { text-align:left; padding:8px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); border-bottom:2px solid var(--border); white-space:nowrap; }
+.td-table td { padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.td-table tr:last-child td { border-bottom:none; }
+.td-table tr:hover td { background:var(--surface2); }
+
+.td-form { display:grid; grid-template-columns:1fr 90px 1fr 90px 130px 1fr auto; gap:8px; align-items:end; margin-bottom:14px; }
+.td-form label { font-size:11px; color:var(--muted); font-weight:600; margin-bottom:3px; display:block; }
+.td-form input, .td-form select { width:100%; padding:7px 10px; border:1px solid var(--border); border-radius:7px; font-size:13px; background:var(--surface); color:var(--text); }
+.td-form input:focus, .td-form select:focus { outline:none; border-color:var(--accent); }
+
+/* .btn / .btn-sm — z app.css. Zostają tylko modyfikatory tego ekranu
+   (selektory złożone .btn-sm.primary / .btn-sm.danger poniżej). */
+.btn-sm.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-sm.primary:hover { opacity:.88; }
+.btn-sm.danger  { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+.btn-sm.danger:hover { background:#fca5a5; }
+
+.lang-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; background:var(--accent-bg); color:var(--accent); }
+.ctx-badge  { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; background:#f3f4f6; color:var(--muted); }
+[data-theme="dark"] .ctx-badge { background:var(--surface2); }
+
+.td-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.td-search { flex:1; min-width:160px; padding:7px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--surface); color:var(--text); }
+.td-search:focus { outline:none; border-color:var(--accent); }
+
+.sad-inline-edit { display:flex; gap:6px; align-items:center; }
+.sad-inline-edit input, .sad-inline-edit select { padding:4px 7px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:var(--surface); color:var(--text); min-width:80px; }
+.sad-inline-edit input:focus, .sad-inline-edit select:focus { outline:none; border-color:var(--accent); }
+
+.empty-msg { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+
+/* pagination */
+.td-pager { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12px; color:var(--muted); }
+.td-pager button { padding:3px 10px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text); cursor:pointer; font-size:12px; }
+.td-pager button:disabled { opacity:.4; cursor:default; }
+</style>
+{% endblock %}
+
+{% block page_title %}Słownik tłumaczeń{% endblock %}
+
+{% block content %}
+<div style="max-width:1200px">
+
+  <div class="page-header">
+    <h1>📖 Słownik tłumaczeń</h1>
+    <p class="sub">Zarządzaj tłumaczeniami terminów i mapowaniem pól SAD</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="td-tabs">
+    <div class="td-tab active" id="tabDictBtn"  onclick="switchTab('dict')">📖 Słownik tłumaczeń</div>
+    <div class="td-tab"        id="tabSadBtn"   onclick="switchTab('sad')">🛃 Mapowanie SAD</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: SŁOWNIK -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="tabDict">
+
+    <!-- Add form -->
+    <div class="td-card">
+      <h2>➕ Dodaj tłumaczenie</h2>
+      <div class="td-form" id="addForm">
+        <div>
+          <label for="fOrig">Termin oryginalny *</label>
+          <input type="text" id="fOrig" placeholder="np. Quantity" aria-required="true">
+        </div>
+        <div>
+          <label for="fLangFrom">Język źródłowy</label>
+          <select id="fLangFrom">
+            <option value="en">EN</option>
+            <option value="zh">ZH</option>
+            <option value="de">DE</option>
+            <option value="fr">FR</option>
+            <option value="pl">PL</option>
+            <option value="ru">RU</option>
+            <option value="es">ES</option>
+          </select>
+        </div>
+        <div>
+          <label for="fTrans">Tłumaczenie *</label>
+          <input type="text" id="fTrans" placeholder="np. Ilość" aria-required="true">
+        </div>
+        <div>
+          <label for="fLangTo">Język docelowy</label>
+          <select id="fLangTo">
+            <option value="pl" selected>PL</option>
+            <option value="en">EN</option>
+            <option value="de">DE</option>
+            <option value="fr">FR</option>
+            <option value="zh">ZH</option>
+          </select>
+        </div>
+        <div>
+          <label for="fCtx">Kontekst</label>
+          <select id="fCtx">
+            <option value="all">Wszystkie</option>
+            <option value="PO">PO</option>
+            <option value="PI">PI</option>
+            <option value="CI">CI</option>
+            <option value="PL">PL</option>
+            <option value="SAD">SAD</option>
+            <option value="BL">BL</option>
+            <option value="CMR">CMR</option>
+          </select>
+        </div>
+        <div>
+          <label for="fNotes">Uwagi</label>
+          <input type="text" id="fNotes" placeholder="opcjonalne">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button type="button" class="btn btn-sm primary" onclick="addEntry()">Dodaj</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="td-toolbar">
+      <label for="dictSearch" class="sr-only">Szukaj w słowniku</label>
+      <input class="td-search" type="search" id="dictSearch" placeholder="Szukaj terminu, tłumaczenia…" oninput="renderDict()" autocomplete="off">
+      <select class="btn btn-ghost btn-sm" id="dictFilterCtx" onchange="renderDict()">
+        <option value="">Wszystkie konteksty</option>
+        <option value="all">Wszystkie dokumenty</option>
+        <option value="PO">PO</option>
+        <option value="PI">PI</option>
+        <option value="CI">CI</option>
+        <option value="PL">PL</option>
+        <option value="SAD">SAD</option>
+        <option value="BL">BL</option>
+        <option value="CMR">CMR</option>
+      </select>
+      <select class="btn btn-ghost btn-sm" id="dictFilterLang" onchange="renderDict()">
+        <option value="">Wszystkie języki</option>
+        <option value="en">EN → PL</option>
+        <option value="zh">ZH → PL</option>
+        <option value="de">DE → PL</option>
+        <option value="pl">PL → EN</option>
+      </select>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="importCSV()">⬆ Import CSV</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Eksport CSV</button>
+      <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVImport(event)">
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)" id="dictCount"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="td-card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="td-table">
+          <thead>
+            <tr>
+              <th scope="col">Oryginalny termin</th>
+              <th scope="col">Język źródłowy</th>
+              <th scope="col">Tłumaczenie</th>
+              <th scope="col">Język docelowy</th>
+              <th scope="col">Kontekst</th>
+              <th scope="col">Uwagi</th>
+              <th scope="col">Dodano</th>
+              <th scope="col">Akcje</th>
+            </tr>
+          </thead>
+          <tbody id="dictTbody">
+            <tr><td colspan="8" class="empty-msg">Ładowanie…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="td-pager" id="dictPager" style="padding:10px 16px"></div>
+    </div>
+
+  </div><!-- /tabDict -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: SAD MAPPING -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="tabSad" style="display:none">
+
+    <div class="td-toolbar">
+      <label for="sadSearch" class="sr-only">Szukaj pól SAD</label>
+      <input class="td-search" type="search" id="sadSearch" placeholder="Szukaj pola SAD, nazwy, opisu…" oninput="renderSad()" autocomplete="off">
+      <select class="btn btn-ghost btn-sm" id="sadFilterDoctype" onchange="renderSad()">
+        <option value="">Wszystkie dokumenty</option>
+        <option value="CI">CI</option>
+        <option value="PO">PO</option>
+        <option value="PL">PL</option>
+        <option value="PI">PI</option>
+        <option value="SAD">SAD</option>
+      </select>
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)" id="sadCount"></span>
+    </div>
+
+    <div class="td-card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="td-table">
+          <thead>
+            <tr>
+              <th scope="col" style="width:60px">Pole SAD</th>
+              <th scope="col">Nazwa PL</th>
+              <th scope="col">Nazwa EN</th>
+              <th scope="col">Mapuje na</th>
+              <th scope="col">Dokument</th>
+              <th scope="col">Typ</th>
+              <th scope="col">Opis</th>
+              {% if role in ['admin','superuser','manager'] %}
+              <th scope="col">Akcje</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody id="sadTbody">
+            <tr><td colspan="8" class="empty-msg">Ładowanie…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tabSad -->
+
+</div><!-- /max-width -->
+
+<script>
+var _role = {{ role | tojson }};
+var _dictData = [];
+var _sadData  = [];
+var _dictPage = 1;
+var _PAGE_SIZE = 50;
+// Map id→entry for confirm-dialog lookups (avoids HTML entity corruption in onclick)
+var _dictById = {};
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(tab){
+  document.getElementById('tabDict').style.display = tab==='dict' ? '' : 'none';
+  document.getElementById('tabSad').style.display  = tab==='sad'  ? '' : 'none';
+  document.getElementById('tabDictBtn').classList.toggle('active', tab==='dict');
+  document.getElementById('tabSadBtn').classList.toggle('active',  tab==='sad');
+  if(tab==='sad' && !_sadData.length) loadSad();
+}
+
+// ── LANG LABEL ───────────────────────────────────────────────────────────────
+var LANGS = {en:'English (EN)',zh:'Chinese (ZH)',de:'German (DE)',fr:'French (FR)',pl:'Polski (PL)',ru:'Russian (RU)',es:'Spanish (ES)'};
+function langLabel(code){ return LANGS[code] || code.toUpperCase(); }
+
+// ── CONTEXT LABEL ────────────────────────────────────────────────────────────
+var CTXS = {all:'Wszystkie',PO:'PO',PI:'PI',CI:'CI',PL:'PL (Packing List)',SAD:'SAD',BL:'BL',CMR:'CMR'};
+function ctxLabel(c){ return CTXS[c] || c; }
+
+// ── ESC ──────────────────────────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── LOAD DICT ────────────────────────────────────────────────────────────────
+function loadDict(){
+  fetch('/api/translation-dictionary')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      // BUGFIX: gdy API zwróci błąd (obiekt), d nie jest tablicą → forEach rzuca TypeError
+      _dictData = Array.isArray(d) ? d : [];
+      _dictById = {};
+      _dictData.forEach(function(r){ _dictById[r.id] = r; });
+      _dictPage = 1;
+      renderDict();
+    })
+    .catch(function(e){ toast('Błąd ładowania słownika: '+e.message,'error'); });
+}
+
+function renderDict(){
+  var q    = (document.getElementById('dictSearch').value||'').toLowerCase();
+  var fCtx = document.getElementById('dictFilterCtx').value;
+  var fLng = document.getElementById('dictFilterLang').value;
+
+  var filtered = _dictData.filter(function(r){
+    if(fCtx && r.context !== fCtx) return false;
+    if(fLng && r.lang_from !== fLng) return false;
+    if(q && !(r.term_original.toLowerCase().includes(q) || r.term_translated.toLowerCase().includes(q) || (r.notes||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  var total = filtered.length;
+  var pages = Math.max(1, Math.ceil(total / _PAGE_SIZE));
+  if(_dictPage > pages) _dictPage = pages;
+  var start = (_dictPage-1)*_PAGE_SIZE;
+  var slice = filtered.slice(start, start+_PAGE_SIZE);
+
+  document.getElementById('dictCount').textContent = total + ' wpisów';
+
+  var html = '';
+  if(!slice.length){
+    html = '<tr><td colspan="8" class="empty-msg">Brak wpisów' + (q?' dla "'+esc(q)+'"':'') + '</td></tr>';
+  } else {
+    slice.forEach(function(r){
+      var isManager = ['admin','superuser','manager'].includes(_role);
+      var delBtn = isManager
+        ? '<button type="button" class="btn btn-sm danger" onclick="deleteEntry('+r.id+')">Usuń</button>'
+        : '';
+      html += '<tr>'
+        + '<td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.term_original)+'">'+esc(r.term_original)+'</td>'
+        + '<td><span class="lang-badge">'+esc(r.lang_from.toUpperCase())+'</span></td>'
+        + '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.term_translated)+'">'+esc(r.term_translated)+'</td>'
+        + '<td><span class="lang-badge">'+esc(r.lang_to.toUpperCase())+'</span></td>'
+        + '<td><span class="ctx-badge">'+esc(ctxLabel(r.context))+'</span></td>'
+        + '<td style="color:var(--muted);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.notes||'')+'">'+esc(r.notes||'—')+'</td>'
+        + '<td style="color:var(--muted);font-size:11px;white-space:nowrap">'+esc((r.created_at||'').slice(0,10))+'</td>'
+        + '<td>'+delBtn+'</td>'
+        + '</tr>';
+    });
+  }
+  document.getElementById('dictTbody').innerHTML = html;
+
+  // Pager
+  var pg = '';
+  if(pages > 1){
+    pg += '<button type="button" onclick="_dictPage=Math.max(1,_dictPage-1);renderDict()" '+((_dictPage<=1)?'disabled':'')+'>‹</button>';
+    pg += '<span>Strona '+_dictPage+' / '+pages+'</span>';
+    pg += '<button type="button" onclick="_dictPage=Math.min('+pages+',_dictPage+1);renderDict()" '+((_dictPage>=pages)?'disabled':'')+'>›</button>';
+    pg += '<span style="margin-left:8px">'+total+' wpisów</span>';
+  }
+  document.getElementById('dictPager').innerHTML = pg;
+}
+
+// ── ADD ENTRY ─────────────────────────────────────────────────────────────────
+function addEntry(){
+  var orig  = document.getElementById('fOrig').value.trim();
+  var trans = document.getElementById('fTrans').value.trim();
+  var lf    = document.getElementById('fLangFrom').value;
+  var lt    = document.getElementById('fLangTo').value;
+  var ctx   = document.getElementById('fCtx').value;
+  var notes = document.getElementById('fNotes').value.trim();
+  if(!orig||!trans){toast('Wypełnij termin oryginalny i tłumaczenie','warn');return;}
+  fetch('/api/translation-dictionary',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({term_original:orig,term_translated:trans,lang_from:lf,lang_to:lt,context:ctx,notes:notes})
+  }).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+  .then(function(x){
+    if(!x.ok){toast(x.d.error||'Błąd','error');return;}
+    toast('Dodano tłumaczenie','ok');
+    document.getElementById('fOrig').value='';
+    document.getElementById('fTrans').value='';
+    document.getElementById('fNotes').value='';
+    loadDict();
+  }).catch(function(e){toast('Błąd: '+e.message,'error');});
+}
+
+// ── DELETE ENTRY ──────────────────────────────────────────────────────────────
+function deleteEntry(id){
+  var term = (_dictById[id] ? _dictById[id].term_original : String(id));
+  confirmModal('Usunąć tłumaczenie "'+esc(term)+'"?', function(){
+    fetch('/api/translation-dictionary/'+id,{method:'DELETE'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok){toast('Usunięto','ok');loadDict();}
+        else toast(d.error||'Błąd','error');
+      }).catch(function(e){toast('Błąd: '+e.message,'error');});
+  }, {title:'Usuń tłumaczenie', danger:true, okLabel:'Usuń'});
+}
+
+// ── CSV IMPORT ────────────────────────────────────────────────────────────────
+function importCSV(){ document.getElementById('csvFileInput').click(); }
+
+// RFC 4180-compliant CSV line parser — handles quoted fields containing commas/newlines.
+function parseCSVLine(line){
+  var cols=[], cur='', inQ=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(inQ){
+      if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;}else inQ=false; }
+      else cur+=ch;
+    } else {
+      if(ch==='"') inQ=true;
+      else if(ch===','){cols.push(cur);cur='';}
+      else cur+=ch;
+    }
+  }
+  cols.push(cur);
+  return cols;
+}
+
+function handleCSVImport(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = async function(e){
+    var lines = e.target.result.split(/\r?\n/);
+    var headers = null;
+    var entries = [];
+    lines.forEach(function(line,i){
+      if(!line.trim()) return;
+      var cols = parseCSVLine(line);
+      if(i===0 && cols[0].toLowerCase()==='term_original'){headers=cols;return;}
+      if(!headers){
+        entries.push({term_original:cols[0]||'',lang_from:cols[1]||'en',term_translated:cols[2]||'',lang_to:cols[3]||'pl',context:cols[4]||'all',notes:cols[5]||''});
+      } else {
+        var obj={};
+        headers.forEach(function(h,j){obj[h]=cols[j]||'';});
+        entries.push(obj);
+      }
+    });
+    var toSend = entries.filter(function(e){return e.term_original&&e.term_translated;});
+    var ok=0, fail=0;
+    // Sequential send (avoids overwhelming the server and SQLite write locks)
+    for(var i=0;i<toSend.length;i++){
+      try{
+        var r = await fetch('/api/translation-dictionary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(toSend[i])});
+        var d = await r.json();
+        if(d.ok) ok++; else fail++;
+      }catch(err){ fail++; }
+    }
+    toast('Import: '+ok+' dodano'+(fail?' ('+fail+' błędów/duplikatów)':''),'ok');
+    loadDict();
+  };
+  reader.readAsText(file,'UTF-8');
+  event.target.value='';
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────────────────────────
+function exportCSV(){
+  var rows = ['term_original,lang_from,term_translated,lang_to,context,notes'];
+  _dictData.forEach(function(r){
+    rows.push([r.term_original,r.lang_from,r.term_translated,r.lang_to,r.context,r.notes||''].map(function(v){
+      return '"'+String(v).replace(/"/g,'""')+'"';
+    }).join(','));
+  });
+  var blob = new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'slownik_tlumaczen.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── LOAD SAD ──────────────────────────────────────────────────────────────────
+function loadSad(){
+  fetch('/api/sad-mapping')
+    .then(function(r){return r.json();})
+    .then(function(d){ _sadData=d; renderSad(); })
+    .catch(function(e){toast('Błąd ładowania SAD: '+e.message,'error');});
+}
+
+function renderSad(){
+  var q  = (document.getElementById('sadSearch').value||'').toLowerCase();
+  var fd = document.getElementById('sadFilterDoctype').value;
+  var isManager = ['admin','superuser','manager'].includes(_role);
+
+  var filtered = _sadData.filter(function(r){
+    if(fd && r.mapped_to_doctype !== fd) return false;
+    if(q && !(r.sad_field_code.includes(q) || r.sad_field_name_pl.toLowerCase().includes(q)
+           || r.sad_field_name_en.toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)
+           || (r.mapped_to_field||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('sadCount').textContent = filtered.length + ' pól SAD';
+
+  var html = '';
+  if(!filtered.length){
+    html = '<tr><td colspan="8" class="empty-msg">Brak wyników</td></tr>';
+  } else {
+    filtered.forEach(function(r){
+      var dtypes = ['','CI','PO','PI','PL','SAD','BL','CMR'];
+      var dtOpts = dtypes.map(function(d){return '<option value="'+d+'"'+(r.mapped_to_doctype===d?' selected':'')+'>'+d+'</option>';}).join('');
+      var fieldInput = isManager
+        ? '<input type="text" value="'+esc(r.mapped_to_field||'')+'" onchange="sadUpdateField('+r.id+',\'mapped_to_field\',this.value)" style="width:90px">'
+        : esc(r.mapped_to_field||'—');
+      var doctypeInput = isManager
+        ? '<select onchange="sadUpdateField('+r.id+',\'mapped_to_doctype\',this.value)">'+dtOpts+'</select>'
+        : esc(r.mapped_to_doctype||'—');
+      var actionCol = isManager ? '<td><button type="button" class="btn btn-ghost btn-sm" onclick="sadSaveRow('+r.id+')" title="Zapisz">💾</button></td>' : '';
+
+      html += '<tr id="sad-row-'+r.id+'">'
+        + '<td style="font-weight:700;font-family:var(--mono);color:var(--accent)">'+esc(r.sad_field_code)+'</td>'
+        + '<td>'+esc(r.sad_field_name_pl)+'</td>'
+        + '<td style="color:var(--muted);font-size:12px">'+esc(r.sad_field_name_en)+'</td>'
+        + '<td class="sad-field-cell-'+r.id+'"><div class="sad-inline-edit">'+fieldInput+'</div></td>'
+        + '<td class="sad-dtype-cell-'+r.id+'"><div class="sad-inline-edit">'+doctypeInput+'</div></td>'
+        + '<td><span class="ctx-badge">'+esc(r.data_type||'text')+'</span></td>'
+        + '<td style="color:var(--muted);font-size:11px;max-width:220px">'+esc(r.description||'')+'</td>'
+        + actionCol
+        + '</tr>';
+    });
+  }
+  document.getElementById('sadTbody').innerHTML = html;
+}
+
+// ── SAD INLINE EDIT ────────────────────────────────────────────────────────────
+var _sadDirty = {};
+function sadUpdateField(id, field, value){
+  if(!_sadDirty[id]) _sadDirty[id] = {};
+  _sadDirty[id][field] = value;
+  // also update local data
+  var row = _sadData.find(function(r){return r.id===id;});
+  if(row) row[field] = value;
+}
+
+function sadSaveRow(id){
+  var data = _sadDirty[id];
+  if(!data){toast('Brak zmian do zapisania','info');return;}
+  fetch('/api/sad-mapping/'+id,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){toast('Zapisano','ok'); delete _sadDirty[id];}
+    else toast(d.error||'Błąd','error');
+  }).catch(function(e){toast('Błąd: '+e.message,'error');});
+}
+
+// ── KEYBOARD SHORTCUT FOR ADD FORM ────────────────────────────────────────────
+document.addEventListener('keydown', function(e){
+  if(e.key==='Enter' && (e.target.id==='fOrig'||e.target.id==='fTrans'||e.target.id==='fNotes')){
+    addEntry();
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadDict();
+</script>
+{% endblock %}

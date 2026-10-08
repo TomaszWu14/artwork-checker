@@ -1,0 +1,81 @@
+services:
+  - type: web
+    name: doccompare
+    runtime: python
+    plan: starter         # upgrade to standard for more RAM (PDF processing)
+    region: frankfurt     # EU — blisko ACME PL
+    buildCommand: pip install -r requirements-prod.txt && python migrate_db.py
+    # Worker count / threads / timeout controlled by gunicorn.conf.py (via env vars WEB_CONCURRENCY, THREADS_PER_WORKER, GUNICORN_TIMEOUT)
+    # SQLite option: set WEB_CONCURRENCY=1 + persistent disk (see 'disk' below)
+    # PostgreSQL option: set DATABASE_URL, remove disk block, keep WEB_CONCURRENCY=2
+    startCommand: gunicorn app:app -c gunicorn.conf.py --bind 0.0.0.0:$PORT
+
+    envVars:
+      # Auto-generated on first deploy — keep secret
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Supabase connection string — set manually in Render dashboard
+      # Format: postgresql://user:password@host:5432/postgres
+      - key: DATABASE_URL
+        sync: false
+
+      # Twoja domena (używana w linkach reset hasła)
+      - key: APP_BASE_URL
+        sync: false          # np. https://compare.twojadomena.pl
+
+      # Claude API (artwork AI + document analysis)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Mistral OCR (primary OCR engine — $0.001/page)
+      - key: MISTRAL_API_KEY
+        sync: false
+
+      # Resend (transactional email)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false          # np. DocCompare <noreply@twojadomena.pl>
+
+      # Sentry error tracking
+      - key: SENTRY_DSN
+        sync: false
+
+      # Logi
+      - key: LOG_DIR
+        value: /tmp/logs
+
+      # SQLite path on persistent disk (used when DATABASE_URL is empty)
+      - key: SQLITE_PATH
+        value: /data/doccompare.db
+
+      # Persistent data directory for master PDFs (artwork library)
+      - key: DATA_DIR
+        value: /data
+
+      # Gunicorn tuning — see gunicorn.conf.py
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: THREADS_PER_WORKER
+        value: "3"
+      - key: LOG_LEVEL
+        value: "warning"
+
+      # DB connection pool size
+      - key: DB_POOL_SIZE
+        value: "10"
+
+      # Disable Qwen2.5-VL model (uses ~12 GB RAM) — set to 0 to enable if host has enough RAM
+      - key: DISABLE_QWEN
+        value: "1"
+
+    # Persistent disk — $1/mo, required for SQLite durability
+    # Remove this block if using PostgreSQL (Neon / Render PG)
+    disk:
+      name: doccompare-data
+      mountPath: /data
+      sizeGB: 1
+
+    # Health check
+    healthCheckPath: /login

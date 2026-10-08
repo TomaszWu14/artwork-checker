@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Słownik Incoterms{% endblock %}
+
+{% block extra_head %}
+<style>
+.ic-wrap{max-width:760px}
+.ic-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.ic-table th{background:#1e293b;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+  text-align:left;padding:10px 14px;font-weight:700}
+.ic-table td{padding:9px 14px;border-top:1px solid var(--border);font-size:13px;color:var(--text);vertical-align:middle}
+.ic-code{font-family:var(--mono);font-weight:800;color:var(--accent)}
+.ic-table input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg,#fff);color:var(--text);font-size:13px}
+.ic-del{background:none;border:none;color:#dc2626;cursor:pointer;font-size:15px;padding:2px 6px}
+.ic-add{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:14px 0;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
+.ic-add label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:3px}
+.ic-add input{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:13px}
+</style>
+{% endblock %}
+
+{% block page_title %}Słownik Incoterms{% endblock %}
+
+{% block content %}
+<div class="ic-wrap">
+  <p style="color:var(--muted);font-size:13px;margin-bottom:6px">
+    Słownik warunków dostawy (Incoterms) — kod + opis. Używany jako referencja przy
+    weryfikacji dokumentów handlowych.
+  </p>
+
+  {% if role in ['manager','admin','superuser'] %}
+  <div class="ic-add">
+    <div><label>Kod</label><input id="ncode" maxlength="10" style="width:90px;text-transform:uppercase" placeholder="np. FOB"></div>
+    <div style="flex:1;min-width:180px"><label>Opis PL</label><input id="npl" placeholder="Opis polski"></div>
+    <div style="flex:1;min-width:180px"><label>Opis EN</label><input id="nen" placeholder="(opcjonalnie)"></div>
+    <button class="btn btn-primary btn-sm" onclick="icAdd()">Dodaj</button>
+  </div>
+  {% endif %}
+
+  <table class="ic-table">
+    <thead>
+      <tr><th style="width:90px">Kod</th><th>Opis (PL)</th><th>Opis (EN)</th>
+      {% if role in ['manager','admin','superuser'] %}<th style="width:40px"></th>{% endif %}</tr>
+    </thead>
+    <tbody id="icBody">
+      <tr><td colspan="4" style="text-align:center;color:var(--muted)">Ładowanie…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const IC_CAN_EDIT = {{ 'true' if role in ['manager','admin','superuser'] else 'false' }};
+
+function icEsc(s){const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+
+function icLoad(){
+  fetch('/api/incoterms').then(r=>r.json()).then(rows=>{
+    const b=document.getElementById('icBody');
+    if(!rows.length){ b.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted)">Brak wpisów</td></tr>'; return; }
+    b.innerHTML = rows.map(r=>{
+      const ed = IC_CAN_EDIT;
+      return '<tr>'
+        +'<td class="ic-code">'+icEsc(r.code)+'</td>'
+        +'<td>'+(ed?'<input value="'+icEsc(r.description_pl)+'" onchange="icSave('+r.id+',this.value,null)">':icEsc(r.description_pl))+'</td>'
+        +'<td>'+(ed?'<input value="'+icEsc(r.description_en)+'" onchange="icSave('+r.id+',null,this.value)">':icEsc(r.description_en))+'</td>'
+        +(ed?'<td><button class="ic-del" title="Usuń" onclick="icDel('+r.id+')">✕</button></td>':'')
+        +'</tr>';
+    }).join('');
+  }).catch(()=>toast('Błąd ładowania','error'));
+}
+
+function icAdd(){
+  const code=document.getElementById('ncode').value.trim();
+  if(!code){toast('Podaj kod','error');return;}
+  fetch('/api/incoterms',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({code:code,description_pl:document.getElementById('npl').value,description_en:document.getElementById('nen').value})})
+    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(res=>{
+      if(!res.ok){toast(res.j.error||'Błąd','error');return;}
+      document.getElementById('ncode').value='';document.getElementById('npl').value='';document.getElementById('nen').value='';
+      toast('Dodano','ok'); icLoad();
+    });
+}
+
+function icSave(id, pl, en){
+  // pobierz aktualne wartości z wiersza (przekazujemy tylko zmienione)
+  const body={};
+  if(pl!==null) body.description_pl=pl;
+  if(en!==null) body.description_en=en;
+  // dociągnij drugą wartość z istniejącego inputa, by nie nadpisać pustym
+  const tr=event.target.closest('tr');
+  const inputs=tr.querySelectorAll('input');
+  body.description_pl = inputs[0]?inputs[0].value:'';
+  body.description_en = inputs[1]?inputs[1].value:'';
+  fetch('/api/incoterms/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{ if(d.ok) toast('Zapisano','ok'); else toast(d.error||'Błąd','error'); });
+}
+
+function icDel(id){
+  if(!confirm('Usunąć ten incoterm?'))return;
+  fetch('/api/incoterms/'+id,{method:'DELETE'}).then(r=>r.json()).then(d=>{
+    if(d.ok){toast('Usunięto','ok');icLoad();} else toast(d.error||'Błąd','error');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', icLoad);
+</script>
+{% endblock %}

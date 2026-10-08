@@ -1,0 +1,120 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile.base — CIĘŻKI obraz bazowy (ML / OCR / CV), MULTI-STAGE
+#
+# Zawiera CAŁĄ wolno instalującą się warstwę: pakiety systemowe (tesseract,
+# poppler, ghostscript…), CPU-PyTorch oraz wszystkie zależności z
+# requirements.txt (paddle, easyocr, doctr, surya, lightglue, groundingdino…).
+#
+# Buduje się ~7-8 min, ale RZADKO — tylko gdy zmienia się requirements.txt lub
+# ten plik. Publikowany do GHCR przez workflow `.github/workflows/ml-base-image.yml`.
+#
+# MULTI-STAGE:
+#   • builder — instaluje pakiety Pythona do venv (/opt/venv). Ma git (dla
+#     instalacji git+https: LightGlue, GroundingDINO) i build-essential (dla
+#     pakietów bez gotowego wheela). Cały ten etap jest ODRZUCANY.
+#   • runtime — tylko biblioteki SYSTEMOWE potrzebne w czasie działania + gotowy
+#     venv skopiowany z buildera. Toolchain budowy (git, gcc, nagłówki -dev) NIE
+#     trafia do finalnego obrazu — nawet nie jako „usunięta" warstwa.
+#
+# Właściwa aplikacja (Dockerfile.slim) robi `FROM` tego obrazu i dokłada tylko
+# `COPY . .`; PATH wskazuje na /opt/venv/bin, więc `python`/`gunicorn` działają.
+#
+# Runbook: docs/OBRAZ_BAZOWY_ML.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── ETAP 1: builder (odrzucany) ──────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ENV PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+COPY requirements.txt .
+
+# git + build-essential są potrzebne TYLKO do budowy i zostają w tym etapie.
+# CPU-only PyTorch przed requirements.txt — inaczej pip pociągnie warianty CUDA
+# (~2.5 GB) z domyślnego indeksu.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        build-essential \
+    && python -m venv "$VIRTUAL_ENV" \
+    && pip install --upgrade pip \
+    && pip install --retries 5 --timeout 120 \
+        "torch>=2.1,<3.0" \
+        "torchvision>=0.16,<1.0" \
+        --index-url https://download.pytorch.org/whl/cpu \
+    # LightGlue i GroundingDINO (git+https) importują torch w swoim setup.py.
+    # Domyślna izolacja budowy PEP 517 daje im czysty env BEZ torcha →
+    # "ModuleNotFoundError: No module named 'torch'" i cały -r pada. Dlatego
+    # instalujemy je osobno z --no-build-isolation (widzą torcha z venva).
+    && grep -vE '^(lightglue|groundingdino) @' requirements.txt > /tmp/req-main.txt \
+    && grep -E '^(lightglue|groundingdino) @' requirements.txt > /tmp/req-git.txt \
+    && pip install --retries 5 --timeout 120 -r /tmp/req-main.txt \
+    && pip install --retries 5 --timeout 120 --no-build-isolation -r /tmp/req-git.txt \
+    # Strip bytecode caches — mniejszy venv do skopiowania (~150-200 MB).
+    # UWAGA: żadnego `|| true` na końcu łańcucha — maskowało błąd pipa i
+    # wypychało do GHCR "zielony" obraz bez zależności (crash loop na deployu).
+    && find "$VIRTUAL_ENV" -name "*.pyc" -delete \
+    && { find "$VIRTUAL_ENV" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true; }
+
+# ── ETAP 2: runtime (finalny, chudy) ─────────────────────────────────────────
+FROM python:3.11-slim
+
+# venv z buildera będzie na PATH — Dockerfile.slim dziedziczy tę zmienną.
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+WORKDIR /app
+
+# Tylko biblioteki SYSTEMOWE potrzebne w RUNTIME (bez toolchainu budowy):
+# tesseract + pakiety językowe, poppler, ghostscript, libGL/glib (OpenCV),
+# libzbar (kody kreskowe), czcionki (eksport PDF z polskimi znakami).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-pol \
+    tesseract-ocr-eng \
+    tesseract-ocr-ukr \
+    tesseract-ocr-rus \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
+    tesseract-ocr-spa \
+    tesseract-ocr-ita \
+    tesseract-ocr-nld \
+    tesseract-ocr-por \
+    tesseract-ocr-ces \
+    tesseract-ocr-slk \
+    tesseract-ocr-ron \
+    tesseract-ocr-hun \
+    tesseract-ocr-hrv \
+    tesseract-ocr-slv \
+    tesseract-ocr-bul \
+    tesseract-ocr-est \
+    tesseract-ocr-lav \
+    tesseract-ocr-lit \
+    tesseract-ocr-fin \
+    tesseract-ocr-swe \
+    tesseract-ocr-nor \
+    tesseract-ocr-dan \
+    poppler-utils \
+    ghostscript \
+    libgl1 \
+    libglib2.0-0 \
+    libzbar0 \
+    fonts-dejavu-core \
+    fonts-liberation \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Gotowe pakiety Pythona z buildera — bez gita, gcc i nagłówków -dev.
+COPY --from=builder /opt/venv /opt/venv
+
+# Bramka: obraz bez kluczowych zależności NIE może opuścić builda. Tanie
+# (sekundy), a łapie dokładnie tę klasę awarii, która wcześniej przeszła
+# niezauważona aż do produkcji (pip failował, `|| true` maskowało, GHCR
+# dostawał "zielony" obraz bez psycopg2 → crash loop na deployu).
+# Musi być w etapie RUNTIME — cv2 wymaga libGL.so.1, którego builder nie ma.
+RUN python -c "import psycopg2, flask, torch, cv2, fitz, rapidfuzz; print('deps OK')"
+
+# Brak `COPY . .` / `CMD` — to jest tylko warstwa zależności.
+# Kod aplikacji i polecenie startowe dokłada Dockerfile.slim.

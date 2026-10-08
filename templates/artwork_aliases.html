@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Aliasy artworków — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.aa-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px}
+.aa-form .fg{display:flex;flex-direction:column;gap:4px}
+.aa-form label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.aa-form input{padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg,#fff);color:var(--text);font-size:13px;min-width:220px}
+table.aa{width:100%;border-collapse:collapse;font-size:13px}
+table.aa th,table.aa td{border:1px solid var(--border);padding:7px 10px;text-align:left}
+table.aa th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.aa-mono{font-family:var(--mono)}
+.aa-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Aliasy artworków{% endblock %}
+
+{% block content %}
+<div x-data="aliasApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🎨 Aliasy artworków (nazwa pliku → REF)</h1>
+    <p>Gdy nazwa pliku artworku nie zawiera REF (np. <span class="aa-mono">easycare_nitrile_carton_S_a100</span> = <b>RNBS10001</b>),
+       dodaj alias — system powiąże pasujące pliki z REF (backfill + przyszłe skany).</p>
+  </div>
+
+  {% if role in ['manager','superuser','admin'] %}
+  <div class="aa-form" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fg">
+        <label>REF (docelowy)</label>
+        <input x-model="ref" placeholder="np. RNBS10001">
+      </div>
+      <div class="fg" style="flex:1">
+        <label>Fragment nazwy pliku</label>
+        <input x-model="pattern" placeholder="np. easycare_nitrile_carton_S" style="width:100%">
+      </div>
+      <button class="btn btn-primary" @click="add()" :disabled="!ref || !pattern">Dodaj alias</button>
+      <button class="btn btn-ghost" @click="suggest()" :disabled="!ref" title="Podpowiedz pliki po opisie produktu z master daty">🔍 Podpowiedz po REF</button>
+      <span x-show="msg" x-text="msg" style="font-size:12px" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+    </div>
+    <template x-if="cands.length">
+      <div style="border-top:1px solid var(--border);padding-top:8px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Kandydaci dla <b x-text="ref"></b><span x-show="opis" x-text="' — ' + opis"></span>:</div>
+        <template x-for="c in cands" :key="c.rel_path">
+          <div style="display:flex;gap:10px;align-items:center;padding:4px 0">
+            <span class="aa-mono" style="font-size:12px;flex:1" x-text="c.filename"></span>
+            <span style="font-size:11px;color:var(--muted)" x-text="'score ' + c.score + ' (' + c.shared + ' wsp.)'"></span>
+            <button class="btn btn-sm btn-ghost" @click="useCand(c)">Użyj</button>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+  {% endif %}
+
+  <template x-if="items.length === 0">
+    <div class="aa-empty">Brak aliasów. Dodaj pierwszy powyżej.</div>
+  </template>
+  <template x-if="items.length">
+    <table class="aa">
+      <thead><tr><th>REF</th><th>Fragment nazwy pliku</th>{% if role in ['manager','superuser','admin'] %}<th style="width:60px"></th>{% endif %}</tr></thead>
+      <tbody>
+        <template x-for="a in items" :key="a.id">
+          <tr>
+            <td class="aa-mono" x-text="a.ref_code || a.ref_norm"></td>
+            <td class="aa-mono" x-text="a.pattern"></td>
+            {% if role in ['manager','superuser','admin'] %}
+            <td><button class="btn btn-sm btn-ghost" @click="del(a.id)" style="color:var(--error,#dc2626)">✕</button></td>
+            {% endif %}
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </template>
+</div>
+
+<script>
+function aliasApp(){
+  return {
+    ref:'', pattern:'', items:[], msg:'', ok:false, cands:[], opis:'',
+    async load(){ try{ const r=await fetch('/api/artwork/alias'); if(!r.ok) throw 0; const d=await r.json(); this.items=d.items||[]; }catch(e){ if(window.toast) toast('Nie udało się wczytać aliasów','error'); } },
+    async suggest(){
+      this.msg='Szukam…'; this.ok=true; this.cands=[];
+      try{
+        const r=await fetch('/api/artwork/alias/suggest?ref='+encodeURIComponent(this.ref));
+        const d=await r.json(); this.cands=d.candidates||[]; this.opis=d.opis||'';
+        this.msg = this.cands.length ? '' : 'Brak kandydatów — sprawdź czy materiał ma opis i czy indeks artworków jest zsynchronizowany.';
+      }catch(e){ this.msg='Błąd'; this.ok=false; }
+    },
+    useCand(c){ this.pattern = c.filename.replace(/\.pdf$/i,''); },
+    async add(){
+      if(this._saving) return;                 // blokada podwójnego submitu
+      this._saving=true; this.msg='';
+      try{
+        const r=await fetch('/api/artwork/alias',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ref_code:this.ref, pattern:this.pattern})});
+        const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Dodano. Dopasowano plików: '+(d.matched||0); this.ok=true;
+        this.ref=''; this.pattern=''; this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+      finally{ this._saving=false; }
+    },
+    async del(id){
+      if(!confirm('Usunąć alias?')) return;
+      try{ await fetch('/api/artwork/alias/'+id,{method:'DELETE'}); this.load(); }catch(e){}
+    },
+  };
+}
+</script>
+{% endblock %}

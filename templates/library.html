@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Biblioteka Artworków — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1100px;margin:28px auto;padding:0 20px}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.kpi-card{background:#fff;border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:3px solid #e5e7eb}
+.kpi-card.blue{border-top-color:#1d4ed8}.kpi-card.green{border-top-color:#16a34a}.kpi-card.orange{border-top-color:#d97706}
+.kpi-num{font-size:28px;font-weight:700;margin-bottom:4px}
+.kpi-card.blue .kpi-num{color:#1d4ed8}.kpi-card.green .kpi-num{color:#16a34a}.kpi-card.orange .kpi-num{color:#d97706}
+.kpi-lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.4px}
+.panel{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+.section-title{font-size:14px;font-weight:700;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.token-box{font-family:monospace;font-size:12px;background:#1e293b;color:#7dd3fc;padding:12px 16px;border-radius:8px;word-break:break-all;margin:10px 0}
+/* .btn / .btn-primary / .btn-ghost — z app.css. Lokalne kopie usunięte: różniły się
+   promieniem i kolorem od reszty aplikacji i gubiły :focus-visible (nawigacja Tabem
+   była niewidoczna). Wariant „danger" w app.css jest jasny, a tu kasujemy dane —
+   zostaje mocny czerwony jako świadome odstępstwo. */
+.btn-danger{background:#dc2626;color:#fff;border-color:#dc2626}.btn-danger:hover{background:#b91c1c}
+.step{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:10px}
+.step-num{display:inline-block;background:#1d4ed8;color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:12px;font-weight:700;margin-right:8px;flex-shrink:0}
+.step-row{display:flex;align-items:flex-start;gap:0}
+.brands-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.brand-tag{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600}
+code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px}
+</style>{% endblock %}
+{% block page_title %}Biblioteka{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>🗄️ Biblioteka Artworków</h1>
+    <p>Pliki z dysku sieciowego zsynchronizowane przez agenta lokalnego</p>
+  </div>
+
+  {# Widoczny znacznik nieświeżości: bez niego padnięty odczyt statystyk zostawiał
+     na ekranie stare liczby i wyglądał identycznie jak udany. #}
+  <div id="statsStale" style="display:none;margin-bottom:12px;padding:9px 14px;border-radius:8px;
+       background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:13px">
+    ⚠ Nie udało się odświeżyć statystyk — poniższe liczby mogą być nieaktualne.
+    <span id="statsStaleWhy" style="color:#7f1d1d"></span>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num" id="kTotalFiles">{{ total or 0 }}</div>
+      <div class="kpi-lbl">Plików w bibliotece</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num" id="kBrands">{{ brands|length }}</div>
+      <div class="kpi-lbl">Marek / dostawców</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num" style="font-size:16px" id="kLastSync">{{ last_sync[:16] if last_sync else 'Brak' }}</div>
+      <div class="kpi-lbl">Ostatnia synchronizacja</div>
+    </div>
+    <div class="kpi-card" style="border-top-color:#16a34a">
+      <div class="kpi-num" style="color:#16a34a" id="kMapped">–</div>
+      <div class="kpi-lbl">Zmapowane mastery</div>
+    </div>
+  </div>
+
+  {% if brands %}
+  <div class="panel">
+    <div class="section-title">Zsynchronizowane marki / dostawcy</div>
+    <div class="brands-list">
+      {% for b in brands %}
+      <span class="brand-tag">{{ b }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="panel">
+    <div class="section-title">🔑 Token synchronizacji</div>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:8px">
+      Wklej ten token do pliku konfiguracyjnego <code>library_sync.py</code> na firmowym komputerze.
+      Nigdy nie udostępniaj go publicznie.
+    </p>
+    <div class="token-box" id="tokenBox">{{ sync_token }}</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button type="button" class="btn btn-ghost" onclick="copyToken()">📋 Kopiuj token</button>
+      <button type="button" class="btn btn-danger" onclick="resetToken()">🔄 Wygeneruj nowy token</button>
+    </div>
+    <p style="font-size:11px;color:#9ca3af;margin-top:8px">
+      ⚠️ Po resecie tokena agent przestanie synchronizować — zaktualizuj <code>library_sync.py</code>.
+    </p>
+  </div>
+
+  <div class="panel" style="border-left:4px solid #d97706;background:#fffbeb">
+    <div class="section-title" style="color:#92400e">⚠️ Coolify — wolumen trwały (persistent volume)</div>
+    <p style="font-size:13px;color:#78350f;line-height:1.6">
+      Pliki biblioteki są przechowywane na dysku serwera w katalogu <code>LIBRARY_FOLDER</code>
+      (domyślnie <code>library/</code> względem katalogu aplikacji).
+      Na Coolify dane w kontenerze są usuwane przy każdym wdrożeniu — skonfiguruj
+      <strong>persistent volume</strong> i ustaw zmienną środowiskową:<br>
+      <code style="display:block;margin-top:6px;padding:8px;background:#fef3c7">LIBRARY_FOLDER=/data/library</code>
+      W ustawieniach serwisu Coolify dodaj volume: <code>/data/library</code> → <code>/data/library</code>
+      (host path ↔ container path). Bez tego pliki przepadną po restarcie.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="section-title">📥 Jak skonfigurować agenta synchronizacji</div>
+
+    <div class="step">
+      <div class="step-row">
+        <span class="step-num">1</span>
+        <div>
+          <strong style="font-size:13px">Pobierz skrypt</strong><br>
+          <span style="font-size:12px;color:#6b7280">
+            Pobierz plik <code>library_sync.py</code> i zapisz na firmowym komputerze z dostępem do dysku Z:
+          </span>
+          <div style="margin-top:8px">
+            <a href="/library/download-agent" class="btn btn-primary" style="text-decoration:none;display:inline-block">
+              ⬇ Pobierz library_sync.py
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-row">
+        <span class="step-num">2</span>
+        <div>
+          <strong style="font-size:13px">Skonfiguruj skrypt</strong><br>
+          <span style="font-size:12px;color:#6b7280">Otwórz plik i uzupełnij 3 zmienne na górze:</span>
+          <div style="background:#1e293b;color:#e2e8f0;padding:12px 16px;border-radius:8px;font-family:monospace;font-size:12px;margin-top:8px;line-height:1.7">
+            <span style="color:#94a3b8"># Ścieżka do dysku Z:</span><br>
+            LIBRARY_ROOT = <span style="color:#86efac">r"Z:\ISO\WZORY ETYKIET I INSTRUKCJI"</span><br><br>
+            <span style="color:#94a3b8"># URL aplikacji Artwork</span><br>
+            SERVER_URL = <span style="color:#86efac">"https://twoja-domena.coolify.io"</span><br><br>
+            <span style="color:#94a3b8"># Token synchronizacji (skopiuj z góry)</span><br>
+            SYNC_TOKEN = <span style="color:#fbbf24">"{{ sync_token[:16] }}..."</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-row">
+        <span class="step-num">3</span>
+        <div>
+          <strong style="font-size:13px">Uruchom pierwszą synchronizację</strong><br>
+          <span style="font-size:12px;color:#6b7280">W wierszu poleceń Windows:</span>
+          <div style="background:#1e293b;color:#7dd3fc;padding:10px 14px;border-radius:8px;font-family:monospace;font-size:12px;margin-top:6px">
+            python library_sync.py --full
+          </div>
+          <span style="font-size:11px;color:#9ca3af">Pierwsza synchronizacja może potrwać dłużej (przesyła wszystkie pliki)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-row">
+        <span class="step-num">4</span>
+        <div>
+          <strong style="font-size:13px">Ustaw automatyczne uruchamianie (opcjonalnie)</strong><br>
+          <span style="font-size:12px;color:#6b7280">W Harmonogramie Zadań Windows ustaw uruchamianie co 15 minut lub przy starcie systemu:</span>
+          <div style="background:#1e293b;color:#7dd3fc;padding:10px 14px;border-radius:8px;font-family:monospace;font-size:12px;margin-top:6px">
+            schtasks /create /tn "Artwork Library Sync" /tr "python C:\sync\library_sync.py" /sc minute /mo 15
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+function copyToken(){
+  const t=document.getElementById('tokenBox').textContent.trim();
+  navigator.clipboard?.writeText(t).then(()=>toast('Token skopiowany','ok'));
+}
+async function resetToken(){
+  confirmModal('Wygenerować nowy token? Stary przestanie działać.', async()=>{
+    const r=await fetch('/api/library/token-reset',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      document.getElementById('tokenBox').textContent=d.token;
+      toast('Nowy token wygenerowany','ok');
+    }else toast(d.error||'Błąd','error');
+  },{okLabel:'Generuj nowy',danger:true});
+}
+// Odśwież statystyki
+let _statsStale=false;
+async function refreshStats(){
+  const banner=document.getElementById('statsStale');
+  try{
+    const r=await fetch('/api/library/stats');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    document.getElementById('kTotalFiles').textContent=d.total_files||0;
+    document.getElementById('kBrands').textContent=(d.brands||[]).length;
+    document.getElementById('kLastSync').textContent=d.last_sync?d.last_sync.slice(0,16):'Brak';
+    document.getElementById('kMapped').textContent=(d.mapped_count||0)+' / '+(d.total_files||0);
+    banner.style.display='none';
+    _statsStale=false;
+  }catch(e){
+    // Toast tylko przy PRZEJŚCIU w błąd — odpytujemy co 30 s, więc powtarzanie go
+    // przy trwałej awarii zasypałoby ekran. Baner zostaje, dopóki nie wróci odczyt.
+    document.getElementById('statsStaleWhy').textContent=' ('+e.message+')';
+    banner.style.display='';
+    if(!_statsStale && window.toast) toast('Statystyki biblioteki nieosiągalne: '+e.message,'error');
+    _statsStale=true;
+  }
+}
+refreshStats();
+setInterval(refreshStats,30000);
+</script>
+{% endblock %}

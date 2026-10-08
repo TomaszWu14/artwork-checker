@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Artwork 3D{% endblock %}
+{% block page_title %}Artwork 3D — model opakowania{% endblock %}
+{% block extra_head %}
+<script type="module" src="{{ url_for('static', filename='vendor/model-viewer/model-viewer.min.js') }}"></script>
+<style>
+.a3d-wrap{max-width:1200px;margin:0 auto}
+.a3d-panel{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+.a3d-drop{border:2px dashed #d1d5db;border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:#fafafa;transition:all .2s}
+.a3d-drop:hover,.a3d-drop.dragover{border-color:#4f6ef7;background:#f0f4ff}
+.a3d-drop.has-file{border-color:#10b981;border-style:solid}
+.a3d-dims{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.a3d-dims input{width:90px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+.a3d-btn{padding:11px 28px;background:#4f6ef7;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.a3d-btn:disabled{opacity:.5;cursor:not-allowed}
+.a3d-warn{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#92400e}
+.a3d-err{background:#fee2e2;border:1px solid #f87171;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#991b1b}
+.a3d-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:#374151}
+.a3d-meta b{color:#111827}
+model-viewer{width:100%;height:68vh;background:#eef2f7;border-radius:10px}
+.a3d-spin{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:a3dspin .8s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes a3dspin{to{transform:rotate(360deg)}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="a3d-wrap">
+  <div class="a3d-panel">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:6px">Generuj model 3D z artworku (dieline PDF)</h2>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:16px">
+      Wgraj artwork opakowania (siatkę/dieline). Aplikacja odczyta wymiary z tabelki,
+      wytnie panele ścian i złoży obracalny model 3D opakowania.
+      Nie masz artworku? <a href="/artwork/3d/photo">Zbuduj model ze zdjęć</a>.
+    </p>
+    <div class="a3d-drop" id="a3dDrop">
+      <input type="file" id="a3dFile" accept="application/pdf" style="display:none">
+      <div style="font-size:30px">📦</div>
+      <div style="font-weight:600;color:#374151" id="a3dDropLabel">Kliknij lub upuść PDF z dieline</div>
+      <div style="font-size:12px;color:#9ca3af">PDF, max {{ max_upload_mb }} MB</div>
+    </div>
+    <div class="a3d-dims">
+      <span style="font-size:13px;color:#6b7280">Wymiary [mm] (opcjonalnie — jeśli brak w PDF):</span>
+      <input type="number" id="dimW" placeholder="szer." min="5" max="2000" step="0.1">
+      ×
+      <input type="number" id="dimH" placeholder="wys." min="5" max="2000" step="0.1">
+      ×
+      <input type="number" id="dimD" placeholder="głęb." min="5" max="2000" step="0.1">
+      <button class="a3d-btn" id="a3dGo" disabled>Generuj model 3D</button>
+    </div>
+    <div id="a3dMsg"></div>
+  </div>
+
+  <div class="a3d-panel" id="a3dViewerPanel" style="display:none">
+    <model-viewer id="a3dViewer"
+                  camera-controls auto-rotate
+                  exposure="0.9" shadow-intensity="0.6"
+                  interaction-prompt="none"
+                  alt="Model 3D opakowania"></model-viewer>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn btn-sm" id="a3dTiltX">⭥ Przechyl (zmień górę)</button>
+      <button type="button" class="btn btn-sm" id="a3dTiltZ">⟳ Obróć bok</button>
+      <button type="button" class="btn btn-sm" id="a3dTiltReset">Reset</button>
+      <span style="font-size:12px;color:var(--muted)">— ustaw karton tak, jak stoi w rzeczywistości (wykrojnik nie koduje „góry")</span>
+    </div>
+    <div class="a3d-meta" id="a3dMeta"></div>
+
+    <div id="a3dAccept" style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:10px">
+      <div style="font-weight:600;margin-bottom:4px">Potwierdź układ i opakowanie</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        Ustaw model tak, jak opakowanie stoi naprawdę (dno na dole), sprawdź typ i zatwierdź.
+        Zapamiętamy to dla kolejnych artworków tego produktu. Pobranie jest możliwe po zatwierdzeniu.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:13px">Typ opakowania:
+          <select id="a3dPkgType">
+            <option value="">— nieokreślony —</option>
+          </select>
+        </label>
+        <button type="button" class="btn btn-sm btn-primary" id="a3dAcceptBtn">✓ Zatwierdź układ</button>
+        <span id="a3dAcceptState" style="font-size:12px;color:var(--muted)">Niezatwierdzony</span>
+      </div>
+    </div>
+
+    <div id="a3dPreviewWrap" style="display:none;margin-top:14px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Podgląd (obraz PNG do pobrania/udostępnienia):</div>
+      <img id="a3dPreview" alt="Podgląd 3D opakowania"
+           style="max-width:100%;border:1px solid var(--border);border-radius:8px">
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <a id="a3dPreviewDl" class="btn btn-sm btn-primary">⬇ Pobierz obraz PNG</a>
+        <a id="a3dGlbDl" class="btn btn-sm">⬇ Pobierz model GLB</a>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:13px">Zapisz kopię do:
+          <input id="a3dCopyDir" type="text" placeholder="np. Z:\artwork\modele3d"
+                 style="width:280px" title="Ścieżka katalogu na serwerze aplikacji">
+        </label>
+        <button type="button" class="btn btn-sm" id="a3dCopyBtn">💾 Zapisz kopię (GLB + PNG)</button>
+        <span id="a3dCopyState" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block body_scripts %}
+<script>
+(function(){
+  const drop = document.getElementById('a3dDrop');
+  const fileInput = document.getElementById('a3dFile');
+  const label = document.getElementById('a3dDropLabel');
+  const btn = document.getElementById('a3dGo');
+  const msg = document.getElementById('a3dMsg');
+  let file = null;
+  let current = null;              // ostatni wygenerowany model (glb_name, ref, …)
+
+  // Jednostki opakowaniowe z flow (DB, tabela artwork_pkg_level_type) — dropdown „Typ opakowania".
+  const pkgSel = document.getElementById('a3dPkgType');
+  let pkgCodes = new Set();
+  // Auto-detekcja kształtu z wykrojnika zwraca stare etykiety wizualne; mapujemy je na kody flow.
+  const LEGACY_PKG_MAP = {
+    'indywidualne': 'op', 'pośrednie': 'opz', 'posrednie': 'opz',
+    'karton transportowy': 'karton',
+  };
+  function pkgCode(v){
+    v = (v || '').toString().trim();
+    if (pkgCodes.has(v)) return v;              // już kod flow
+    return LEGACY_PKG_MAP[v.toLowerCase()] || '';
+  }
+  (async () => {
+    try {
+      const r = await fetch('/api/artwork/pkg-level-types');
+      if (!r.ok) return;
+      for (const t of await r.json()) {
+        pkgCodes.add(t.code);
+        const o = document.createElement('option');
+        o.value = t.code; o.textContent = t.label;
+        pkgSel.appendChild(o);
+      }
+    } catch (e) { /* dropdown zostaje z samym „nieokreślony" */ }
+  })();
+
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('dragover');
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files.length) setFile(fileInput.files[0]); });
+
+  function setFile(f){
+    if (!f.name.toLowerCase().endsWith('.pdf')) { showMsg('Wybierz plik PDF.', 'err'); return; }
+    file = f;
+    drop.classList.add('has-file');
+    label.textContent = f.name;
+    btn.disabled = false;
+    msg.innerHTML = '';
+  }
+
+  function showMsg(text, kind){
+    msg.innerHTML = '<div class="a3d-' + (kind === 'err' ? 'err' : 'warn') + '"></div>';
+    msg.firstChild.textContent = text;
+  }
+
+  btn.addEventListener('click', async () => {
+    if (!file) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="a3d-spin"></span>Generowanie…';
+    msg.innerHTML = '';
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      for (const [id, key] of [['dimW','w_mm'],['dimH','h_mm'],['dimD','d_mm']]) {
+        const v = document.getElementById(id).value;
+        if (v) fd.append(key, v);
+      }
+      const startRes = await fetch('/api/artwork/3d', { method: 'POST', body: fd });
+      const start = await startRes.json();
+      if (!startRes.ok || start.error) throw new Error(start.error || ('HTTP ' + startRes.status));
+      // Generacja idzie w tle (PyMuPDF + VTK) — odpytujemy status, nie blokujemy workera.
+      const data = await (async () => {
+        for (let i = 0; i < 150; i++) {            // do ~5 min (150 × 2 s)
+          await new Promise(r => setTimeout(r, 2000));
+          const sr = await fetch('/api/artwork/3d/status/' + start.job_id);
+          const s = await sr.json();
+          if (s.status === 'done') return s;
+          if (s.status === 'error') throw new Error(s.error || 'Błąd generowania');
+          if (sr.status === 404 || s.status === 'expired') throw new Error('Zadanie wygasło');
+          if (s.step_label) btn.innerHTML = '<span class="a3d-spin"></span>' + s.step_label;
+        }
+        throw new Error('Przekroczono czas generowania (5 min)');
+      })();
+
+      document.getElementById('a3dViewerPanel').style.display = '';
+      document.getElementById('a3dViewer').src = data.glb_url;
+      current = data;
+      // Orientacja z wcześniejszych akceptacji dla tego REF/typu — punkt startowy,
+      // nie wyrok: user może ją poprawić przed zatwierdzeniem.
+      const sug = data.suggested_orientation || [0, 0, 0];
+      ori = { roll: sug[0] | 0, pitch: sug[1] | 0, yaw: sug[2] | 0 };
+      applyOri();
+      pkgSel.value = pkgCode(data.package_type);
+      setAccepted(!!data.accepted);
+      const pw = document.getElementById('a3dPreviewWrap');
+      if (data.preview_url) {
+        document.getElementById('a3dPreview').src = data.preview_url;
+        pw.style.display = '';
+      } else {
+        pw.style.display = 'none';
+      }
+      const meta = document.getElementById('a3dMeta');
+      meta.innerHTML = '';
+      const parts = [
+        ['Wymiary', data.dims_mm.map(v => +v.toFixed(1)).join(' × ') + ' mm'],
+        ['Typ', data.package_type || '—'],
+        ['EAN', data.ean || '—'],
+        ['Panele z siatki', (data.panels_found || []).join(', ') || '—'],
+        ['REF', data.ref || '—'],
+        ['Grupa / podgrupa', [data.grupa, data.podgrupa].filter(Boolean).join(' / ') || '—'],
+        ['Opis', data.opis || '—'],
+      ];
+      for (const [k, v] of parts) {
+        const el = document.createElement('span');
+        const b = document.createElement('b'); b.textContent = k + ': ';
+        el.appendChild(b); el.appendChild(document.createTextNode(v));
+        meta.appendChild(el);
+      }
+      if (data.warnings && data.warnings.length) showMsg(data.warnings.join(' '), 'warn');
+      document.getElementById('a3dViewerPanel').scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+      showMsg('Błąd generowania: ' + err.message, 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Generuj model 3D';
+    }
+  });
+
+  // Ręczna orientacja modelu (wykrojnik nie koduje która ścianka jest „górą").
+  // Przechylenie o 90° zmienia którą ściankę widać u góry; obrót obraca wokół pionu.
+  const viewer = document.getElementById('a3dViewer');
+  let ori = { roll: 0, pitch: 0, yaw: 0 };
+  function applyOri(){ viewer.setAttribute('orientation', ori.roll+'deg '+ori.pitch+'deg '+ori.yaw+'deg'); }
+  function dirty(){ if (current && current.accepted) { current.accepted = false; setAccepted(false); } }
+  document.getElementById('a3dTiltX').addEventListener('click', ()=>{ ori.pitch=(ori.pitch+90)%360; applyOri(); dirty(); });
+  document.getElementById('a3dTiltZ').addEventListener('click', ()=>{ ori.roll=(ori.roll+90)%360; applyOri(); dirty(); });
+  document.getElementById('a3dTiltReset').addEventListener('click', ()=>{ ori={roll:0,pitch:0,yaw:0}; applyOri(); dirty(); });
+
+  // Akceptacja: bez niej pobranie jest zablokowane po stronie serwera — linki
+  // trzymamy w tym samym stanie, żeby UI nie obiecywał czegoś, czego backend odmówi.
+  const acceptBtn = document.getElementById('a3dAcceptBtn');
+  const acceptState = document.getElementById('a3dAcceptState');
+  const dlPng = document.getElementById('a3dPreviewDl');
+  const dlGlb = document.getElementById('a3dGlbDl');
+
+  function setAccepted(ok){
+    acceptState.textContent = ok ? '✓ Zatwierdzony' : 'Niezatwierdzony — pobieranie zablokowane';
+    acceptState.style.color = ok ? 'var(--ok, #15803d)' : 'var(--muted)';
+    for (const a of [dlPng, dlGlb]) {
+      a.classList.toggle('disabled', !ok);
+      a.style.pointerEvents = ok ? '' : 'none';
+      a.style.opacity = ok ? '' : '0.45';
+    }
+    if (ok && current) {
+      const stem = current.glb_name.replace(/\.glb$/, '');
+      dlGlb.href = '/artwork/3d/model/' + current.glb_name + '?download=1';
+      dlPng.href = '/artwork/3d/model/' + stem + '.png?download=1';
+    }
+  }
+
+  acceptBtn.addEventListener('click', async () => {
+    if (!current || !current.glb_name) return;
+    acceptBtn.disabled = true;
+    try {
+      const res = await fetch('/api/artwork/3d/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          glb_name: current.glb_name,
+          ref: current.ref || '', packaging_type: current.packaging_type || '',
+          grupa: current.grupa || '', podgrupa: current.podgrupa || '',
+          package_type: document.getElementById('a3dPkgType').value,
+          roll: ori.roll, pitch: ori.pitch, yaw: ori.yaw,
+          variant: 'dieline', source_hash: current.source_hash || '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+      // Orientacja jest już w pliku — podglądowi zerujemy kąt, inaczej obrócilibyśmy dwa razy.
+      ori = { roll: 0, pitch: 0, yaw: 0 };
+      applyOri();
+      const bust = '?v=' + Date.now();
+      viewer.src = data.glb_url + bust;
+      if (data.preview_url) document.getElementById('a3dPreview').src = data.preview_url + bust;
+      current.accepted = true;
+      setAccepted(true);
+    } catch (err) {
+      showMsg('Nie udało się zatwierdzić: ' + err.message, 'err');
+    } finally {
+      acceptBtn.disabled = false;
+    }
+  });
+
+  // Zapis kopii GLB+PNG do wskazanego katalogu (ścieżka na serwerze aplikacji).
+  const copyBtn = document.getElementById('a3dCopyBtn');
+  const copyDir = document.getElementById('a3dCopyDir');
+  const copyState = document.getElementById('a3dCopyState');
+  copyDir.value = localStorage.getItem('a3dCopyDir') || '';
+  copyBtn.addEventListener('click', async () => {
+    if (!current || !current.glb_name) return;
+    const dir = copyDir.value.trim();
+    if (!dir) { copyState.textContent = 'Podaj ścieżkę katalogu.'; return; }
+    copyBtn.disabled = true;
+    copyState.textContent = 'Zapisywanie…';
+    try {
+      const res = await fetch('/api/artwork/3d/save-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ glb_name: current.glb_name, dest_dir: dir }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || ('HTTP ' + res.status));
+      localStorage.setItem('a3dCopyDir', dir);
+      copyState.textContent = '✓ Zapisano: ' + data.saved.join(', ');
+      copyState.style.color = 'var(--ok, #15803d)';
+    } catch (err) {
+      copyState.textContent = 'Błąd: ' + err.message;
+      copyState.style.color = 'var(--err, #b91c1c)';
+    } finally {
+      copyBtn.disabled = false;
+    }
+  });
+})();
+</script>
+{% endblock %}

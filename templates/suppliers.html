@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+{% block title %}Profile dostawców — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+*,*::before,*::after{box-sizing:border-box}
+.pg{max-width:1400px;margin:24px auto;padding:0 20px}
+/* buttons */
+/* .btn i warianty — z app.css (ładowany przez base.html). */
+.btn-danger{background:none;border:1px solid rgba(220,38,38,.35);color:#dc2626;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.btn-danger:hover{background:rgba(220,38,38,.07)}
+/* panel */
+.panel{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+.panel-title{font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between}
+/* badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.bg-green{background:#dcfce7;color:#166534}.bg-gray{background:#f3f4f6;color:#6b7280}
+.bg-red{background:#fee2e2;color:#991b1b}.bg-yellow{background:#fef9c3;color:#854d0e}
+.bg-blue{background:#dbeafe;color:#1e40af}.bg-purple{background:#f3e8ff;color:#6b21a8}
+.bg-orange{background:#fff7ed;color:#c2410c}
+/* stats bar */
+.stats-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat-chip{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px;flex-shrink:0}
+.stat-chip .n{font-size:22px;font-weight:700;line-height:1}
+.stat-chip .l{font-size:10px;color:#6b7280;text-transform:uppercase;font-weight:600;margin-top:3px}
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.toolbar input{padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;outline:none;width:220px}
+.toolbar input:focus{border-color:#1d4ed8}
+.toolbar select{padding:6px 9px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;outline:none;background:#fff}
+.view-toggle{display:flex;border:1px solid #d1d5db;border-radius:6px;overflow:hidden}
+.view-btn{padding:6px 11px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:#fff;color:#374151;transition:all .12s}
+.view-btn.active{background:#1d4ed8;color:#fff}
+/* card grid */
+.sup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.sup-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;transition:all .15s;position:relative}
+.sup-card:hover{border-color:#93c5fd;box-shadow:0 3px 12px rgba(0,0,0,.09)}
+.sup-card.inactive{opacity:.55}
+.sup-card.full{border-left:3px solid #16a34a}
+.sup-card.partial{border-left:3px solid #d97706}
+.sup-card.none{border-left:3px solid #e5e7eb}
+/* card header */
+.sc-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.sc-flag{font-size:22px;flex-shrink:0;margin-top:2px}
+.sc-name{font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-code{font-size:10px;font-family:monospace;color:#9ca3af}
+/* doc-type badges */
+.doc-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.doc-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid}
+.doc-ok{background:#f0fdf4;color:#15803d;border-color:#bbf7d0}
+.doc-partial{background:#fffbeb;color:#b45309;border-color:#fde68a}
+.doc-none{background:#f9fafb;color:#d1d5db;border-color:#e5e7eb}
+/* field mapping preview */
+.field-row{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;font-size:10px}
+.f-chip{padding:2px 6px;border-radius:3px;border:1px solid #e5e7eb;font-family:monospace;color:#374151;background:#f9fafb;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.f-chip.ref{border-color:#bfdbfe;background:#eff6ff;color:#1e40af}
+.f-chip.qty{border-color:#fde68a;background:#fefce8;color:#854d0e}
+.f-chip.price{border-color:#e9d5ff;background:#fdf4ff;color:#6b21a8}
+.f-chip.net{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}
+.f-chip.skip{color:#d1d5db;border-color:#f3f4f6;background:#fff}
+/* compare pair arrow */
+.pair-row{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:11px;flex-wrap:wrap}
+.pair-arrow{color:#9ca3af}
+.kw-row{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px}
+.kw-chip{padding:1px 6px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:3px;font-size:10px;color:#0369a1;font-family:monospace}
+/* card footer */
+.sc-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #f3f4f6}
+.use-badge{padding:3px 8px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;border-radius:5px;font-size:11px;font-weight:700}
+.tol-badge{padding:3px 8px;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:5px;font-size:11px}
+/* list view */
+table.dt{width:100%;border-collapse:collapse;font-size:12px}
+table.dt th{text-align:left;padding:8px 10px;background:#f9fafb;border-bottom:2px solid #e5e7eb;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280}
+table.dt td{padding:8px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+table.dt tr:hover td{background:#f8faff}
+table.dt tr.inactive td{opacity:.55}
+/* overlay / modal */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:12px;width:90%;max-width:700px;max-height:80vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-hdr h3{font-size:15px;font-weight:700;color:#1a1a2e}
+.audit-row{padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:12px}
+.audit-row:last-child{border-bottom:none}
+.audit-time{font-size:10px;color:#9ca3af;font-family:monospace;margin-bottom:2px}
+</style>
+{% endblock %}
+{% block page_title %}Profile dostawców{% endblock %}
+
+{% block content %}
+{% set total = suppliers|length %}
+{% set full_cnt = suppliers|selectattr('_config_status','eq','full')|list|length %}
+{% set partial_cnt = suppliers|selectattr('_config_status','eq','partial')|list|length %}
+{% set active_cnt = suppliers|selectattr('active')|list|length %}
+{% set total_comps = suppliers|sum(attribute='comparison_count') %}
+
+<div class="pg">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div>
+      <h1>🏭 Profile dostawców</h1>
+      <p>Mapowanie kolumn dokumentów (PI, PO, SAD) — co porównywać z czym i w której kolumnie</p>
+    </div>
+    {% if is_admin %}
+    <a href="/suppliers/wizard/new" class="btn btn-primary">+ Nowy dostawca</a>
+    {% endif %}
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat-chip"><div class="n" style="color:#15803d">{{ active_cnt }}</div><div class="l">Aktywnych</div></div>
+    <div class="stat-chip"><div class="n" style="color:#1d4ed8">{{ full_cnt }}</div><div class="l">PI+PO ✓</div></div>
+    <div class="stat-chip"><div class="n" style="color:#b45309">{{ partial_cnt }}</div><div class="l">Częściowe</div></div>
+    <div class="stat-chip"><div class="n" style="color:#6b7280">{{ total - active_cnt }}</div><div class="l">Nieaktywne</div></div>
+    <div class="stat-chip"><div class="n" style="color:#c2410c">{{ total_comps }}</div><div class="l">Porównania</div></div>
+    <div style="flex:1"></div>
+    {% if is_admin %}
+    <div style="display:flex;gap:6px;align-items:center">
+      <button type="button" class="btn btn-outline btn-sm" onclick="exportAllProfiles()">⬇ Eksport JSON</button>
+      <label class="btn btn-outline btn-sm" style="cursor:pointer">⬆ Import JSON
+        <input type="file" accept=".json" style="display:none" onchange="importProfiles(this)">
+      </label>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input id="searchInput" placeholder="Szukaj dostawcy, kodu, kraju…" oninput="applyFilters()">
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="">Wszystkie</option>
+      <option value="active">Aktywne</option>
+      <option value="full">PI+PO skonfigurowane</option>
+      <option value="partial">Częściowe</option>
+      <option value="none">Bez mapowania</option>
+      <option value="inactive">Nieaktywne</option>
+    </select>
+    <select id="sortBy" onchange="applyFilters()">
+      <option value="name">A–Z nazwa</option>
+      <option value="comps">Najczęściej używane</option>
+      <option value="config">Skonfigurowanie</option>
+    </select>
+    <span style="font-size:12px;color:#6b7280" id="countLabel">{{ total }} dostawców</span>
+    <div style="margin-left:auto" class="view-toggle">
+      <button type="button" class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
+      <button type="button" class="view-btn" id="btnList" onclick="setView('list')">☰</button>
+    </div>
+  </div>
+
+  <!-- GRID VIEW -->
+  <div id="gridView">
+    <div class="sup-grid" id="supGrid">
+      {% for s in suppliers %}
+      {% set dc = s._doc_config %}
+      <div class="sup-card {{ s._config_status }} {% if not s.active %}inactive{% endif %}"
+           id="sc-{{ s.id }}"
+           data-name="{{ s.name|lower }}"
+           data-code="{{ s.code|lower }}"
+           data-status="{{ s._config_status }}"
+           data-active="{{ '1' if s.active else '0' }}"
+           data-comps="{{ s.comparison_count }}">
+
+        <div class="sc-head">
+          <div class="sc-flag">{{ {'CN':'🇨🇳','PL':'🇵🇱','IN':'🇮🇳','DE':'🇩🇪','TR':'🇹🇷','VN':'🇻🇳','KR':'🇰🇷','TW':'🇹🇼'}.get(s.country,'🏭') }}</div>
+          <div style="flex:1;min-width:0">
+            <div class="sc-name" title="{{ s.name }}">{{ s.name }}</div>
+            <div class="sc-code">{{ s.code }} · {{ s.country }} · {{ s.currency }}</div>
+          </div>
+          {% if not s.active %}<span class="badge bg-gray" style="flex-shrink:0">wył</span>{% endif %}
+        </div>
+
+        <!-- Doc-type config badges -->
+        <div class="doc-row">
+          {% for dtype in ['PI','PO','SAD','CI','PL'] %}
+          {% set cfg = dc.get(dtype, {}) %}
+          {% if cfg.get('field_count', 0) > 0 %}
+            <span class="doc-badge {{ 'doc-ok' if cfg.ok else 'doc-partial' }}"
+                  title="{{ dtype }}: {{ cfg.roles|join(', ') }}">
+              {{ '✓' if cfg.ok else '~' }} {{ dtype }} {{ cfg.field_count }}pól
+            </span>
+          {% else %}
+            {% if dtype in ['PI','PO'] %}
+            <span class="doc-badge doc-none" title="{{ dtype }}: brak mapowania">✗ {{ dtype }}</span>
+            {% endif %}
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Comparison pairs -->
+        <div class="pair-row">
+          {% if dc.get('PI',{}).get('ok') and dc.get('PO',{}).get('ok') %}
+            <span style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">✓ PI ↔ PO</span>
+          {% elif dc.get('PI',{}).get('field_count',0) > 0 or dc.get('PO',{}).get('field_count',0) > 0 %}
+            <span style="background:#fffbeb;border:1px solid #fde68a;color:#b45309;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">~ PI ↔ PO niekompletne</span>
+          {% else %}
+            <span style="background:#f9fafb;border:1px solid #e5e7eb;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:11px">✗ PI ↔ PO brak mapowania</span>
+          {% endif %}
+          {% if dc.CI.get('field_count',0) > 0 and dc.PL.get('field_count',0) > 0 %}
+            <span style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">✓ CI ↔ PL</span>
+          {% endif %}
+          {% if dc.SAD.get('field_count',0) > 0 %}
+            <span style="background:#fdf4ff;border:1px solid #e9d5ff;color:#6b21a8;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">✓ SAD</span>
+          {% endif %}
+        </div>
+
+        <!-- PI field preview -->
+        {% set pi = s.pi_column_mapping_json or {} %}
+        {% if pi %}
+        <div class="field-row">
+          <span style="color:#9ca3af;font-size:10px;margin-right:3px">PI:</span>
+          {% for col, role in pi.items() %}{% if role != 'skip' %}
+          <span class="f-chip {{ role }}" title="{{ col }} → {{ role }}">{{ col[:10] }}→{{ role }}</span>
+          {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Keywords -->
+        {% if s.detect_keywords_json %}
+        <div class="kw-row">
+          {% for kw in s.detect_keywords_json[:4] %}<span class="kw-chip">{{ kw }}</span>{% endfor %}
+          {% if s.detect_keywords_json|length > 4 %}<span style="font-size:10px;color:#9ca3af">+{{ s.detect_keywords_json|length - 4 }}</span>{% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="sc-foot">
+          {% if s.comparison_count > 0 %}
+          <span class="use-badge">▶ {{ s.comparison_count }}×</span>
+          {% endif %}
+          <span class="tol-badge">ceny ±{{ s.price_tolerance_pct }}%</span>
+          <span class="tol-badge">ilości ±{{ s.qty_tolerance_pct }}%</span>
+          <div style="flex:1"></div>
+          {% if is_admin %}
+          <a href="/suppliers/wizard/{{ s.id }}" class="btn btn-outline btn-sm">✏ Edytuj</a>
+          <button type="button" class="btn btn-outline btn-sm" onclick="showAudit({{ s.id }}, {{ s.name|tojson|e }})">📋</button>
+          <button type="button" class="btn-danger btn-sm" onclick="toggleActive({{ s.id }}, {{ 0 if s.active else 1 }})">{{ '⏸' if s.active else '▶' }}</button>
+          <button type="button" class="btn-danger btn-sm" onclick="delSupplier({{ s.id }})">🗑</button>
+          {% else %}
+          <button type="button" class="btn btn-outline btn-sm" onclick="showAudit({{ s.id }}, {{ s.name|tojson|e }})">📋 Historia</button>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#9ca3af">
+        <div style="font-size:36px;margin-bottom:10px">🏭</div>
+        Brak profili dostawców.
+        {% if is_admin %}<br><a href="/suppliers/wizard/new" style="color:#1d4ed8">Dodaj pierwszego dostawcę →</a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- LIST VIEW -->
+  <div id="listView" style="display:none">
+    <div style="overflow-x:auto">
+      <table class="dt" id="supTable">
+        <thead>
+          <tr>
+            <th scope="col">Dostawca</th>
+            <th scope="col">Kraj / Waluta</th>
+            <th scope="col" style="text-align:center">PI</th>
+            <th scope="col" style="text-align:center">PO</th>
+            <th scope="col" style="text-align:center">SAD / CI / PL</th>
+            <th scope="col" style="text-align:center">Para</th>
+            <th scope="col" style="text-align:center">Tolerancje</th>
+            <th scope="col" style="text-align:center">Porównania</th>
+            <th scope="col" style="text-align:center">Akcje</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in suppliers %}
+          {% set dc = s._doc_config %}
+          <tr class="sup-row {{ 'inactive' if not s.active else '' }}"
+              data-name="{{ s.name|lower }}"
+              data-code="{{ s.code|lower }}"
+              data-status="{{ s._config_status }}"
+              data-active="{{ '1' if s.active else '0' }}"
+              data-comps="{{ s.comparison_count }}">
+            <td>
+              <div style="font-weight:700;color:#1a1a2e">{{ {'CN':'🇨🇳','PL':'🇵🇱','IN':'🇮🇳','DE':'🇩🇪','TR':'🇹🇷','VN':'🇻🇳','KR':'🇰🇷','TW':'🇹🇼'}.get(s.country,'🏭') }} {{ s.name }}</div>
+              <div style="font-size:10px;color:#9ca3af;font-family:monospace">{{ s.code }}</div>
+            </td>
+            <td style="font-size:11px;color:#6b7280">{{ s.country }} / {{ s.currency }}</td>
+            <td style="text-align:center">
+              {% set cfg = dc.get('PI',{}) %}
+              {% if cfg.get('ok') %}<span class="badge bg-green">✓ {{ cfg.field_count }}pól</span>
+              {% elif cfg.get('field_count',0) > 0 %}<span class="badge bg-yellow">~ {{ cfg.field_count }}pól</span>
+              {% else %}<span style="color:#d1d5db">—</span>{% endif %}
+            </td>
+            <td style="text-align:center">
+              {% set cfg = dc.get('PO',{}) %}
+              {% if cfg.get('ok') %}<span class="badge bg-green">✓ {{ cfg.field_count }}pól</span>
+              {% elif cfg.get('field_count',0) > 0 %}<span class="badge bg-yellow">~ {{ cfg.field_count }}pól</span>
+              {% else %}<span style="color:#d1d5db">—</span>{% endif %}
+            </td>
+            <td style="text-align:center">
+              <div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap">
+              {% if dc.get('SAD',{}).get('field_count',0) > 0 %}<span class="badge bg-purple">SAD</span>{% endif %}
+              {% if dc.get('CI',{}).get('field_count',0) > 0 %}<span class="badge bg-blue">CI</span>{% endif %}
+              {% if dc.get('PL',{}).get('field_count',0) > 0 %}<span class="badge bg-blue">PL</span>{% endif %}
+              {% if not (dc.get('SAD',{}).get('field_count',0) or dc.get('CI',{}).get('field_count',0) or dc.get('PL',{}).get('field_count',0)) %}<span style="color:#d1d5db">—</span>{% endif %}
+              </div>
+            </td>
+            <td style="text-align:center">
+              {% if dc.get('PI',{}).get('ok') and dc.get('PO',{}).get('ok') %}
+                <span class="badge bg-green">PI↔PO ✓</span>
+              {% elif dc.get('PI',{}).get('field_count',0) > 0 or dc.get('PO',{}).get('field_count',0) > 0 %}
+                <span class="badge bg-yellow">niekompletne</span>
+              {% else %}
+                <span style="color:#d1d5db">—</span>
+              {% endif %}
+            </td>
+            <td style="text-align:center;font-size:11px;color:#6b7280">
+              ceny ±{{ s.price_tolerance_pct }}%<br>ilości ±{{ s.qty_tolerance_pct }}%
+            </td>
+            <td style="text-align:center">
+              {% if s.comparison_count > 0 %}
+              <span class="badge bg-orange">{{ s.comparison_count }} ×</span>
+              {% else %}<span style="color:#d1d5db">—</span>{% endif %}
+            </td>
+            <td style="text-align:center">
+              <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+                {% if is_admin %}
+                <a href="/suppliers/wizard/{{ s.id }}" class="btn btn-outline btn-sm">✏</a>
+                <button type="button" class="btn btn-outline btn-sm" onclick="showAudit({{ s.id }}, {{ s.name|tojson|e }})">📋</button>
+                <button type="button" class="btn-danger btn-sm" onclick="toggleActive({{ s.id }}, {{ 0 if s.active else 1 }})">{{ '⏸' if s.active else '▶' }}</button>
+                {% else %}
+                <button type="button" class="btn btn-outline btn-sm" onclick="showAudit({{ s.id }}, {{ s.name|tojson|e }})">📋</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Audit modal -->
+<div class="ov" id="ov" onclick="if(event.target===this)closeOv()" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h3 id="modalTitle">Historia zmian</h3>
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeOv()">✕ Zamknij</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ── Filter / sort ─────────────────────────────────────────────────────────────
+var _view = 'grid';
+
+function setView(v){
+  _view = v;
+  document.getElementById('gridView').style.display = v==='grid' ? '' : 'none';
+  document.getElementById('listView').style.display = v==='list' ? '' : 'none';
+  document.getElementById('btnGrid').className = 'view-btn' + (v==='grid'?' active':'');
+  document.getElementById('btnList').className = 'view-btn' + (v==='list'?' active':'');
+  applyFilters();
+}
+
+function applyFilters(){
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const fs = document.getElementById('filterStatus').value;
+  const sort = document.getElementById('sortBy').value;
+
+  const items = [...document.querySelectorAll('.sup-card, .sup-row')];
+  let visible = [];
+
+  items.forEach(el=>{
+    const nm = el.dataset.name||'';
+    const co = el.dataset.code||'';
+    const st = el.dataset.status||'';
+    const ac = el.dataset.active||'1';
+    const matchQ = !q || nm.includes(q) || co.includes(q);
+    let matchF = true;
+    if(fs==='active')   matchF = ac==='1';
+    if(fs==='full')     matchF = st==='full';
+    if(fs==='partial')  matchF = st==='partial';
+    if(fs==='none')     matchF = st==='none';
+    if(fs==='inactive') matchF = ac==='0';
+    const show = matchQ && matchF;
+    el.style.display = show ? '' : 'none';
+    if(show) visible.push(el);
+  });
+
+  // Sort
+  const grid = document.getElementById('supGrid');
+  const tbody = document.querySelector('#supTable tbody');
+  visible.sort((a,b)=>{
+    if(sort==='comps') return +(b.dataset.comps||0) - +(a.dataset.comps||0);
+    if(sort==='config'){
+      const order={full:0,partial:1,none:2};
+      return (order[a.dataset.status]||2) - (order[b.dataset.status]||2);
+    }
+    return (a.dataset.name||'').localeCompare(b.dataset.name||'','pl');
+  });
+  visible.forEach(el=>{
+    if(el.classList.contains('sup-card')) grid.appendChild(el);
+    else tbody.appendChild(el);
+  });
+
+  document.getElementById('countLabel').textContent = visible.length + ' dostawców';
+}
+
+// ── Toggle active ─────────────────────────────────────────────────────────────
+async function toggleActive(id, newVal){
+  const r = await fetch(`/api/suppliers/${id}`,{method:'PATCH',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({active:newVal})});
+  if((await r.json()).ok) location.reload();
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function delSupplier(id){
+  confirmModal('Usunąć profil dostawcy?', async () => {
+    const r = await fetch(`/api/suppliers/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if(d.ok){ document.getElementById('sc-'+id)?.remove(); applyFilters(); }
+    else toast(d.error||'Błąd','error');
+  }, {okLabel:'Usuń', danger:true});
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+async function showAudit(id, name){
+  document.getElementById('modalTitle').textContent = 'Historia zmian — '+name;
+  document.getElementById('modalBody').innerHTML = '<div style="color:#6b7280;padding:20px">Ładowanie…</div>';
+  document.getElementById('ov').classList.add('on');
+  try{
+    const r = await fetch(`/api/suppliers/${id}/audit`);
+    if(!r.ok){ document.getElementById('modalBody').innerHTML='<div style="color:#dc2626">Błąd serwera: '+r.status+'</div>'; return; }
+    const log = await r.json();
+    if(!Array.isArray(log) || !log.length){
+      document.getElementById('modalBody').innerHTML='<div style="color:#9ca3af;padding:20px">Brak historii zmian.</div>';
+      return;
+    }
+    document.getElementById('modalBody').innerHTML = log.map(e=>`
+      <div class="audit-row">
+        <div class="audit-time">${esc((e.changed_at||'').slice(0,16).replace('T',' '))} — ${esc(e.changed_by||'?')}</div>
+        <div style="margin-top:2px">${esc((e.summary||JSON.stringify(e.changes_json||e.diff_json||{})).slice(0,140))}</div>
+      </div>`).join('');
+  }catch(e){ document.getElementById('modalBody').innerHTML='<div style="color:#dc2626">Błąd: '+esc(e.message)+'</div>'; }
+}
+function closeOv(){ document.getElementById('ov').classList.remove('on'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeOv(); });
+
+// ── Export/Import ─────────────────────────────────────────────────────────────
+async function exportAllProfiles(){
+  const r = await fetch('/api/suppliers');
+  const data = await r.json();
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `doccompare_suppliers_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function importProfiles(inp){
+  const file = inp.files[0]; if(!file) return;
+  const text = await file.text();
+  let data; try{ data=JSON.parse(text); }catch(e){ toast('Błąd parsowania JSON: '+e.message,'error'); return; }
+  if(!Array.isArray(data)){ toast('Oczekiwano tablicy profili.','error'); return; }
+  let ok=0,err=0;
+  for(const s of data){
+    try{
+      const r=await fetch('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)});
+      const d=await r.json();
+      if(d.ok||d.supplier) ok++; else err++;
+    }catch(e){ err++; }
+  }
+  toast(`Import: ${ok} OK, ${err} błędów`, ok>0&&err===0?'ok':'warn');
+  if(ok>0) location.reload();
+}
+function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+{% endblock %}

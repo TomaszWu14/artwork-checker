@@ -1,0 +1,73 @@
+name: security
+
+# Cotygodniowe skany bezpieczeństwa (doradcze): Bandit (SAST Pythona),
+# gitleaks (sekrety w kodzie i historii), Trivy (CVE w zależnościach
+# i konfiguracji), pip-audit (CVE w requirements). Tylko harmonogram
+# + ręczne odpalenie — oszczędza minuty Actions na prywatnym repo.
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"   # 1. dnia miesiaca
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bandit:
+    name: Bandit (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Instalacja Bandit
+        run: pip install "bandit[toml]"
+      - name: Skan (błąd przy problemach ≥ średnie)
+        run: bandit -r . -ll -x ./.venv,./venv,./node_modules,./.git
+
+  gitleaks:
+    name: gitleaks (sekrety)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # pełna historia — skan także starych commitów
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trivy:
+    name: Trivy (zależności + konfiguracja)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Instalacja Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Skan repozytorium (raport HIGH/CRITICAL w logu)
+        run: trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 0 .
+
+  pip-audit:
+    name: pip-audit (CVE w zależnościach)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Instalacja pip-audit
+        run: pip install pip-audit
+      - name: Audyt plików requirements (doradczy)
+        run: |
+          found=0
+          for f in requirements*.txt; do
+            [ -f "$f" ] || continue
+            found=1
+            echo "── $f ──"
+            pip-audit -r "$f" --progress-spinner off || true
+          done
+          [ "$found" = 1 ] || echo "Brak plików requirements*.txt — pomijam."

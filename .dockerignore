@@ -1,0 +1,58 @@
+# Docker build context excludes — mirrors .gitignore so `COPY . .` in
+# Dockerfile.slim doesn't pack VCS history, local DBs, uploads, logs or secrets
+# into the image (bloat + potential data/secret leakage).
+
+# Version control
+.git/
+.gitignore
+.github/
+
+# Python caches / build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Secrets & local config (never bake into an image)
+.env
+.env.*
+!.env.example
+INITIAL_ADMIN_PASSWORD.txt
+
+# Local databases (dev only)
+instance/
+*.db
+*.sqlite
+
+# Runtime data that must not be baked in
+uploads/
+library/
+logs/
+backups/
+*.bak
+app.py.bak
+
+# Tooling / agent / editor
+.claude/
+.idea/
+.vscode/
+.render/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests & docs (not needed in the runtime image)
+tests/
+docs/
+*.md

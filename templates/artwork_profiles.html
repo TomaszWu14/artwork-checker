@@ -1,0 +1,1642 @@
+{% extends "base.html" %}
+{% block title %}Biblioteka Masterów — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+/* ── Reset main padding for full-width library layout ── */
+.main-wrap > main { padding: 0 !important; max-width: none !important; }
+
+/* ── Page shell ── */
+.lib-shell { display: flex; height: calc(100vh - 52px); overflow: hidden; }
+
+/* ── Sidebar ── */
+.lib-sb { width: 260px; min-width: 200px; flex-shrink: 0; background: #fff;
+  border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+.lib-sb-head { padding: 12px 14px; border-bottom: 1px solid #e5e7eb;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lib-sb-head h2 { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.lib-tree { flex: 1; overflow-y: auto; padding: 6px 0; }
+.lib-sb-foot { padding: 8px 12px; border-top: 1px solid #e5e7eb;
+  font-size: 10px; color: #9ca3af; text-align: center; }
+
+/* Tree rows */
+.tree-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px;
+  border-radius: 5px; cursor: pointer; font-size: 12px; color: #374151;
+  margin: 1px 4px; user-select: none; }
+.tree-row:hover { background: #f3f4f6; }
+.tree-row.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+.tree-icon { font-size: 13px; flex-shrink: 0; }
+.tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-count { font-size: 10px; color: #9ca3af; background: #f3f4f6;
+  padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+.tree-children { padding-left: 16px; }
+
+/* ── Main area ── */
+.lib-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.lib-head { padding: 10px 18px; border-bottom: 1px solid #e5e7eb; background: #fff;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
+.lib-bc { display: flex; align-items: center; gap: 4px; font-size: 12px; flex: 1;
+  min-width: 0; flex-wrap: wrap; color: #6b7280; }
+.lib-bc .bc-link { color: #1d4ed8; font-weight: 600; cursor: pointer; }
+.lib-bc .bc-link:hover { text-decoration: underline; }
+.lib-bc .bc-cur { color: #1a1a2e; font-weight: 700; }
+.lib-bc .bc-sep { color: #d1d5db; }
+.lib-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+/* Toolbar */
+.lib-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Buttons */
+/* .btn / .btn-primary / .btn-outline / .btn-sm — z app.css. Zostaje tylko to, co
+   jest tu naprawdę własne: mocny czerwony na akcje kasujące i fiolet dla akcji AI
+   (świadome wyróżnienie operacji płatnej). */
+.btn-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-ai { background: #7c3aed; color: #fff; }
+.btn-ai:hover:not(:disabled) { background: #6d28d9; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; }
+.bg-green { background: #dcfce7; color: #166534; }
+.bg-yellow { background: #fef9c3; color: #854d0e; }
+.bg-blue { background: #dbeafe; color: #1e40af; }
+.bg-gray { background: #f3f4f6; color: #6b7280; }
+.bg-red { background: #fee2e2; color: #991b1b; }
+.bg-purple { background: #f3e8ff; color: #6b21a8; }
+
+/* Stats */
+.stats-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat-box { background: #fff; border: 1px solid #e5e7eb; border-radius: 7px;
+  padding: 8px 14px; text-align: center; min-width: 80px; }
+.stat-num { font-size: 18px; font-weight: 700; }
+.stat-lbl { font-size: 9px; color: #9ca3af; text-transform: uppercase; font-weight: 600; }
+
+/* Folder cards */
+.folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px; margin-bottom: 16px; }
+.folder-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 9px;
+  padding: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  transition: background .1s; }
+.folder-card:hover { background: #f0f7ff; border-color: #93c5fd; }
+.folder-card-name { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.folder-card-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+/* Master cards */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; }
+.master-card { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 9px;
+  overflow: hidden; cursor: pointer; transition: box-shadow .15s, border-color .15s; position: relative; }
+.master-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); border-color: #93c5fd; }
+.master-card.unmapped { border-color: #fcd34d; }
+.card-thumb { width: 100%; height: 110px; object-fit: cover; background: #f3f4f6;
+  display: block; }
+.card-thumb-empty { width: 100%; height: 110px; background: #f3f4f6; display: flex;
+  align-items: center; justify-content: center; font-size: 32px; color: #d1d5db; }
+.card-body { padding: 9px 10px; }
+.card-name { font-size: 11px; font-weight: 700; color: #1a1a2e; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.card-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+.card-meta { font-size: 10px; color: #9ca3af; }
+.mapped-badge { position: absolute; top: 5px; left: 5px; font-size: 9px;
+  font-weight: 700; padding: 2px 6px; border-radius: 3px; }
+.mapped-yes { background: #dcfce7; color: #15803d; }
+.mapped-no { background: #fef9c3; color: #854d0e; }
+
+/* Upload zone */
+.upload-zone { border: 2px dashed #93c5fd; border-radius: 10px; padding: 24px;
+  text-align: center; cursor: pointer; background: #f0f7ff; transition: all .2s; margin-top: 14px; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: #1d4ed8; background: #dbeafe; }
+.upload-zone p { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+/* Upload queue */
+.q-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid #e5e7eb; border-radius: 7px; margin-bottom: 6px;
+  background: #fafafa; font-size: 12px; }
+.q-bar { height: 3px; background: #e5e7eb; border-radius: 2px; margin-top: 4px; }
+.q-fill { height: 100%; background: #1d4ed8; border-radius: 2px; animation: qpulse 1s infinite; }
+@keyframes qpulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 40px; color: #9ca3af; font-size: 13px; }
+
+/* ── Editor modal ── */
+/* ── Full-screen editor overlay ── */
+.overlay { position: fixed; inset: 0; z-index: 1000; overflow: hidden; display: flex; }
+.overlay.hidden { display: none !important; }
+.modal { background: #fff; border-radius: 0; width: 100vw; height: 100vh;
+  max-width: 100vw; max-height: 100vh; display: flex; flex-direction: column; }
+.modal-head { padding: 10px 16px; border-bottom: 1px solid #e5e7eb; display: flex;
+  align-items: center; justify-content: space-between; flex-shrink: 0;
+  background: #f9fafb; }
+.modal-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+.modal-foot { padding: 8px 16px; border-top: 1px solid #e5e7eb; display: flex;
+  justify-content: space-between; align-items: center; flex-shrink: 0; gap: 8px;
+  background: #f9fafb; }
+.editor-left { flex: 1; display: flex; flex-direction: column; padding: 10px 12px;
+  border-right: 1px solid #e5e7eb; overflow: hidden; min-width: 0; }
+.editor-right { width: 300px; display: flex; flex-direction: column; overflow: hidden; }
+.er-top { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; overflow-y: auto; max-height: 50vh; }
+.er-fields { flex: 1; overflow-y: auto; padding: 6px 8px; }
+.er-bot { padding: 6px 10px; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+
+/* ── Field picker (zone dictionary) ── */
+.fp-overlay { position: fixed; inset: 0; z-index: 1100; }
+.fp-box { position: fixed; z-index: 1101; background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  width: 380px; max-height: 520px; display: flex; flex-direction: column; }
+.fp-search { padding: 8px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+.fp-search input { width: 100%; padding: 6px 10px; border: 1px solid #d1d5db;
+  border-radius: 6px; font-size: 12px; outline: none; box-sizing: border-box; }
+.fp-search input:focus { border-color: #1d4ed8; }
+.fp-list { flex: 1; overflow-y: auto; padding: 4px 6px; }
+.fp-cat { font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase;
+  padding: 8px 4px 3px; letter-spacing: .5px; }
+.fp-item { padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
+  color: #1a1a2e; display: flex; align-items: center; gap: 6px; }
+.fp-item:hover { background: #eff6ff; }
+.fp-item.used { opacity: .45; pointer-events: none; }
+.fp-item .fp-sev { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.fp-sev-critical { background: #dc2626; }
+.fp-sev-important { background: #d97706; }
+.fp-sev-info { background: #2563eb; }
+.fp-custom { padding: 8px; border-top: 1px solid #e5e7eb; flex-shrink: 0; display: flex; gap: 6px; }
+.fp-custom input { flex: 1; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 12px; outline: none; }
+.fp-custom input:focus { border-color: #1d4ed8; }
+.canvas-wrap { position: relative; background: #e5e7eb; border-radius: 6px;
+  overflow: hidden; user-select: none; }
+.canvas-wrap img { display: block; width: 100%; pointer-events: none; }
+.f-rect { position: absolute; box-sizing: border-box; cursor: move; }
+.f-rect.sev-critical { border: 2px solid #dc2626; background: rgba(220,38,38,.1); }
+.f-rect.sev-important { border: 2px solid #d97706; background: rgba(217,119,6,.08); }
+.f-rect.sev-info { border: 2px solid #2563eb; background: rgba(37,99,235,.07); }
+.f-rect.selected { box-shadow: 0 0 0 2px #fff,0 0 0 4px #1d4ed8; }
+.f-label { position: absolute; top: 0; left: 0; right: 0; padding: 1px 4px;
+  font-size: 9px; font-weight: 700; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: #fff; }
+.f-rect.sev-critical .f-label { background: rgba(200,20,20,.85); }
+.f-rect.sev-important .f-label { background: rgba(160,90,0,.85); }
+.f-rect.sev-info .f-label { background: rgba(29,78,216,.85); }
+/* Skip (ignored) fields — gray dashed */
+.f-rect.skip { border: 2px dashed #9ca3af !important; background: rgba(156,163,175,.08) !important; opacity: .65; }
+.f-rect.skip .f-label { background: rgba(90,90,90,.65) !important; }
+.fi.skip-item { opacity: .6; }
+.fi.skip-item .fi-name::after { content: ' (pomijaj)'; font-size:9px; color:#9ca3af; font-weight:400; }
+.rh { position: absolute; width: 10px; height: 10px; background: #1d4ed8;
+  border: 1.5px solid #fff; border-radius: 2px; z-index: 10; }
+.rh-nw{top:-5px;left:-5px;cursor:nw-resize}.rh-ne{top:-5px;right:-5px;cursor:ne-resize}
+.rh-sw{bottom:-5px;left:-5px;cursor:sw-resize}.rh-se{bottom:-5px;right:-5px;cursor:se-resize}
+.rh-n{top:-5px;left:calc(50% - 5px);cursor:n-resize}.rh-s{bottom:-5px;left:calc(50% - 5px);cursor:s-resize}
+.rh-w{top:calc(50% - 5px);left:-5px;cursor:w-resize}.rh-e{top:calc(50% - 5px);right:-5px;cursor:e-resize}
+.draw-rect { position: absolute; border: 2px dashed #1d4ed8; background: rgba(29,78,216,.07); pointer-events: none; }
+.fg label { display: block; font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 3px; text-transform: uppercase; }
+.fg input, .fg select { width: 100%; padding: 5px 8px; border: 1px solid #d1d5db;
+  border-radius: 5px; font-size: 12px; outline: none; }
+.fg input:focus, .fg select:focus { border-color: #1d4ed8; }
+.fi { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 5px;
+  padding: 6px 8px; margin-bottom: 4px; cursor: pointer; transition: border .1s; }
+.fi:hover { border-color: #93c5fd; }
+.fi.active { border-color: #1d4ed8; background: #eff6ff; }
+.fi-name { font-size: 11px; font-weight: 700; color: #1a1a2e; }
+.fi-coords { font-size: 9px; color: #9ca3af; font-family: monospace; }
+.sfe { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+.ref-tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid #d1d5db;
+  border-radius: 5px; min-height: 32px; cursor: text; background: #fff; }
+.ref-tag { display: inline-flex; align-items: center; gap: 2px; background: #e0e7ff;
+  color: #3730a3; border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+.ref-tag button { background: none; border: none; cursor: pointer; color: #6366f1; font-size: 12px; line-height: 1; }
+.ref-input { border: none; outline: none; font-size: 12px; min-width: 80px; background: transparent; padding: 1px 3px; }
+.section-head { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase;
+  margin: 0 0 8px; letter-spacing: .5px; }
+</style>
+{% endblock %}
+{% block page_title %}Profile artwork{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════════ MAIN LAYOUT -->
+<div class="lib-shell" id="libShell">
+
+  <!-- ── SIDEBAR ── -->
+  <div class="lib-sb">
+    <div class="lib-sb-head">
+      <h2>📁 Foldery</h2>
+      <button type="button" class="btn btn-outline btn-sm" onclick="newFolderPrompt()">+ Folder</button>
+    </div>
+    <div class="lib-tree" id="libTree"></div>
+    <div class="lib-sb-foot" id="libSbFoot">— masterów</div>
+    <div class="lib-sb-foot" id="libStorageInfo" style="cursor:pointer;border-top:0" onclick="loadStorageInfo()" title="Kliknij aby odświeżyć">
+      💾 <span id="libStorageTxt">Ładowanie…</span>
+    </div>
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div class="lib-main">
+    <!-- Header: breadcrumb + toolbar -->
+    <div class="lib-head">
+      <div class="lib-bc" id="libBc"></div>
+      <div class="lib-toolbar">
+        <input type="text" id="libSearch" placeholder="Szukaj nazwy / EAN / REF…"
+               oninput="renderContent()" autocomplete="off"
+               style="padding:5px 9px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;width:180px">
+        <button type="button" class="btn btn-outline btn-sm" onclick="newFolderPrompt()">📁 Nowy folder</button>
+        <!-- Upload label — works without JS frameworks -->
+        <label for="bulkFileInput" class="btn btn-primary btn-sm" style="cursor:pointer">⬆ Wgraj mastery</label>
+        <input type="file" id="bulkFileInput" accept=".pdf" multiple style="display:none"
+               onchange="onFilesSelected(this)">
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:0;padding:0 20px;background:#fff">
+      <button type="button" id="tabMasters" onclick="switchTab('masters')"
+        style="padding:8px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid #7c3aed;color:#7c3aed;margin-bottom:-2px">
+        Mastery
+      </button>
+      <button type="button" id="tabFieldDict" onclick="switchTab('fieldDict')"
+        style="padding:8px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#6b7280;margin-bottom:-2px">
+        Słownik pól
+      </button>
+    </div>
+
+    <div class="lib-body">
+      <div id="libBody"></div>
+
+      <div id="fieldDictPanel" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <h3 style="font-size:14px;font-weight:700;color:#1a1a2e">Słownik nazw pól</h3>
+            <p style="font-size:12px;color:#6b7280;margin-top:2px">Globalne nazwy pól używane w szablonach. Kliknij wiersz aby edytować.</p>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="showAddFieldDictModal()">+ Dodaj pole</button>
+        </div>
+        <div id="fieldDictTableWrap"></div>
+
+        <!-- Add/edit modal -->
+        <div id="fieldDictModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center"
+             role="dialog" aria-modal="true" aria-labelledby="fdModalTitle">
+          <div style="background:#fff;border-radius:10px;padding:24px;width:400px;max-width:95vw">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:16px" id="fdModalTitle">Dodaj pole</h3>
+            <input type="hidden" id="fdModalId" value="">
+            <label for="fdModalName" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Nazwa wyświetlana</label>
+            <input id="fdModalName" type="text" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+            <label for="fdModalSev" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Ważność</label>
+            <select id="fdModalSev" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <option value="critical">Krytyczna (KR)</option>
+              <option value="important">Ważna (W)</option>
+              <option value="info">Info (I)</option>
+            </select>
+            <label for="fdModalLayout" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Układ w raporcie</label>
+            <select id="fdModalLayout" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <option value="side_by_side">Obok siebie (domyślnie)</option>
+              <option value="stacked">Jeden pod drugim</option>
+            </select>
+            <label for="fdModalRotation" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Obrót mastera (stopnie)</label>
+            <select id="fdModalRotation" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <option value="0">0° — bez obrotu</option>
+              <option value="90">90° — obrót w prawo</option>
+              <option value="180">180° — obrót o 180°</option>
+              <option value="270">270° — obrót w lewo</option>
+            </select>
+            <label for="fdModalMode" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Tryb porównania</label>
+            <select id="fdModalMode" onchange="fdModeChanged()" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <option value="text">📝 Tekst — OCR + różnica tokenów (domyślny)</option>
+              <option value="table">📊 Tabela — tekst + kontrola wartości liczbowych</option>
+              <option value="translation">🌍 Tłumaczenie — porównanie linii w kolejności</option>
+              <option value="numeric">🔢 Liczba — wyłącznie wartości numeryczne z tolerancją</option>
+              <option value="graphic">🖼 Grafika — tylko porównanie wizualne (czerwone boxy na różnicach)</option>
+            </select>
+            <div id="fdModalModeDesc" style="font-size:11.5px;line-height:1.5;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #3b82f6;border-radius:6px;padding:8px 10px;margin:-4px 0 12px"></div>
+            <div id="fdModalTolRow" style="display:none">
+              <label for="fdModalTol" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Tolerancja numeryczna (np. 0.01 = ±1%)</label>
+              <input id="fdModalTol" type="number" min="0" step="0.01" value="0" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;margin-bottom:12px;box-sizing:border-box" inputmode="decimal">
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button type="button" class="btn btn-outline" onclick="closeFieldDictModal()">Anuluj</button>
+              <button type="button" class="btn btn-primary" onclick="saveFieldDictModal()">Zapisz</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ EDITOR MODAL -->
+<div class="overlay hidden" id="editorOverlay" onclick="if(event.target===this)closeEditor()" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#1a1a2e" id="edTitle">Edycja mastera</div>
+        <div style="font-size:11px;color:#6b7280" id="edSubtitle"></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="badge" id="edMappedBadge"></span>
+        <button type="button" onclick="closeEditor()" aria-label="Zamknij edytor" style="background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280">×</button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <!-- LEFT: canvas editor -->
+      <div class="editor-left">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div class="fg">
+            <label>Folder</label>
+            <input id="edFolder" placeholder="np. Cewnik/Rev.03/ACME12">
+          </div>
+          <div class="fg">
+            <label>EAN</label>
+            <input id="edEan" placeholder="5901891011234">
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>Indeksy REF</label>
+          <div class="ref-tags" id="edRefTags" onclick="document.getElementById('edRefInput').focus()"></div>
+          <input type="hidden" id="edRefInput">
+        </div>
+        <!-- REF input row -->
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="edRefNew" placeholder="Dodaj REF (Enter)" style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:12px;outline:none"
+                 onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();addRef()}"
+                 onblur="addRef()">
+          <button type="button" class="btn btn-outline btn-sm" onclick="addRef()">+ Dodaj</button>
+        </div>
+
+        <!-- Toolbar -->
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <label for="edPdfInput" class="btn btn-outline btn-sm" style="cursor:pointer" id="edLoadBtn">📄 Wgraj master PDF</label>
+          <input type="file" id="edPdfInput" accept=".pdf" style="display:none" onchange="onEditorPdf(this)">
+          <button type="button" class="btn btn-ai btn-sm" id="edAiBtn" style="display:none" onclick="runAiDetect()">✨ Wykryj pola AI</button>
+          <button type="button" class="btn btn-outline btn-sm" id="edReloadBtn" style="display:none" onclick="document.getElementById('edPdfInput').click()">🔄 Zmień PDF</button>
+          <span id="edAiStatus" style="font-size:11px;color:#6b7280"></span>
+        </div>
+
+        <!-- Zoom controls -->
+        <div id="edZoomBar" style="display:none;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-sm" onclick="zoomOut()" title="Pomniejsz (-)">−</button>
+          <span id="edZoomLabel" style="font-size:12px;font-weight:700;min-width:42px;text-align:center">100%</span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="zoomIn()" title="Powiększ (+)">+</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="setZoom(1)" title="Rozmiar 1:1">1:1</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="zoomFit()" title="Dopasuj do okna">Dopasuj</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="setZoom(2)">200%</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="setZoom(3)">300%</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="setZoom(5)">500%</button>
+          <span style="font-size:10px;color:#9ca3af">scroll = zoom · PPM (przytrzymaj) = przesuń</span>
+        </div>
+        <!-- Canvas -->
+        <div id="edCanvasPlaceholder" style="background:#f3f4f6;border-radius:8px;padding:24px;text-align:center;color:#9ca3af;font-size:13px">
+          📄 Wgraj master PDF aby edytować pola wizualnie
+        </div>
+        <!-- Scrollable canvas outer -->
+        <div id="edCanvasOuter" style="display:none;overflow:auto;flex:1;min-height:280px;border-radius:6px;background:#e5e7eb;cursor:crosshair">
+          <div id="edCanvasWrap" class="canvas-wrap" style="display:inline-block;position:relative;cursor:crosshair"
+               onmousedown="cmDown(event)" onmousemove="cmMove(event)"
+               onmouseup="cmUp(event)" onmouseleave="cmUp(event)">
+            <img id="edCanvasImg" src="" alt="" style="display:block;pointer-events:none">
+            <div id="edRects"></div>
+            <div id="edDrawRect" class="draw-rect" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: field list -->
+      <div class="editor-right">
+        <div class="er-top">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:#1a1a2e;text-transform:uppercase">
+              Pola (<span id="edFieldCount">0</span>)
+            </span>
+            <span style="font-size:9px;color:#6b7280">
+              <span id="edCountAnalyze" style="color:#15803d"></span>
+              <span id="edCountSkip" style="color:#9ca3af;margin-left:4px"></span>
+            </span>
+          </div>
+          <div class="sfe" id="edFieldEditor" style="display:none">
+            <div class="fg" style="margin-bottom:5px">
+              <label>Nazwa</label>
+              <input id="edFName" oninput="updateSelField('display_name',this.value);renderRects()">
+            </div>
+            <div class="fg" style="margin-bottom:5px">
+              <label>Krytyczność</label>
+              <select id="edFSev" onchange="updateSelField('severity',this.value);renderRects()">
+                <option value="critical">🔴 Krytyczne</option>
+                <option value="important">🟡 Ważne</option>
+                <option value="info">🔵 Info</option>
+              </select>
+            </div>
+            <div class="fg" style="margin-bottom:5px">
+              <label>Wiersz rozmiaru</label>
+              <select id="edFSize" onchange="updateSelField('size_label',this.value);renderRects()">
+                <option value="">— brak —</option>
+                <option>XS</option><option>S</option><option>M</option>
+                <option>L</option><option>XL</option><option>XXL</option><option>XXXL</option>
+              </select>
+            </div>
+            <!-- Skip/include toggle -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;padding:6px 8px;
+                 border-radius:5px;background:#f9fafb;border:1px solid #e5e7eb">
+              <span style="font-size:11px;font-weight:600;flex:1">Tryb analizy</span>
+              <button type="button" id="edFSkipBtn" onclick="toggleSkip()"
+                style="padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid"></button>
+            </div>
+            <div id="edFCoords" style="font-size:9px;color:#9ca3af;font-family:monospace;margin-bottom:5px"></div>
+            <button type="button" class="btn btn-danger btn-sm" onclick="delSelField()">🗑 Usuń pole</button>
+          </div>
+        </div>
+        <div class="er-fields" id="edFieldList"></div>
+        <div class="er-bot">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="edActive"> Aktywny
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button type="button" class="btn btn-danger btn-sm" onclick="deleteProfile()">🗑 Usuń master</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="edSaveErr" style="font-size:11px;color:#dc2626"></span>
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeEditor()">Anuluj</button>
+        <button type="button" class="btn btn-primary btn-sm" id="edSaveBtn" onclick="saveEdit()">💾 Zapisz</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ FIELD PICKER -->
+<div id="fpOverlay" style="display:none;position:fixed;inset:0;z-index:1100" onclick="hideFieldPicker()"></div>
+<div id="fpBox" class="fp-box" style="display:none;top:50%;left:50%;transform:translate(-50%,-50%)">
+  <div style="padding:10px 12px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;flex-shrink:0">
+    <span style="font-size:13px;font-weight:700;flex:1">📌 Wybierz strefę</span>
+    <button type="button" onclick="hideFieldPicker()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;line-height:1">×</button>
+  </div>
+  <div class="fp-search">
+    <input id="fpSearch" placeholder="Szukaj strefy…" oninput="renderFpList()" onkeydown="fpKeydown(event)">
+  </div>
+  <div class="fp-list" id="fpList"></div>
+</div>
+
+<!-- ═══════════════════════════════════════ UPLOAD QUEUE PANEL -->
+<div id="queuePanel" style="display:none;position:fixed;bottom:16px;right:16px;width:360px;
+     background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.15);
+     z-index:500;max-height:50vh;display:flex;flex-direction:column;">
+  <div style="padding:10px 14px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;flex-shrink:0">
+    <span style="font-size:13px;font-weight:700;flex:1">⬆ Kolejka uploadów</span>
+    <button type="button" class="btn btn-primary btn-sm" id="qRunBtn" onclick="runUpload()">⬆ Wgraj mastery</button>
+    <button type="button" class="btn btn-outline btn-sm" onclick="clearQueue()">✕</button>
+  </div>
+  <div id="queueList" style="overflow-y:auto;padding:8px;flex:1"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════ STATE
+var _profiles = [];       // all profiles from API
+var _currentPath = '';    // current folder path
+var _mapFilter = 'all';   // 'all' | 'mapped' | 'unmapped' — filtr widoku mapowania
+function setMapFilter(v){ _mapFilter = (_mapFilter === v ? 'all' : v); renderContent(); }
+var _queue = [];          // upload queue
+var _uploading = false;
+var _editorId = null;
+var _edThumb = '';   // thumb_b64 of current profile — fallback when canvas fails
+var _edFields = [];
+var _edSelectedIdx = null;
+var _edDrag = null;
+var _edDrawing = false;
+var _edDraw = null;
+var _edDrawRect = {x1:0,y1:0,x2:0,y2:0};
+var _edRefs = [];
+var _zoom = 1.0;
+var _fitWidth = 0;
+var _natW = 0;
+
+// DB-based fields from "Słownik pól" tab — loaded at init, shown first in picker
+var _dbDictFields = [];  // [{id, display_name, default_severity}]
+
+// ═══════════════════════════════════════════════════════════ INIT
+async function libInit() {
+  await Promise.all([loadProfiles(), loadDbDictFields()]);
+  renderTree();
+  renderContent();
+  loadStorageInfo();
+}
+
+async function loadDbDictFields() {
+  try {
+    const res = await fetch('/api/artwork/field-dict');
+    const d = await res.json();
+    _dbDictFields = (d.items || []).filter(f => f.in_dict).map(f => ({
+      id: 'dict_' + (f.display_name||'').toLowerCase().replace(/\s+/g,'_').replace(/[^\w]/g,''),
+      display_name: f.display_name,
+      severity: f.default_severity || 'critical',
+      display_layout: f.display_layout || 'side_by_side',
+    }));
+  } catch(e) { _dbDictFields = []; }
+}
+
+async function loadStorageInfo() {
+  const el = document.getElementById('libStorageTxt'); if (!el) return;
+  try {
+    const r = await fetch('/api/artwork/masters/storage-info');
+    const d = await r.json();
+    const mb = d.total_mb||0;
+    const freeGb = d.disk_free_gb != null ? ` · wolne: ${d.disk_free_gb} GB` : '';
+    el.textContent = `${mb} MB (${(d.files||[]).length} plików)${freeGb}`;
+  } catch(e) { el.textContent = 'brak danych'; }
+}
+
+async function loadProfiles() {
+  try {
+    const r = await fetch('/api/artwork/profiles');
+    const d = await r.json();
+    _profiles = Array.isArray(d) ? d : (d.profiles || []);
+  } catch(e) {
+    document.getElementById('libBody').innerHTML =
+      '<div class="empty-state" style="color:#dc2626">Błąd ładowania: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════ NAVIGATION
+function navigate(path) {
+  _currentPath = path;
+  document.getElementById('libSearch').value = '';
+  renderTree();
+  renderContent();
+}
+
+function newFolderPrompt() {
+  const base = _currentPath ? _currentPath + '/' : '';
+  const name = prompt('Nazwa nowego folderu:', base);
+  if (!name || !name.trim()) return;
+  const path = name.trim().replace(/^\/|\/$/g,'');
+  navigate(path);
+}
+
+// ═══════════════════════════════════════════════════════════ TREE
+function buildTree(parentPath) {
+  const prefix = parentPath ? parentPath + '/' : '';
+  const map = new Map();
+  for (const p of _profiles) {
+    const fp = (p.folder_path || '').trim();
+    if (fp === parentPath || !fp.startsWith(prefix)) continue;
+    const seg = fp.slice(prefix.length).split('/')[0];
+    if (!seg) continue;
+    const childPath = prefix + seg;
+    if (!map.has(childPath)) map.set(childPath, {path:childPath, name:seg, count:0, mapped:0});
+    const n = map.get(childPath); n.count++; if (p.field_count > 0) n.mapped++;
+  }
+  return [...map.values()].sort((a,b) => a.name.localeCompare(b.name,'pl'));
+}
+
+function renderTreeNodes(nodes, depth) {
+  return nodes.map(n => {
+    const active = _currentPath === n.path;
+    const children = buildTree(n.path);
+    return `<div>
+      <div class="tree-row${active?' active':''}" style="padding-left:${8+depth*16}px"
+           onclick="_nav('${esc(escJS(n.path))}')">
+        <span class="tree-icon">${children.length?'📂':'📁'}</span>
+        <span class="tree-name">${esc(n.name)}</span>
+        <span class="tree-count">${n.count}</span>
+      </div>
+      <div class="tree-children">${renderTreeNodes(children, depth+1)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTree() {
+  const nodes = buildTree('');
+  const rootActive = _currentPath === '';
+  document.getElementById('libTree').innerHTML =
+    `<div class="tree-row${rootActive?' active':''}" onclick="_nav('')">
+       <span class="tree-icon">🏠</span>
+       <span class="tree-name">Wszystkie mastery</span>
+       <span class="tree-count">${_profiles.length}</span>
+     </div>` + renderTreeNodes(nodes, 0);
+  const mapped = _profiles.filter(p=>p.field_count>0).length;
+  document.getElementById('libSbFoot').textContent =
+    _profiles.length + ' masterów · ' + mapped + ' zmapowanych';
+}
+
+function _nav(path) { navigate(path); }
+
+// ═══════════════════════════════════════════════════════════ MAIN CONTENT
+function renderContent() {
+  const q = document.getElementById('libSearch').value.toLowerCase();
+  const body = document.getElementById('libBody');
+
+  // Breadcrumb
+  const segs = _currentPath ? _currentPath.split('/') : [];
+  let bc = `<span class="bc-link" onclick="_nav('')">🏠 Główna</span>`;
+  segs.forEach((s, i) => {
+    bc += `<span class="bc-sep"> / </span>`;
+    if (i < segs.length-1)
+      bc += `<span class="bc-link" onclick="_nav('${esc(escJS(segs.slice(0,i+1).join('/')))}')">${esc(s)}</span>`;
+    else bc += `<span class="bc-cur">${esc(s)}</span>`;
+  });
+  document.getElementById('libBc').innerHTML = bc;
+
+  let html = '';
+
+  if (!q) {
+    // Stats (root only)
+    if (!_currentPath) {
+      const total = _profiles.length;
+      const mapped = _profiles.filter(p=>p.field_count>0).length;
+      const uses = _profiles.reduce((s,p)=>s+(p.use_count||0),0);
+      html += `<div class="stats-row">
+        <div class="stat-box" style="cursor:pointer${_mapFilter==='all'?';outline:2px solid #15803d':''}" onclick="setMapFilter('all')"><div class="stat-num" style="color:#15803d">${total}</div><div class="stat-lbl">Wszystkich</div></div>
+        <div class="stat-box" style="cursor:pointer${_mapFilter==='mapped'?';outline:2px solid #1d4ed8':''}" onclick="setMapFilter('mapped')"><div class="stat-num" style="color:#1d4ed8">${mapped}</div><div class="stat-lbl">Zmapowanych</div></div>
+        <div class="stat-box" style="cursor:pointer${_mapFilter==='unmapped'?';outline:2px solid #b45309':''}" onclick="setMapFilter('unmapped')"><div class="stat-num" style="color:#b45309">${total-mapped}</div><div class="stat-lbl">Do mapowania ⚠</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:#c2410c">${uses}</div><div class="stat-lbl">Porównania</div></div>
+      </div>`;
+    }
+    // Subfolders
+    const subfolders = buildTree(_currentPath);
+    if (subfolders.length) {
+      html += `<p class="section-head">Podfoldery</p><div class="folder-grid">`;
+      subfolders.forEach(sf => {
+        html += `<div class="folder-card" onclick="_nav('${esc(escJS(sf.path))}')">
+          <div style="font-size:28px">📁</div>
+          <div><div class="folder-card-name">${esc(sf.name)}</div>
+          <div class="folder-card-meta">${sf.count} masterów${sf.mapped?' · '+sf.mapped+' zmapowanych':''}</div></div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+  }
+
+  // Masters
+  let masters = _profiles.filter(p => {
+    const fp = (p.folder_path || '').trim();
+    let base;
+    if (q) {
+      const refs = parseRefs(p.ref_list_json);
+      base = p.name.toLowerCase().includes(q) || (p.ean||'').includes(q) ||
+             refs.some(r=>r.toLowerCase().includes(q));
+    } else if (_mapFilter !== 'all') {
+      base = true;   // filtr po statusie mapowania działa na WSZYSTKICH folderach
+    } else {
+      base = fp === _currentPath;
+    }
+    if (!base) return false;
+    if (_mapFilter === 'mapped') return p.field_count > 0;
+    if (_mapFilter === 'unmapped') return p.field_count === 0;
+    return true;
+  }).sort((a,b) => a.name.localeCompare(b.name,'pl'));
+
+  const sectionLabel = q ? `Wyniki: ${masters.length}` : `Mastery: ${masters.length}`;
+  html += `<p class="section-head" style="margin-top:${q?'0':'0'}">${sectionLabel}</p>`;
+
+  if (!masters.length && !_queue.length) {
+    html += `<div class="empty-state">
+      <div style="font-size:36px;margin-bottom:8px">📭</div>
+      <div>${q ? 'Brak wyników dla "'+esc(q)+'"' : 'Folder pusty — wgraj mastery przyciskiem ⬆ powyżej'}</div>
+    </div>`;
+  } else {
+    html += `<div class="cards-grid">`;
+    masters.forEach(p => {
+      const refs = parseRefs(p.ref_list_json).slice(0,2);
+      const thumbSrc = `/api/artwork/profiles/${p.id}/thumb`;
+      const thumbEl = p.has_thumb
+        ? `<img class="card-thumb" src="${thumbSrc}" loading="lazy" alt="" onerror="this.style.display='none'">`
+        : `<div class="card-thumb-empty">📄</div>`;
+      const mBadge = p.field_count > 0
+        ? `<div class="mapped-badge mapped-yes">✓ ${p.field_count} pól</div>`
+        : `<div class="mapped-badge mapped-no">⚠ brak mapy</div>`;
+      const refBadges = refs.map(r=>`<span class="badge bg-purple" style="font-size:9px">${esc(r)}</span>`).join('');
+      const eanBadge = p.ean ? `<span class="badge bg-gray" style="font-size:9px;font-family:monospace">${esc(p.ean)}</span>` : '';
+      const useBadge = p.use_count > 0 ? `<span class="badge bg-blue">▶ ${p.use_count}×</span>` : '';
+      html += `<div class="master-card${p.field_count===0?' unmapped':''}" onclick="openEditor(${p.id})">
+        ${mBadge}${thumbEl}
+        <div class="card-body">
+          <div class="card-name" title="${esc(p.name)}">${esc(p.name)}</div>
+          <div class="card-badges">${eanBadge}${refBadges}</div>
+          <div class="card-meta">${useBadge}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Upload drop zone
+  html += `<div class="upload-zone" id="uploadZone"
+    ondragover="event.preventDefault();this.classList.add('drag-over')"
+    ondragleave="this.classList.remove('drag-over')"
+    ondrop="event.preventDefault();this.classList.remove('drag-over');onDrop(event)"
+    onclick="document.getElementById('bulkFileInput').click()">
+    <div style="font-size:28px">📦</div>
+    <p>Przeciągnij PDF-y masterów tutaj lub kliknij<br>
+    <strong>${esc(_currentPath || 'Katalog główny')}</strong></p>
+  </div>`;
+
+  body.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════ UPLOAD
+function onFilesSelected(input) {
+  const files = [...input.files].filter(f => f.name.toLowerCase().endsWith('.pdf'));
+  input.value = '';
+  if (!files.length) return;
+  addToQueue(files);
+}
+
+function onDrop(evt) {
+  const files = [...evt.dataTransfer.files].filter(f => f.name.toLowerCase().endsWith('.pdf'));
+  addToQueue(files);
+}
+
+function addToQueue(files) {
+  files.forEach(f => {
+    if (!_queue.find(q => q.filename === f.name))
+      _queue.push({ filename: f.name, file: f, status: 'pending', error:'', ref:'', ean:'', field_count:0 });
+  });
+  showQueuePanel();
+}
+
+function showQueuePanel() {
+  const panel = document.getElementById('queuePanel');
+  panel.style.display = 'flex';
+  renderQueueList();
+}
+
+function renderQueueList() {
+  const pending = _queue.filter(q=>q.status==='pending').length;
+  const btn = document.getElementById('qRunBtn');
+  if (btn) btn.disabled = _uploading || pending === 0;
+
+  document.getElementById('queueList').innerHTML = _queue.map((q,i) => `
+    <div class="q-item">
+      <div style="width:36px;height:44px;background:#f3f4f6;border-radius:3px;border:1px solid #e5e7eb;
+           flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">📄</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px">${esc(q.filename)}</div>
+        ${q.ref||q.ean ? `<div style="font-size:10px;color:#6b7280">${q.ref?'REF: '+esc(q.ref):''}${q.ean?' | EAN: '+esc(q.ean):''}</div>` : ''}
+        ${q.status==='processing' ? '<div class="q-bar"><div class="q-fill" style="width:60%"></div></div>' : ''}
+        ${q.error ? `<div style="font-size:10px;color:#dc2626">${esc(q.error)}</div>` : ''}
+      </div>
+      <span class="badge ${q.status==='pending'?'bg-gray':q.status==='processing'?'bg-blue':q.status==='ok'?'bg-green':'bg-red'}">${
+        {pending:'⏳',processing:'⬆…',ok:'✓',error:'✗'}[q.status]||q.status}</span>
+    </div>`).join('');
+}
+
+function clearQueue() {
+  if (_uploading) return;
+  _queue = [];
+  document.getElementById('queuePanel').style.display = 'none';
+}
+
+async function runUpload() {
+  if (_uploading) return;
+  _uploading = true;
+  const pending = _queue.filter(q => q.status === 'pending');
+  let firstPid = null;
+  for (const item of pending) {
+    item.status = 'processing'; renderQueueList();
+    try {
+      const fd = new FormData();
+      fd.append('files[]', item.file, item.filename);
+      fd.append('folder_path', _currentPath);
+      const res = await fetch('/api/artwork/masters/upload', { method:'POST', body:fd });
+      const d = await res.json();
+      if (d.results && d.results[0]) {
+        const r = d.results[0];
+        item.status = r.status; item.error = r.error||'';
+        item.ref = r.ref||''; item.ean = r.ean||''; item.field_count = r.field_count||0;
+        if (r.status === 'ok' && r.pid && !firstPid) firstPid = r.pid;
+      } else { item.status = 'error'; item.error = d.error||'Nieznany błąd'; }
+    } catch(e) { item.status = 'error'; item.error = e.message; }
+    renderQueueList();
+  }
+  _uploading = false;
+  await loadProfiles(); renderTree(); renderContent(); renderQueueList();
+  // Auto-open editor for first successfully uploaded profile
+  if (firstPid) openEditor(firstPid);
+}
+
+// ═══════════════════════════════════════════════════════════ EDITOR
+async function openEditor(pid) {
+  _editorId = pid; _edThumb = ''; _edFields = []; _edSelectedIdx = null;
+  _edRefs = []; _edDrawing = false; _edDrag = null;
+  document.getElementById('edAiStatus').textContent = '';
+  document.getElementById('edSaveErr').textContent = '';
+  document.getElementById('edCanvasOuter').style.display = 'none';
+  document.getElementById('edCanvasWrap').style.display = 'none';
+  document.getElementById('edCanvasPlaceholder').style.display = 'block';
+  document.getElementById('edZoomBar').style.display = 'none';
+  document.getElementById('edAiBtn').style.display = 'none';
+  document.getElementById('edReloadBtn').style.display = 'none';
+  document.getElementById('edLoadBtn').style.display = '';
+  _zoom = 1.0; _fitWidth = 0; _natW = 0;
+
+  const res = await fetch(`/api/artwork/profiles/${pid}`);
+  const d = await res.json();
+  _edThumb = d.thumb_b64 || '';
+
+  document.getElementById('edTitle').textContent = d.name || 'Edycja mastera';
+  const pdfName = d.master_pdf_path ? d.master_pdf_path.split('/').pop().split('\\').pop() : '';
+  const pdfInfo = pdfName
+    ? ` · <a href="/api/artwork/masters/download/${pid}" target="_blank"
+           style="color:#1d4ed8;text-decoration:underline" title="${esc(pdfName)}" rel="noopener noreferrer">📄 Pobierz PDF</a>`
+    : '';
+  document.getElementById('edSubtitle').innerHTML =
+    (d.folder_path ? '📁 ' + esc(d.folder_path) : '📁 Katalog główny') +
+    ' · ' + (d.fields||[]).length + ' pól bbox' +
+    (d.use_count > 0 ? ' · ▶ ' + d.use_count + '×' : '') +
+    pdfInfo;
+  document.getElementById('edFolder').value = d.folder_path || '';
+  document.getElementById('edEan').value = d.ean || '';
+  document.getElementById('edActive').checked = !!d.is_active;
+
+  _edRefs = parseRefs(d.ref_list_json);
+  renderEdRefs();
+
+  _edFields = (d.fields||[]).map(f=>({...f}));
+  renderFieldList(); updateMappedBadge();
+
+  // Load canvas: try full-res PDF render first; if canvas endpoint fails (no PDF on disk),
+  // it falls back server-side to thumb_b64. If profile has no master at all, use inline thumb.
+  if (d.master_pdf_path) {
+    showCanvas(`/api/artwork/profiles/${pid}/canvas`);
+  } else if (d.thumb_b64) {
+    showCanvas('data:image/jpeg;base64,' + d.thumb_b64);
+    document.getElementById('edAiStatus').textContent =
+      '⚠ Brak pliku PDF — podgląd z miniatury. Załaduj PDF aby edytować strefy.';
+    document.getElementById('edLoadBtn').style.display = '';
+  }
+
+  document.getElementById('editorOverlay').classList.remove('hidden');
+}
+
+function closeEditor() {
+  document.getElementById('editorOverlay').classList.add('hidden');
+}
+
+function _showCanvasError() {
+  document.getElementById('edCanvasPlaceholder').style.display = 'block';
+  document.getElementById('edCanvasOuter').style.display = 'none';
+  document.getElementById('edCanvasWrap').style.display = 'none';
+  document.getElementById('edZoomBar').style.display = 'none';
+  document.getElementById('edAiBtn').style.display = 'none';
+  document.getElementById('edReloadBtn').style.display = 'none';
+  document.getElementById('edLoadBtn').style.display = '';
+  document.getElementById('edAiStatus').textContent =
+    '⚠ Brak podglądu. Załaduj plik PDF ponownie używając przycisku poniżej.';
+}
+
+function showCanvas(url) {
+  const img = document.getElementById('edCanvasImg');
+  img.onload = function() {
+    const outer = document.getElementById('edCanvasOuter');
+    const outerW = outer.clientWidth || outer.offsetWidth || 700;
+    _natW = img.naturalWidth || outerW;
+    _fitWidth = _natW;
+    // Large images: fit to container. Small images: 1:1 (no CSS upscaling).
+    _zoom = _natW > outerW ? outerW / _natW : 1.0;
+    document.getElementById('edCanvasWrap').style.width = Math.round(_fitWidth * _zoom) + 'px';
+    document.getElementById('edZoomLabel').textContent = Math.round(_zoom * 100) + '%';
+    document.getElementById('edZoomBar').style.display = 'flex';
+    renderRects();
+  };
+  img.onerror = function() {
+    // Canvas failed (PDF missing on disk and thumb_b64 not in DB).
+    // Try inline thumb already received in openEditor() response.
+    if (_edThumb) {
+      img.onerror = function() { _showCanvasError(); };
+      img.src = 'data:image/jpeg;base64,' + _edThumb;
+      document.getElementById('edAiStatus').textContent =
+        '⚠ Podgląd z miniatury — plik PDF nie istnieje na dysku. Załaduj PDF aby edytować strefy.';
+      document.getElementById('edLoadBtn').style.display = '';
+    } else {
+      _showCanvasError();
+    }
+  };
+  img.src = url;
+  document.getElementById('edCanvasPlaceholder').style.display = 'none';
+  document.getElementById('edCanvasOuter').style.display = 'block';
+  document.getElementById('edCanvasWrap').style.display = 'block';
+  document.getElementById('edAiBtn').style.display = '';
+  document.getElementById('edReloadBtn').style.display = '';
+  document.getElementById('edLoadBtn').style.display = 'none';
+}
+
+async function onEditorPdf(input) {
+  const file = input.files[0]; if (!file) return;
+  input.value = '';
+  document.getElementById('edAiStatus').textContent = 'Renderowanie…';
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    // If editing an existing profile, save the PDF permanently (attach to profile)
+    // so master_pdf_path is updated and survives redeployment.
+    // For new profiles (no _editorId yet), fall back to render-blank preview only.
+    const url = _editorId
+      ? `/api/artwork/profiles/${_editorId}/master`
+      : '/api/artwork/profiles/render-blank';
+    const res = await fetch(url, {method:'POST', body:fd});
+    const d = await res.json();
+    if (d.image_b64) {
+      showCanvas('data:image/jpeg;base64,' + d.image_b64);
+      const saved = _editorId ? ' Plik zapisany trwale.' : '';
+      document.getElementById('edAiStatus').textContent = `PDF załadowany.${saved} Kliknij "Wykryj pola AI".`;
+    } else document.getElementById('edAiStatus').textContent = '⚠ ' + (d.error||'Błąd renderowania');
+  } catch(e) { document.getElementById('edAiStatus').textContent = 'Błąd: ' + e.message; }
+}
+
+let _aiDetectConfirmed = false;
+async function runAiDetect() {
+  const imgSrc = document.getElementById('edCanvasImg').src;
+  if (!imgSrc) return;
+  // Płatna operacja AI (Claude Vision) — potwierdź przed uruchomieniem.
+  if (!_aiDetectConfirmed) {
+    confirmModal('Wykrywanie pól przez AI (Claude) wygeneruje koszt API. Kontynuować?',
+      function(){ _aiDetectConfirmed = true; runAiDetect().finally(function(){ _aiDetectConfirmed = false; }); },
+      {okLabel:'Tak, wykryj', danger:false, title:'Płatna operacja AI'});
+    return;
+  }
+  const btn = document.getElementById('edAiBtn');
+  btn.disabled = true; btn.textContent = '⏳ Claude analizuje…';
+  document.getElementById('edAiStatus').textContent = '';
+  try {
+    const blob = await fetch(imgSrc).then(r=>r.blob());
+    const fd = new FormData(); fd.append('file', blob, 'artwork.jpg');
+    const res = await fetch('/api/artwork/profiles/ai-detect-image', {method:'POST', body:fd});
+    const d = await res.json();
+    if (d.ok) {
+      _edFields = d.fields; _edSelectedIdx = null;
+      renderRects(); renderFieldList(); updateMappedBadge();
+      document.getElementById('edAiStatus').textContent = `✅ AI wykryło ${d.fields.length} pól.`;
+    } else document.getElementById('edAiStatus').textContent = '⚠ ' + (d.error||'Błąd');
+  } catch(e) { document.getElementById('edAiStatus').textContent = 'Błąd: ' + e.message; }
+  btn.disabled = false; btn.textContent = '✨ Wykryj pola AI';
+}
+
+async function saveEdit() {
+  const btn = document.getElementById('edSaveBtn');
+  btn.disabled = true; btn.textContent = 'Zapisywanie…';
+  document.getElementById('edSaveErr').textContent = '';
+  const folder = document.getElementById('edFolder').value.trim().replace(/^\/|\/$/g,'');
+  const body = {
+    name: document.getElementById('edTitle').textContent,
+    ean: document.getElementById('edEan').value,
+    ref_code: _edRefs[0]||'', ref_list: _edRefs,
+    is_active: document.getElementById('edActive').checked ? 1 : 0,
+    folder_path: folder,
+    fields: _edFields.map(f=>({
+      field_name: f.field_name||f.display_name||'field',
+      display_name: f.display_name||f.field_name||'Field',
+      x1_pct: +parseFloat(f.x1_pct).toFixed(2), y1_pct: +parseFloat(f.y1_pct).toFixed(2),
+      x2_pct: +parseFloat(f.x2_pct).toFixed(2), y2_pct: +parseFloat(f.y2_pct).toFixed(2),
+      severity: f.severity||'critical', notes: f.notes||'', size_label: f.size_label||'',
+      skip_analysis: f.skip_analysis ? 1 : 0,
+    }))
+  };
+  try {
+    const res = await fetch(`/api/artwork/profiles/${_editorId}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (d.ok) {
+      if (folder) _currentPath = folder;
+      await loadProfiles(); renderTree(); renderContent();
+      closeEditor();
+    } else document.getElementById('edSaveErr').textContent = d.error||'Błąd';
+  } catch(e) { document.getElementById('edSaveErr').textContent = e.message; }
+  btn.disabled = false; btn.textContent = '💾 Zapisz';
+}
+
+async function deleteProfile() {
+  confirmModal('Usunąć tego mastera?', async () => {
+    await fetch(`/api/artwork/profiles/${_editorId}`, {method:'DELETE'});
+    await loadProfiles(); renderTree(); renderContent(); closeEditor();
+  }, {okLabel: 'Usuń', danger: true});
+}
+
+// ── REF tags ──
+function renderEdRefs() {
+  document.getElementById('edRefTags').innerHTML =
+    _edRefs.map((r,i)=>`<span class="ref-tag">${esc(r)}<button type="button" onclick="removeRef(${i})">×</button></span>`).join('') +
+    '<input id="edRefTagInput" class="ref-input" placeholder="REF…" style="flex:1" ' +
+    'onkeydown="if(event.key===\'Enter\'||event.key===\',\'){event.preventDefault();addRef()}" onblur="addRef()">';
+}
+function addRef() {
+  const inp = document.getElementById('edRefNew') || document.getElementById('edRefTagInput');
+  if (!inp) return;
+  const v = inp.value.trim().replace(/,$/,'');
+  if (!v) return;
+  v.split(/[,;\n]+/).map(s=>s.trim()).filter(Boolean).forEach(r=>{
+    if (!_edRefs.includes(r)) _edRefs.push(r);
+  });
+  inp.value = '';
+  renderEdRefs();
+}
+function removeRef(i) { _edRefs.splice(i,1); renderEdRefs(); }
+
+// ── Field list ──
+function renderFieldList() {
+  const cnt = _edFields.length;
+  const analyzeCnt = _edFields.filter(f=>!f.skip_analysis).length;
+  const skipCnt = _edFields.filter(f=>f.skip_analysis).length;
+  document.getElementById('edFieldCount').textContent = cnt;
+  const aEl = document.getElementById('edCountAnalyze');
+  const sEl = document.getElementById('edCountSkip');
+  if (aEl) aEl.textContent = analyzeCnt ? analyzeCnt+' analizuj' : '';
+  if (sEl) sEl.textContent = skipCnt ? skipCnt+' pomijaj' : '';
+  document.getElementById('edFieldList').innerHTML = _edFields.map((f,i)=>`
+    <div class="fi${_edSelectedIdx===i?' active':''}${f.skip_analysis?' skip-item':''}" onclick="selectField(${i})">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:3px">
+        <div class="fi-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${esc(f.display_name||f.field_name||'Pole '+i)}</div>
+        ${f.size_label?`<span class="badge" style="font-size:9px;background:#3b82f6;color:#fff;flex-shrink:0">${esc(f.size_label)}</span>`:''}
+        <span class="badge ${f.severity==='critical'?'bg-red':f.severity==='important'?'bg-yellow':'bg-gray'}" style="font-size:9px;flex-shrink:0">
+          ${f.severity==='critical'?'KR':f.severity==='important'?'W':'I'}</span>
+      </div>
+      <div class="fi-coords">${fCStr(f)}</div>
+    </div>`).join('');
+}
+
+function selectField(i) {
+  _edSelectedIdx = i;
+  renderRects(); renderFieldList();
+  const f = _edFields[i];
+  if (!f) return;
+  document.getElementById('edFieldEditor').style.display = 'block';
+  document.getElementById('edFName').value = f.display_name||f.field_name||'';
+  document.getElementById('edFSev').value = f.severity||'critical';
+  document.getElementById('edFSize').value = f.size_label||'';
+  document.getElementById('edFCoords').textContent = fCStr(f);
+  updateSkipBtn(f.skip_analysis ? 1 : 0);
+}
+
+function updateSelField(key, val) {
+  if (_edSelectedIdx === null || !_edFields[_edSelectedIdx]) return;
+  _edFields[_edSelectedIdx][key] = val;
+  renderFieldList();
+  if (key !== 'display_name') document.getElementById('edFCoords').textContent = fCStr(_edFields[_edSelectedIdx]);
+}
+
+function delSelField() {
+  if (_edSelectedIdx === null) return;
+  _edFields.splice(_edSelectedIdx, 1);
+  _edSelectedIdx = null;
+  document.getElementById('edFieldEditor').style.display = 'none';
+  renderRects(); renderFieldList(); updateMappedBadge();
+}
+
+function updateMappedBadge() {
+  const active = _edFields.filter(f=>!f.skip_analysis).length;
+  const b = document.getElementById('edMappedBadge');
+  b.className = 'badge ' + (active>0?'bg-green':'bg-yellow');
+  b.textContent = active>0 ? '✓ '+active+' pól' : '⚠ Brak mapy';
+}
+
+function fCStr(f) {
+  return `${(+f.x1_pct).toFixed(1)}% ${(+f.y1_pct).toFixed(1)}% → ${(+f.x2_pct).toFixed(1)}% ${(+f.y2_pct).toFixed(1)}%`;
+}
+
+// ── Canvas bbox editor ──
+function renderRects() {
+  const wrap = document.getElementById('edRects'); if (!wrap) return;
+  wrap.innerHTML = _edFields.map((f,i)=>{
+    const sel = _edSelectedIdx === i;
+    const skip = f.skip_analysis ? 1 : 0;
+    const handles = sel ? ['nw','n','ne','w','e','sw','s','se'].map(h=>
+      `<div class="rh rh-${h}" onmousedown="startResize(event,${i},'${h}')"></div>`).join('') : '';
+    return `<div class="f-rect sev-${f.severity||'critical'}${sel?' selected':''}${skip?' skip':''}"
+      style="left:${f.x1_pct}%;top:${f.y1_pct}%;width:${f.x2_pct-f.x1_pct}%;height:${f.y2_pct-f.y1_pct}%"
+      onmousedown="startMove(event,${i})">
+      <div class="f-label">${esc((f.size_label?f.size_label+' · ':'')+(f.display_name||f.field_name||''))}</div>
+      ${handles}
+    </div>`;
+  }).join('');
+}
+
+function getPct(evt) {
+  const wrap = document.getElementById('edCanvasWrap'); if (!wrap) return {x:0,y:0};
+  const r = wrap.getBoundingClientRect();
+  return { x: Math.max(0,Math.min(100,(evt.clientX-r.left)/r.width*100)),
+           y: Math.max(0,Math.min(100,(evt.clientY-r.top)/r.height*100)) };
+}
+
+function cmDown(evt) {
+  if (evt.button !== 0) return;
+  const p = getPct(evt);
+  let hit = null;
+  for (let i = _edFields.length-1; i >= 0; i--) {
+    const f = _edFields[i];
+    if (p.x>=f.x1_pct && p.x<=f.x2_pct && p.y>=f.y1_pct && p.y<=f.y2_pct) { hit=i; break; }
+  }
+  if (hit !== null) { selectField(hit); }
+  else {
+    _edSelectedIdx = null;
+    document.getElementById('edFieldEditor').style.display = 'none';
+    renderRects(); renderFieldList();
+    _edDrawing = true; _edDraw = {x:p.x,y:p.y}; _edDrawRect = {x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+    const dr = document.getElementById('edDrawRect');
+    dr.style.cssText = `display:block;left:${p.x}%;top:${p.y}%;width:0;height:0`;
+  }
+}
+
+function cmMove(evt) {
+  if (_edDrag) {
+    const p=getPct(evt), dx=p.x-_edDrag.sx, dy=p.y-_edDrag.sy;
+    const f=_edFields[_edDrag.i], o=_edDrag.o;
+    if (_edDrag.t==='move') {
+      const w=o.x2_pct-o.x1_pct, h=o.y2_pct-o.y1_pct;
+      f.x1_pct=Math.max(0,Math.min(100-w,o.x1_pct+dx)); f.y1_pct=Math.max(0,Math.min(100-h,o.y1_pct+dy));
+      f.x2_pct=f.x1_pct+w; f.y2_pct=f.y1_pct+h;
+    } else {
+      const h=_edDrag.h;
+      if(h.includes('w')) f.x1_pct=Math.max(0,Math.min(o.x2_pct-1,o.x1_pct+dx));
+      if(h.includes('e')) f.x2_pct=Math.max(o.x1_pct+1,Math.min(100,o.x2_pct+dx));
+      if(h.includes('n')) f.y1_pct=Math.max(0,Math.min(o.y2_pct-1,o.y1_pct+dy));
+      if(h.includes('s')) f.y2_pct=Math.max(o.y1_pct+1,Math.min(100,o.y2_pct+dy));
+    }
+    renderRects();
+    if (document.getElementById('edFCoords')) document.getElementById('edFCoords').textContent = fCStr(f);
+    return;
+  }
+  if (_edDrawing && _edDraw) {
+    const p = getPct(evt);
+    _edDrawRect = {x1:Math.min(_edDraw.x,p.x),y1:Math.min(_edDraw.y,p.y),
+                   x2:Math.max(_edDraw.x,p.x),y2:Math.max(_edDraw.y,p.y)};
+    const dr = document.getElementById('edDrawRect');
+    const r = _edDrawRect;
+    dr.style.cssText = `display:block;left:${r.x1}%;top:${r.y1}%;width:${r.x2-r.x1}%;height:${r.y2-r.y1}%`;
+  }
+}
+
+var _pendingRect = null;
+
+function cmUp(evt) {
+  if (_edDrag) { _edDrag = null; return; }
+  if (_edDrawing) {
+    _edDrawing = false;
+    document.getElementById('edDrawRect').style.display = 'none';
+    const r = _edDrawRect;
+    if (r.x2-r.x1 > 1 && r.y2-r.y1 > 1) {
+      _pendingRect = {
+        x1_pct: Math.round(r.x1*10)/10, y1_pct: Math.round(r.y1*10)/10,
+        x2_pct: Math.round(r.x2*10)/10, y2_pct: Math.round(r.y2*10)/10
+      };
+      showFieldPicker();
+    }
+    _edDraw = null;
+  }
+}
+
+function startMove(evt, i) {
+  evt.preventDefault(); evt.stopPropagation();
+  const p = getPct(evt); selectField(i);
+  _edDrag = {t:'move', i, sx:p.x, sy:p.y, o:{..._edFields[i]}};
+}
+function startResize(evt, i, h) {
+  evt.preventDefault(); evt.stopPropagation();
+  const p = getPct(evt);
+  _edDrag = {t:'resize', i, h, sx:p.x, sy:p.y, o:{..._edFields[i]}};
+}
+
+// ═══════════════════════════════════════════════════════════ ZOOM
+function setZoom(z) {
+  _zoom = Math.max(0.2, Math.min(10, z));
+  if (!_fitWidth) return;
+  const wrap = document.getElementById('edCanvasWrap');
+  wrap.style.width = Math.round(_fitWidth * _zoom) + 'px';
+  document.getElementById('edZoomLabel').textContent = Math.round(_zoom * 100) + '%';
+}
+function zoomIn()  { setZoom(_zoom * 1.3); }
+function zoomOut() { setZoom(_zoom / 1.3); }
+function zoomFit() {
+    const outer = document.getElementById('edCanvasOuter');
+    const outerW = outer.clientWidth || outer.offsetWidth || 700;
+    setZoom(_fitWidth ? outerW / _fitWidth : 1.0);
+}
+
+// Scroll wheel = zoom (no Ctrl required — fires only inside canvas area)
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    var outer = document.getElementById('edCanvasOuter');
+    if (outer) outer.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      setZoom(_zoom * (e.deltaY < 0 ? 1.15 : 0.87));
+    }, { passive: false });
+
+    // Right-mouse-button drag = pan the image (instead of using the scrollbars).
+    if (outer) {
+      var _pan = null;   // {x, y, sl, st}
+      outer.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+      outer.addEventListener('mousedown', function(e){
+        if (e.button !== 2) return;            // right button only
+        e.preventDefault();
+        _pan = {x:e.clientX, y:e.clientY, sl:outer.scrollLeft, st:outer.scrollTop};
+        outer.style.cursor = 'grabbing';
+      });
+      window.addEventListener('mousemove', function(e){
+        if (!_pan) return;
+        outer.scrollLeft = _pan.sl - (e.clientX - _pan.x);
+        outer.scrollTop  = _pan.st - (e.clientY - _pan.y);
+      });
+      window.addEventListener('mouseup', function(e){
+        if (_pan && e.button === 2) { _pan = null; outer.style.cursor = 'crosshair'; }
+      });
+    }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════ SKIP TOGGLE
+function updateSkipBtn(skip) {
+  var btn = document.getElementById('edFSkipBtn');
+  if (!btn) return;
+  if (skip) {
+    btn.textContent = '🙈 Pomijaj';
+    btn.style.cssText = 'padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid #9ca3af;background:#f3f4f6;color:#6b7280';
+  } else {
+    btn.textContent = '✅ Analizuj';
+    btn.style.cssText = 'padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid #16a34a;background:#dcfce7;color:#15803d';
+  }
+}
+function toggleSkip() {
+  if (_edSelectedIdx === null || !_edFields[_edSelectedIdx]) return;
+  var f = _edFields[_edSelectedIdx];
+  f.skip_analysis = f.skip_analysis ? 0 : 1;
+  updateSkipBtn(f.skip_analysis);
+  renderRects(); renderFieldList(); updateMappedBadge();
+}
+
+// ═══════════════════════════════════════════════════════════ FIELD DICTIONARY
+var FIELD_DICT = [
+  { cat: 'Identyfikacja produktu', sev: 'critical', fields: [
+    { id: 'logo_marki',            name: 'Logo marki (ACME)' },
+    { id: 'nazwa_produktu_glowna', name: 'Nazwa produktu — front' },
+    { id: 'nazwa_produktu_bok',    name: 'Nazwa produktu — bok (pionowo)' },
+    { id: 'typ_materialu',         name: 'Typ materiału (nitryl / latex)' },
+    { id: 'oznaczenie_bezpudrowy', name: 'Oznaczenie bezpudrowy' },
+    { id: 'slogan_lub_claim',      name: 'Slogan / claim' },
+  ]},
+  { cat: 'Rozmiary', sev: 'critical', fields: [
+    { id: 'aktualny_rozmiar_front',       name: 'Rozmiar — front (duży)', size_label: '' },
+    { id: 'aktualny_rozmiar_bok_lewy',    name: 'Rozmiar — bok lewy' },
+    { id: 'aktualny_rozmiar_bok_prawy',   name: 'Rozmiar — bok prawy' },
+    { id: 'aktualny_rozmiar_klapka',      name: 'Rozmiar — klapka' },
+    { id: 'zakres_rozmiaru',              name: 'Zakres rozmiaru (np. 5–6)' },
+    { id: 'tabela_rozmiarow_wiersz_xs',   name: 'Tabela rozmiarów — XS', size_label: 'XS' },
+    { id: 'tabela_rozmiarow_wiersz_s',    name: 'Tabela rozmiarów — S',  size_label: 'S'  },
+    { id: 'tabela_rozmiarow_wiersz_m',    name: 'Tabela rozmiarów — M',  size_label: 'M'  },
+    { id: 'tabela_rozmiarow_wiersz_l',    name: 'Tabela rozmiarów — L',  size_label: 'L'  },
+    { id: 'tabela_rozmiarow_wiersz_xl',   name: 'Tabela rozmiarów — XL', size_label: 'XL' },
+    { id: 'legenda_kolorow_rozmiarow',    name: 'Legenda kolorów rozmiarów (paleta)' },
+    { id: 'kolor_bloku_rozmiaru',         name: 'Kolor bloku rozmiaru (kafelek)' },
+  ]},
+  { cat: 'Kody identyfikacyjne', sev: 'critical', fields: [
+    { id: 'kod_ean13_barcode',     name: 'Kod EAN-13 — graficzny barcode' },
+    { id: 'kod_ean13_cyfry',       name: 'Kod EAN-13 — cyfry pod kodem' },
+    { id: 'numer_katalogowy_ref',  name: 'Numer katalogowy REF' },
+    { id: 'kod_qr',                name: 'Kod QR (UDI link)' },
+    { id: 'pole_lot',              name: 'Pole LOT (numer serii)' },
+    { id: 'pole_exp',              name: 'Pole EXP (data ważności)' },
+    { id: 'pole_mfg',              name: 'Pole MFG (data produkcji)' },
+    { id: 'udi_di',                name: 'UDI-DI (oddzielne pole)' },
+  ]},
+  { cat: 'Piktogramy compliance (ISO 15223)', sev: 'critical', fields: [
+    { id: 'symbol_ce',                      name: 'Symbol CE' },
+    { id: 'numer_jednostki_notyfikowanej',  name: 'Numer jednostki notyfikowanej (przy CE)' },
+    { id: 'symbol_md',                      name: 'Symbol Medical Device' },
+    { id: 'symbol_jednorazowego_uzytku',    name: 'Symbol jednorazowego użytku (2)' },
+    { id: 'symbol_niesterylny',             name: 'Symbol NON STERILE' },
+    { id: 'symbol_bez_lateksu',             name: 'Symbol bez lateksu' },
+    { id: 'symbol_producenta',              name: 'Symbol producenta (fabryka)' },
+    { id: 'symbol_importera_ec_rep',        name: 'Symbol importera / EC REP' },
+    { id: 'symbol_data_produkcji',          name: 'Symbol daty produkcji' },
+    { id: 'symbol_data_waznosci',           name: 'Symbol daty ważności (klepsydra)' },
+    { id: 'symbol_lot',                     name: 'Symbol LOT (partia)' },
+    { id: 'symbol_ref',                     name: 'Symbol REF (katalog)' },
+    { id: 'symbol_patrz_instrukcje',        name: 'Symbol — patrz instrukcje (IFU)' },
+    { id: 'symbol_warunki_przechowywania',  name: 'Symbol warunków przechowywania' },
+    { id: 'symbol_recykling',               name: 'Symbol recyklingu (Möbius + numer)' },
+  ]},
+  { cat: 'Piktogramy użytkowania', sev: 'important', fields: [
+    { id: 'piktogram_uzycia_1', name: 'Piktogram użycia 1' },
+    { id: 'piktogram_uzycia_2', name: 'Piktogram użycia 2' },
+    { id: 'piktogram_uzycia_3', name: 'Piktogram użycia 3' },
+    { id: 'piktogram_uzycia_4', name: 'Piktogram użycia 4' },
+    { id: 'piktogram_uzycia_5', name: 'Piktogram użycia 5' },
+    { id: 'numeracja_krokow',   name: 'Numeracja kroków (strzałki/cyfry)' },
+  ]},
+  { cat: 'Normy i AQL', sev: 'critical', fields: [
+    { id: 'wartosc_aql',            name: 'Wartość AQL (np. AQL 1.0)' },
+    { id: 'zgodnosc_norma_en455',   name: 'Zgodność normy EN 455' },
+    { id: 'zgodnosc_norma_en420',   name: 'Zgodność normy EN 420 / ISO 21420' },
+    { id: 'klasa_wyrobu',           name: 'Klasa wyrobu (Class I / IIa)' },
+    { id: 'ilosc_sztuk',            name: 'Ilość sztuk w opakowaniu' },
+  ]},
+  { cat: 'Bloki adresowe', sev: 'critical', fields: [
+    { id: 'blok_producenta',  name: 'Blok producenta (nazwa + adres)' },
+    { id: 'blok_importera',   name: 'Blok importera EU' },
+    { id: 'blok_ec_rep',      name: 'Blok EC REP (autoryzowany przedstawiciel)' },
+    { id: 'adres_www',        name: 'Strona WWW' },
+    { id: 'email_kontakt',    name: 'E-mail kontaktowy' },
+    { id: 'telefon_kontakt',  name: 'Telefon kontaktowy' },
+  ]},
+  { cat: 'Tłumaczenia', sev: 'important', fields: [
+    { id: 'tlumaczenia_pl_cz_sk', name: 'Tłumaczenia PL / CZ / SK' },
+    { id: 'tlumaczenia_en_de_fr', name: 'Tłumaczenia EN / DE / FR' },
+    { id: 'tlumaczenia_hu_ro',    name: 'Tłumaczenia HU / RO' },
+    { id: 'tlumaczenia_ar',       name: 'Tłumaczenia AR (arabski)' },
+    { id: 'opis_produktu_en',     name: 'Opis produktu EN' },
+    { id: 'opis_produktu_pl',     name: 'Opis produktu PL' },
+  ]},
+  { cat: 'Klapki i paski (strukturalne)', sev: 'info', fields: [
+    { id: 'klapka_gorna',    name: 'Klapka górna (top flap)' },
+    { id: 'klapka_dolna',    name: 'Klapka dolna (bottom flap)' },
+    { id: 'pasek_bok_lewy',  name: 'Pasek boczny lewy' },
+    { id: 'pasek_bok_prawy', name: 'Pasek boczny prawy' },
+    { id: 'klapki_boczne',   name: 'Klapki boczne (wsuwki)' },
+  ]},
+];
+
+// ─── Field picker ───
+function showFieldPicker() {
+  document.getElementById('fpSearch').value = '';
+  // Refresh DB dict fields in case user just added some
+  loadDbDictFields().then(renderFpList);
+  renderFpList();
+  document.getElementById('fpOverlay').style.display = 'block';
+  document.getElementById('fpBox').style.display = 'flex';
+  document.getElementById('fpBox').style.flexDirection = 'column';
+  setTimeout(()=>document.getElementById('fpSearch').focus(), 50);
+}
+
+function hideFieldPicker() {
+  document.getElementById('fpOverlay').style.display = 'none';
+  document.getElementById('fpBox').style.display = 'none';
+  _pendingRect = null;
+}
+
+function renderFpList() {
+  const q = (document.getElementById('fpSearch').value||'').toLowerCase();
+  const usedIds = new Set(_edFields.map(f=>f.field_name));
+  let html = '';
+  const dbItems = _dbDictFields.filter(f => !q || f.display_name.toLowerCase().includes(q));
+  if (dbItems.length) {
+    dbItems.forEach(f => {
+      const used = usedIds.has(f.id);
+      html += `<div class="fp-item${used?' used':''}" onclick="pickDbField('${esc(f.id)}','${esc(f.display_name)}','${esc(f.severity)}','${esc(f.display_layout||'side_by_side')}')">
+        <span class="fp-sev fp-sev-${f.severity}"></span>
+        <span style="flex:1">${esc(f.display_name)}</span>
+        ${used?'<span style="font-size:10px;color:#9ca3af" aria-hidden="true">✓</span>':''}
+      </div>`;
+    });
+  } else {
+    html = '<div style="padding:12px;font-size:12px;color:#9ca3af;text-align:center">'
+      + (q ? 'Brak wyników' : 'Słownik jest pusty — dodaj pola w zakładce "Słownik pól"')
+      + '</div>';
+  }
+  document.getElementById('fpList').innerHTML = html;
+}
+
+function pickDbField(fieldId, displayName, severity, displayLayout) {
+  if (!_pendingRect) { hideFieldPicker(); return; }
+  _edFields.push({
+    field_name:   fieldId,
+    display_name: displayName,
+    x1_pct: _pendingRect.x1_pct, y1_pct: _pendingRect.y1_pct,
+    x2_pct: _pendingRect.x2_pct, y2_pct: _pendingRect.y2_pct,
+    severity: severity || 'critical', notes: '', size_label: '', skip_analysis: 0,
+    display_layout: displayLayout || 'side_by_side'
+  });
+  _edSelectedIdx = _edFields.length - 1;
+  hideFieldPicker();
+  renderRects(); renderFieldList(); updateMappedBadge();
+  selectField(_edSelectedIdx);
+}
+
+function fpKeydown(e) {
+  if (e.key === 'Escape') hideFieldPicker();
+}
+
+function pickField(fieldId) {
+  if (!_pendingRect) { hideFieldPicker(); return; }
+  // Find definition in dict
+  let def = null, catDef = null;
+  for (const cat of FIELD_DICT) {
+    def = cat.fields.find(f => f.id === fieldId);
+    if (def) { catDef = cat; break; }
+  }
+  if (!def) return;
+  const sev = catDef ? catDef.sev : 'critical';
+  _edFields.push({
+    field_name:   def.id,
+    display_name: def.name,
+    x1_pct: _pendingRect.x1_pct, y1_pct: _pendingRect.y1_pct,
+    x2_pct: _pendingRect.x2_pct, y2_pct: _pendingRect.y2_pct,
+    severity: sev, notes: '', size_label: def.size_label||'', skip_analysis: 0
+  });
+  _edSelectedIdx = _edFields.length - 1;
+  hideFieldPicker();
+  renderRects(); renderFieldList(); updateMappedBadge();
+  selectField(_edSelectedIdx);
+}
+
+function pickCustom() {
+  const name = (document.getElementById('fpCustom').value||'').trim();
+  if (!name || !_pendingRect) return;
+  _edFields.push({
+    field_name:   name.toLowerCase().replace(/\s+/g,'_'),
+    display_name: name,
+    x1_pct: _pendingRect.x1_pct, y1_pct: _pendingRect.y1_pct,
+    x2_pct: _pendingRect.x2_pct, y2_pct: _pendingRect.y2_pct,
+    severity: 'critical', notes: '', size_label: '', skip_analysis: 0
+  });
+  _edSelectedIdx = _edFields.length - 1;
+  hideFieldPicker();
+  renderRects(); renderFieldList(); updateMappedBadge();
+  selectField(_edSelectedIdx);
+}
+
+// ═══════════════════════════════════════════════════════════ HELPERS
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJS(s) {
+  return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,'\\r').replace(/\n/g,'\\n');
+}
+function parseRefs(json) { try { return JSON.parse(json||'[]')||[]; } catch { return []; } }
+
+// ═══════════════════════════════════════════════════════════ TAB SWITCHING
+var _activeTab = 'masters';
+
+function switchTab(tab) {
+  _activeTab = tab;
+  const tabMasters   = document.getElementById('tabMasters');
+  const tabFieldDict = document.getElementById('tabFieldDict');
+  const libBody      = document.getElementById('libBody');
+  const fdPanel      = document.getElementById('fieldDictPanel');
+
+  if (tab === 'masters') {
+    tabMasters.style.borderBottomColor = '#7c3aed';
+    tabMasters.style.color = '#7c3aed';
+    tabFieldDict.style.borderBottomColor = 'transparent';
+    tabFieldDict.style.color = '#6b7280';
+    libBody.style.display = '';
+    fdPanel.style.display = 'none';
+  } else {
+    tabFieldDict.style.borderBottomColor = '#7c3aed';
+    tabFieldDict.style.color = '#7c3aed';
+    tabMasters.style.borderBottomColor = 'transparent';
+    tabMasters.style.color = '#6b7280';
+    libBody.style.display = 'none';
+    fdPanel.style.display = '';
+    loadFieldDict();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════ FIELD DICT
+async function loadFieldDict() {
+  const wrap = document.getElementById('fieldDictTableWrap');
+  wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px">Ładowanie…</p>';
+  try {
+    const res = await fetch('/api/artwork/field-dict');
+    const d = await res.json();
+    const items = d.items || [];
+    if (!items.length) {
+      wrap.innerHTML = '<p style="color:#9ca3af;font-size:13px">Brak zdefiniowanych pól.</p>';
+      return;
+    }
+    const sevLabel = {critical:'Krytyczna (KR)', important:'Ważna (W)', info:'Info (I)'};
+    const sevColor = {critical:'#dc2626', important:'#d97706', info:'#2563eb'};
+    const modeLabel = {text:'📝 Tekst', table:'📊 Tabela', translation:'🌍 Tłum.', numeric:'🔢 Liczba', graphic:'🖼 Grafika'};
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    html += '<thead><tr style="background:#f3f4f6">';
+    html += '<th scope="col" style="padding:8px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb">Nazwa wyświetlana</th>';
+    html += '<th scope="col" style="padding:8px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb">Ważność</th>';
+    html += '<th scope="col" style="padding:8px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb">Tryb</th>';
+    html += '<th scope="col" style="padding:8px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb">Układ</th>';
+    html += '<th scope="col" style="padding:8px 10px;text-align:center;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb">Akcje</th>';
+    html += '</tr></thead><tbody>';
+    items.forEach(function(item) {
+      const sev = item.default_severity || 'critical';
+      const mode = item.comparison_mode || 'text';
+      const tol = parseFloat(item.numeric_tolerance || 0);
+      html += '<tr style="border-bottom:1px solid #f3f4f6;cursor:' + (item.in_dict ? 'pointer' : 'default') + '">';
+      html += '<td style="padding:8px 10px">' + esc(item.display_name) + (item.in_dict ? '' : ' <span style="font-size:11px;color:#9ca3af">(z profilu)</span>') + '</td>';
+      html += '<td style="padding:8px 10px"><span style="background:' + (sevColor[sev]||'#6b7280') + ';color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">' + esc(sevLabel[sev]||sev) + '</span></td>';
+      const layout = item.display_layout || 'side_by_side';
+      const rot = parseInt(item.default_rotation || 0);
+      const modeStr = (modeLabel[mode] || mode) + (tol && (mode==='numeric'||mode==='table') ? ' ±'+tol : '');
+      html += '<td style="padding:8px 10px;font-size:12px;color:#374151">' + esc(modeStr) + '</td>';
+      html += '<td style="padding:8px 10px;font-size:12px;color:#374151">' + (layout === 'stacked' ? '⬜ Dół' : '⬛ Bok') + (rot ? ' ↻'+rot+'°' : '') + '</td>';
+      html += '<td style="padding:8px 10px;text-align:center">';
+      if (item.in_dict) {
+        html += '<button type="button" onclick="showEditFieldDictModal(' + item.id + ',\'' + esc(escJS(item.display_name)) + '\',\'' + esc(escJS(sev)) + '\',\'' + esc(escJS(layout)) + '\',' + rot + ',\'' + esc(escJS(mode)) + '\',' + tol + ')" style="font-size:12px;padding:3px 10px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer;margin-right:4px">Edytuj</button>';
+        html += '<button type="button" onclick="deleteFieldDictRow(' + item.id + ')" style="font-size:12px;padding:3px 10px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;cursor:pointer">Usuń</button>';
+      } else {
+        html += '<button type="button" onclick="addFromProfileField(\'' + esc(escJS(item.display_name)) + '\',\'' + esc(escJS(sev)) + '\')" style="font-size:12px;padding:3px 10px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer">Dodaj do słownika</button>';
+      }
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = '<p style="color:#dc2626;font-size:13px">Błąd ładowania: ' + esc(e.message) + '</p>';
+  }
+}
+
+var _FD_MODE_DESC = {
+  text:   '<b>📝 Tekst</b> — OCR całego pola + porównanie tokenów (słów i liczb). Wykrywa zmiany treści, literówki i brakujące fragmenty. Domyślny dla opisów, nazw, adresów, oznaczeń.',
+  table:  '<b>📊 Tabela</b> — <b>OCR strukturalny komórka-po-komórce</b> (img2table): odzyskuje siatkę wierszy/kolumn, porównuje każdą komórkę i zaznacza dokładnie tę, która się różni (np. Level 2→6 albo zmieniony %). Dla tabel rozmiarów i permeacji chemicznej. Można podać tolerancję liczbową.',
+  translation: '<b>🌍 Tłumaczenie</b> — porównanie linia-po-linii w kolejności, odporne na drobny szum OCR (fuzzy). Dla wielojęzycznych bloków: IFU, opisy produktu w wielu językach.',
+  numeric: '<b>🔢 Liczba</b> — wyłącznie wartości numeryczne z tolerancją (np. 0.01 = ±1%). Ignoruje tekst. Dla pojedynczych parametrów/liczb (gauge, ilość, rozmiar).',
+  graphic: '<b>🖼 Grafika</b> — tylko porównanie wizualne (pixel/SSIM), czerwone ramki na różnicach. Bez OCR. Dla ikon, piktogramów, logo i znaków, gdzie odczyt tekstu jest niemiarodajny.'
+};
+function fdModeChanged() {
+  const mode = document.getElementById('fdModalMode').value;
+  document.getElementById('fdModalTolRow').style.display =
+    (mode === 'numeric' || mode === 'table') ? '' : 'none';
+  const desc = document.getElementById('fdModalModeDesc');
+  if (desc) desc.innerHTML = _FD_MODE_DESC[mode] || '';
+}
+
+function showAddFieldDictModal() {
+  document.getElementById('fdModalTitle').textContent = 'Dodaj pole';
+  document.getElementById('fdModalId').value = '';
+  document.getElementById('fdModalName').value = '';
+  document.getElementById('fdModalSev').value = 'critical';
+  document.getElementById('fdModalLayout').value = 'side_by_side';
+  document.getElementById('fdModalRotation').value = '0';
+  document.getElementById('fdModalMode').value = 'text';
+  document.getElementById('fdModalTol').value = '0';
+  fdModeChanged();
+  document.getElementById('fieldDictModal').style.display = 'flex';
+}
+
+function showEditFieldDictModal(id, name, sev, layout, rotation, mode, tol) {
+  document.getElementById('fdModalTitle').textContent = 'Edytuj pole';
+  document.getElementById('fdModalId').value = id;
+  document.getElementById('fdModalName').value = name;
+  document.getElementById('fdModalSev').value = sev || 'critical';
+  document.getElementById('fdModalLayout').value = layout || 'side_by_side';
+  document.getElementById('fdModalRotation').value = String(parseInt(rotation || 0));
+  document.getElementById('fdModalMode').value = mode || 'text';
+  document.getElementById('fdModalTol').value = String(parseFloat(tol || 0));
+  fdModeChanged();
+  document.getElementById('fieldDictModal').style.display = 'flex';
+}
+
+function closeFieldDictModal() {
+  document.getElementById('fieldDictModal').style.display = 'none';
+}
+
+async function saveFieldDictModal() {
+  const id       = document.getElementById('fdModalId').value;
+  const name     = document.getElementById('fdModalName').value.trim();
+  const sev      = document.getElementById('fdModalSev').value;
+  const layout   = document.getElementById('fdModalLayout').value;
+  const rotation = parseInt(document.getElementById('fdModalRotation').value || '0');
+  const mode     = document.getElementById('fdModalMode').value || 'text';
+  const tol      = parseFloat(document.getElementById('fdModalTol').value || '0') || 0;
+  if (!name) { toast('Podaj nazwę pola', 'error'); return; }
+  if (id) {
+    await saveFieldDictRow(parseInt(id), name, sev, layout, rotation, mode, tol);
+  } else {
+    await addFieldDictRow(name, sev, layout, rotation, mode, tol);
+  }
+  closeFieldDictModal();
+  loadFieldDict();
+}
+
+async function saveFieldDictRow(id, displayName, severity, layout, rotation, mode, tol) {
+  try {
+    await fetch('/api/artwork/field-dict/' + id, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({display_name: displayName, default_severity: severity,
+        display_layout: layout || 'side_by_side', default_rotation: rotation || 0,
+        comparison_mode: mode || 'text', numeric_tolerance: tol || 0})
+    });
+  } catch(e) { toast('Błąd zapisu: ' + e.message, 'error'); }
+}
+
+async function addFieldDictRow(displayName, severity, layout, rotation, mode, tol) {
+  try {
+    await fetch('/api/artwork/field-dict', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({display_name: displayName, default_severity: severity,
+        display_layout: layout || 'side_by_side', default_rotation: rotation || 0,
+        comparison_mode: mode || 'text', numeric_tolerance: tol || 0})
+    });
+  } catch(e) { toast('Błąd dodawania: ' + e.message, 'error'); }
+}
+
+async function addFromProfileField(displayName, severity) {
+  await addFieldDictRow(displayName, severity);
+  loadFieldDict();
+}
+
+async function deleteFieldDictRow(id) {
+  confirmModal('Usunąć to pole ze słownika?', async () => {
+    try {
+      await fetch('/api/artwork/field-dict/' + id, {method: 'DELETE'});
+      loadFieldDict();
+    } catch(e) { toast('Błąd usuwania: ' + e.message, 'error'); }
+  }, {okLabel: 'Usuń', danger: true});
+}
+
+// ═══════════════════════════════════════════════════════════ BOOT
+document.addEventListener('DOMContentLoaded', libInit);
+</script>
+{% endblock %}

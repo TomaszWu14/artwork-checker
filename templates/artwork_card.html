@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Karta artworku {{ card.ref }} — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.ac-head{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.ac-head h1{font-size:20px;margin:0 0 4px}
+.ac-head .sub{font-size:13px;color:var(--muted)}
+.ac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 16px;margin-top:12px}
+.ac-kv .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.ac-kv .v{font-size:13px;font-family:var(--mono)}
+.ac-sheet{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;page-break-inside:avoid}
+.ac-sheet .hdr{font-family:var(--mono);font-size:13px;font-weight:800;background:var(--accent-bg,#eff6ff);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:10px}
+.ac-sheet table{width:100%;border-collapse:collapse;font-size:13px}
+.ac-sheet td{padding:4px 8px;border-bottom:1px solid var(--border)}
+.ac-sheet td:first-child{color:var(--muted);width:180px}
+.ac-nofile{color:#b45309;font-size:12px}
+.ac-rev table{width:100%;border-collapse:collapse;font-size:12px}
+.ac-rev th,.ac-rev td{padding:4px 8px;border-bottom:1px solid var(--border);text-align:left;font-family:var(--mono)}
+.ac-rev th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.5px}
+@media print{.no-print{display:none}}
+</style>
+{% endblock %}
+
+{% block page_title %}Karta artworku{% endblock %}
+
+{% block content %}
+{# Nagłówek karty — dane wspólne wyrobu (spec §3.1) #}
+<div class="ac-head">
+  <h1>📇 REF {{ card.ref }}{% if card.common.opis_pl %} · {{ card.common.opis_pl }}{% endif %}</h1>
+  <div class="sub">Rewizja obowiązująca: <b>{{ card.current_rev or "—" }}</b>
+    · arkuszy (poziomów): {{ card.levels|length }} · plików w indeksie: {{ card.revisions|length }}</div>
+  <div class="ac-grid">
+    {% for l,v in [("Opis EN",card.common.opis_en),("Rodzina",card.common.rodzina),
+                   ("Grupa",card.common.grupa),("Podgrupa",card.common.podgrupa),
+                   ("Kod producenta",card.common.producer_code),("Kody dostawców",card.common.supplier_codes),
+                   ("EAN (bazowy)",card.common.ean),("Tekst krótki",card.common.txt_short_pl)] %}
+      {% if v %}<div class="ac-kv"><div class="l">{{ l }}</div><div class="v">{{ v }}</div></div>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+{# Arkusz per poziom opakowania (spec §1a — jeden arkusz = jeden komplet danych pod OCR) #}
+{% for lv in card.levels %}
+<div class="ac-sheet">
+  <div class="hdr">[ REF {{ card.ref }}{% if card.common.opis_pl %} · {{ card.common.opis_pl }}{% endif %} ]
+    · POZIOM: {{ lv.level|upper }} · EAN {{ lv.ean }}{% if lv.file %} · Rev.{{ lv.file.revision or "—" }}{% endif %}</div>
+  <table>
+    <tr><td>EAN</td><td>{{ lv.ean }}</td></tr>
+    {% if lv.dims %}<tr><td>Wymiar</td><td>{{ lv.dims }}</td></tr>{% endif %}
+    {% if lv.qty_base %}<tr><td>Ilość jedn. bazowych</td><td>{{ lv.qty_base }}</td></tr>{% endif %}
+    {% if lv.artwork_ref %}<tr><td>Artwork REF</td><td>{{ lv.artwork_ref }}</td></tr>{% endif %}
+    {% if lv.file %}
+      <tr><td>Plik mastera</td><td>{{ lv.file.filename }}</td></tr>
+      <tr><td>Ścieżka</td><td>{{ lv.file.rel_path }}</td></tr>
+    {% else %}
+      <tr><td>Plik mastera</td><td class="ac-nofile">⚠ brak pliku dla tego poziomu w indeksie</td></tr>
+    {% endif %}
+  </table>
+</div>
+{% else %}
+<div class="ac-sheet"><div class="ac-nofile">Brak danych o poziomach opakowania dla tego REF.</div></div>
+{% endfor %}
+
+{# Historia rewizji (spec §1) #}
+<div class="ac-sheet ac-rev">
+  <div class="hdr">Historia rewizji / pliki w indeksie</div>
+  {% if card.revisions %}
+  <table>
+    <tr><th>Rev</th><th>Poziom</th><th>EAN</th><th>Plik</th><th>Data pliku</th></tr>
+    {% for r in card.revisions %}
+    <tr><td>{{ r.revision or "—" }}</td><td>{{ r.packaging_type or "—" }}</td>
+        <td>{{ r.ean or "—" }}</td><td>{{ r.filename }}</td><td>{{ (r.source_mtime or "")[:16] }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="ac-nofile">Brak plików w indeksie dla tego REF.</div>{% endif %}
+</div>
+
+<div class="no-print" style="margin-top:10px">
+  <a href="{{ url_for('artwork_index_page') }}" style="font-size:13px">← Indeks artworków</a>
+  &nbsp;·&nbsp;<a href="#" onclick="window.print();return false" style="font-size:13px">🖨 Drukuj kartę</a>
+</div>
+{% endblock %}

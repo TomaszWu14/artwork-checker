@@ -1,0 +1,891 @@
+{% extends "base.html" %}
+{% block title %}Instrukcja obsługi — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.help-wrap { max-width:860px; }
+.help-title { font-size:26px; font-weight:800; color:var(--text); margin-bottom:6px; }
+.help-sub   { font-size:14px; color:var(--muted); margin-bottom:36px; }
+
+/* TOC */
+.toc {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px 22px;
+  margin-bottom:36px;
+}
+.toc-title { font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--muted); margin-bottom:12px; }
+.toc-list { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.toc-list li a {
+  color:var(--accent); font-size:13px; font-weight:500;
+  text-decoration:none; display:flex; align-items:center; gap:8px;
+}
+.toc-list li a:hover { text-decoration:underline; }
+.toc-num { display:inline-block; width:22px; height:22px; background:var(--accent-bg);
+  color:var(--accent); border-radius:50%; font-size:11px; font-weight:700;
+  text-align:center; line-height:22px; flex-shrink:0; }
+
+/* Sections */
+.help-section {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:28px 32px;
+  margin-bottom:24px;
+  scroll-margin-top:20px;
+}
+.section-header { display:flex; align-items:center; gap:14px; margin-bottom:20px;
+  padding-bottom:16px; border-bottom:1px solid var(--border); }
+.section-icon { font-size:28px; flex-shrink:0; }
+.section-title { font-size:18px; font-weight:700; color:var(--text); }
+.section-sub   { font-size:13px; color:var(--muted); margin-top:3px; }
+
+/* Steps */
+.steps { display:flex; flex-direction:column; gap:16px; }
+.step { display:flex; gap:14px; align-items:flex-start; }
+.step-num {
+  width:30px; height:30px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  font-size:13px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:2px;
+}
+.step-body { flex:1; }
+.step-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.step-desc  { font-size:13px; color:#374151; line-height:1.6; }
+
+/* Screenshot placeholder / mockup */
+.mockup {
+  margin:14px 0;
+  border:1px solid var(--border);
+  border-radius:8px;
+  overflow:hidden;
+  background:#f8fafc;
+}
+.mockup-bar {
+  background:#e5e7eb; padding:8px 12px;
+  display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.mockup-dot { width:10px; height:10px; border-radius:50%; }
+.mockup-dot-r { background:#ef4444; }
+.mockup-dot-y { background:#f59e0b; }
+.mockup-dot-g { background:#10b981; }
+.mockup-url { flex:1; background:#fff; border-radius:4px; padding:3px 10px;
+  font-size:11px; color:var(--muted); border:1px solid var(--border); }
+.mockup-body { padding:16px 20px; }
+
+/* UI elements in mockups */
+.ui-login { max-width:320px; margin:0 auto; }
+.ui-field { margin-bottom:12px; }
+.ui-label { font-size:11px; font-weight:600; color:var(--muted); margin-bottom:4px; }
+.ui-input { width:100%; padding:8px 12px; border:1px solid var(--border);
+  border-radius:6px; font-size:13px; color:var(--text); background:#fff; }
+.ui-btn { width:100%; padding:9px; background:var(--accent); color:#fff;
+  border:none; border-radius:6px; font-size:14px; font-weight:600;
+  text-align:center; margin-top:4px; }
+
+/* Sidebar mockup */
+.ui-sidebar-mock {
+  display:flex; gap:0; border-radius:8px; overflow:hidden;
+  border:1px solid var(--border); height:240px;
+}
+.ui-sidebar-panel {
+  width:160px; background:#fff; border-right:1px solid var(--border);
+  padding:10px 0; flex-shrink:0;
+}
+.ui-sb-brand { padding:8px 12px; font-size:12px; font-weight:700;
+  border-bottom:1px solid var(--border); margin-bottom:8px; }
+.ui-sb-section { font-size:9px; font-weight:700; color:#9ca3af;
+  text-transform:uppercase; padding:6px 12px 2px; letter-spacing:.5px; }
+.ui-sb-link { padding:5px 12px; font-size:11px; color:#4b5563;
+  display:flex; align-items:center; gap:6px; }
+.ui-sb-link.active { background:#eff6ff; color:#1d4ed8; font-weight:700;
+  border-left:2px solid #1d4ed8; }
+.ui-sb-divider { height:1px; background:#e5e7eb; margin:4px 8px; }
+.ui-content-panel { flex:1; background:#f3f4f6; padding:14px 16px; }
+.ui-content-title { font-size:14px; font-weight:700; margin-bottom:10px; }
+
+/* Dropzone mockup */
+.ui-dropzone {
+  border:2px dashed var(--accent); border-radius:10px;
+  padding:28px; text-align:center; background:#eff6ff; margin:8px 0;
+}
+.ui-dropzone-icon { font-size:30px; margin-bottom:8px; }
+.ui-dropzone-text { font-size:13px; color:var(--accent); font-weight:600; }
+.ui-dropzone-sub  { font-size:11px; color:var(--muted); margin-top:4px; }
+
+/* Result mockup */
+.ui-result { margin:8px 0; }
+.ui-result-row { display:flex; padding:6px 10px; border-bottom:1px solid var(--border);
+  font-size:11px; gap:10px; align-items:center; }
+.ui-result-row:nth-child(odd) { background:#f9fafb; }
+.ui-result-row .col { flex:1; }
+.ui-diff { color:#dc2626; font-weight:700; background:#fee2e2;
+  padding:1px 5px; border-radius:3px; }
+.ui-ok   { color:#059669; font-weight:700; }
+
+/* Tips */
+.tip {
+  background:#fffbeb; border:1px solid #fde68a; border-radius:6px;
+  padding:10px 14px; font-size:12px; color:#92400e;
+  display:flex; gap:8px; align-items:flex-start; margin-top:12px;
+}
+.tip-icon { flex-shrink:0; font-size:16px; }
+
+.info-box {
+  background:var(--accent-bg); border:1px solid #bfdbfe; border-radius:6px;
+  padding:10px 14px; font-size:12px; color:#1e3a8a;
+  display:flex; gap:8px; align-items:flex-start; margin-top:12px;
+}
+
+/* Doc type chips */
+.doc-chip { display:inline-block; padding:3px 10px; border-radius:4px;
+  font-size:12px; font-weight:600; background:#e0e7ff; color:#3730a3;
+  margin:2px; }
+
+/* Role colors */
+.role-user    { color:#2563eb; font-weight:700; }
+.role-manager { color:#d97706; font-weight:700; }
+.role-admin   { color:#dc2626; font-weight:700; }
+
+/* Artwork step */
+.artwork-flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin:12px 0; }
+.aw-box { background:#f3f4f6; border:1px solid var(--border); border-radius:6px;
+  padding:8px 14px; font-size:12px; font-weight:600; text-align:center; }
+.aw-arrow { color:var(--muted); font-size:18px; }
+
+/* Shortcut table */
+.shortcut-table { width:100%; border-collapse:collapse; margin-top:10px; }
+.shortcut-table th { font-size:11px; font-weight:700; text-transform:uppercase;
+  color:var(--muted); letter-spacing:.5px; padding:6px 10px;
+  border-bottom:2px solid var(--border); text-align:left; }
+.shortcut-table td { padding:7px 10px; font-size:13px; border-bottom:1px solid var(--border); }
+.shortcut-table tr:last-child td { border-bottom:none; }
+kbd { display:inline-block; padding:2px 6px; border-radius:4px;
+  background:#f3f4f6; border:1px solid #d1d5db; font-size:11px;
+  font-family:var(--mono); font-weight:700; color:var(--text); }
+</style>
+{% endblock %}
+
+{% block page_title %}Pomoc{% endblock %}
+
+{% block content %}
+<div class="help-wrap">
+
+<div class="help-title">❓ Instrukcja obsługi Artwork</div>
+<div class="help-sub">Kompletny przewodnik dla użytkowników systemu porównywania dokumentów ACME</div>
+
+<!-- SPIS TREŚCI -->
+<div class="toc">
+  <div class="toc-title">Spis treści</div>
+  <ul class="toc-list">
+    <li><a href="#logowanie"><span class="toc-num">1</span> Logowanie do systemu</a></li>
+    <li><a href="#nawigacja"><span class="toc-num">2</span> Nawigacja po aplikacji</a></li>
+    <li><a href="#porownanie"><span class="toc-num">3</span> Porównanie dokumentów handlowych (PO / PI / CI / PL)</a></li>
+    <li><a href="#wyniki"><span class="toc-num">4</span> Odczytywanie wyników analizy</a></li>
+    <li><a href="#artwork"><span class="toc-num">5</span> Porównanie artworków i opakowań</a></li>
+    <li><a href="#skany"><span class="toc-num">6</span> Ekstrakcja skanów dostaw (nowe)</a></li>
+    <li><a href="#historia"><span class="toc-num">7</span> Historia i raporty</a></li>
+    <li><a href="#zgloszenia"><span class="toc-num">8</span> Zgłaszanie problemów i sugestii</a></li>
+    <li><a href="#role"><span class="toc-num">9</span> Role użytkowników i uprawnienia</a></li>
+  </ul>
+</div>
+
+
+<!-- 1. LOGOWANIE -->
+<div class="help-section" id="logowanie">
+  <div class="section-header">
+    <div class="section-icon">🔐</div>
+    <div>
+      <div class="section-title">1. Logowanie do systemu</div>
+      <div class="section-sub">Jak uzyskać dostęp do aplikacji</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Otwórz przeglądarkę</div>
+        <div class="step-desc">Przejdź do adresu systemu podanego przez administratora. Aplikacja działa w każdej nowoczesnej przeglądarce (Chrome, Firefox, Edge, Safari).</div>
+        <div class="mockup" style="margin-top:12px">
+          <div class="mockup-bar">
+            <div class="mockup-dot mockup-dot-r"></div>
+            <div class="mockup-dot mockup-dot-y"></div>
+            <div class="mockup-dot mockup-dot-g"></div>
+            <div class="mockup-url">compare.example.com/login</div>
+          </div>
+          <div class="mockup-body">
+            <div class="ui-login">
+              <div style="text-align:center;margin-bottom:18px">
+                <div style="font-size:28px">🏥</div>
+                <div style="font-size:16px;font-weight:700;margin-top:4px">Artwork</div>
+                <div style="font-size:11px;color:#6b7280">ACME</div>
+              </div>
+              <div class="ui-field">
+                <div class="ui-label">Nazwa użytkownika</div>
+                <div class="ui-input" style="color:#9ca3af">jan.kowalski</div>
+              </div>
+              <div class="ui-field">
+                <div class="ui-label">Hasło</div>
+                <div class="ui-input" style="color:#9ca3af">••••••••</div>
+              </div>
+              <div class="ui-btn">Zaloguj się</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Wpisz dane logowania</div>
+        <div class="step-desc">Podaj nazwę użytkownika i hasło otrzymane od administratora systemu. Dane logowania są przypisane do Twojego konta.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Kliknij „Zaloguj się"</div>
+        <div class="step-desc">Po poprawnym zalogowaniu zostaniesz przekierowany do głównego panelu aplikacji.</div>
+        <div class="tip">
+          <div class="tip-icon">💡</div>
+          <div>Jeśli nie pamiętasz hasła, skontaktuj się z administratorem systemu lub skorzystaj z opcji <strong>„Zapomniałem hasła"</strong> na stronie logowania.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 2. NAWIGACJA -->
+<div class="help-section" id="nawigacja">
+  <div class="section-header">
+    <div class="section-icon">🗺️</div>
+    <div>
+      <div class="section-title">2. Nawigacja po aplikacji</div>
+      <div class="section-sub">Jak poruszać się po systemie</div>
+    </div>
+  </div>
+
+  <div class="step-desc" style="margin-bottom:14px">
+    Po lewej stronie ekranu znajduje się <strong>panel boczny (sidebar)</strong> ze wszystkimi sekcjami systemu.
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot mockup-dot-r"></div>
+      <div class="mockup-dot mockup-dot-y"></div>
+      <div class="mockup-dot mockup-dot-g"></div>
+      <div class="mockup-url">compare.example.com/analyze</div>
+    </div>
+    <div class="mockup-body" style="padding:0">
+      <div class="ui-sidebar-mock">
+        <div class="ui-sidebar-panel">
+          <div class="ui-sb-brand">🏥 Artwork</div>
+          <div class="ui-sb-section">Dokumenty handlowe</div>
+          <div class="ui-sb-link active">🔍 Analizuj</div>
+          <div class="ui-sb-link">📦 Batch</div>
+          <div class="ui-sb-link">📁 Historia</div>
+          <div class="ui-sb-link">📊 KPI</div>
+          <div class="ui-sb-divider"></div>
+          <div class="ui-sb-section">Artwork</div>
+          <div class="ui-sb-link">🎨 Porównaj</div>
+          <div class="ui-sb-link">📁 Historia</div>
+          <div class="ui-sb-divider"></div>
+          <div class="ui-sb-section">Skany dostaw</div>
+          <div class="ui-sb-link">📦 Ekstrakcja skanów</div>
+          <div class="ui-sb-divider"></div>
+          <div class="ui-sb-link">🏭 Dostawcy</div>
+          <div class="ui-sb-link">📬 Zgłoszenia</div>
+          <div class="ui-sb-link">❓ Pomoc</div>
+        </div>
+        <div class="ui-content-panel">
+          <div class="ui-content-title">🔍 Analizuj dokumenty</div>
+          <div class="ui-dropzone">
+            <div class="ui-dropzone-icon">📄</div>
+            <div class="ui-dropzone-text">Upuść plik tutaj</div>
+            <div class="ui-dropzone-sub">PDF, maks. 20 MB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="steps" style="margin-top:16px">
+    <div class="step">
+      <div class="step-num">A</div>
+      <div class="step-body">
+        <div class="step-title">Sekcja „Dokumenty handlowe"</div>
+        <div class="step-desc">
+          <strong>🔍 Analizuj</strong> — główna strona do wczytywania i porównywania dokumentów.<br>
+          <strong>📦 Batch</strong> — masowe przetwarzanie wielu par dokumentów.<br>
+          <strong>📁 Historia</strong> — lista wszystkich wcześniejszych porównań.<br>
+          <strong>📊 KPI</strong> — statystyki i wykresy aktywności.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">B</div>
+      <div class="step-body">
+        <div class="step-title">Sekcja „Artwork"</div>
+        <div class="step-desc">
+          <strong>🎨 Porównaj</strong> — wizualne porównanie plików PDF artworków i opakowań.<br>
+          <strong>📁 Historia</strong> — historia porównań artworków.<br>
+          <strong>📄 Raporty</strong> — wygenerowane raporty do wydruku.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">C</div>
+      <div class="step-body">
+        <div class="step-title">Sekcja „Skany dostaw"</div>
+        <div class="step-desc">
+          <strong>📦 Ekstrakcja skanów</strong> — wczytaj skany WZ/CMR/PZ i pobierz dane do Excela/SAP.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">D</div>
+      <div class="step-body">
+        <div class="step-title">Sekcja wspólna</div>
+        <div class="step-desc">
+          <strong>🏭 Dostawcy</strong> — profile dostawców z konfiguracją tolerancji i synonimów.<br>
+          <strong>📬 Zgłoszenia</strong> — zgłoś problem lub sugestię do administratora.<br>
+          <strong>❓ Pomoc</strong> — ta instrukcja.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 3. PORÓWNANIE DOKUMENTÓW -->
+<div class="help-section" id="porownanie">
+  <div class="section-header">
+    <div class="section-icon">🔍</div>
+    <div>
+      <div class="section-title">3. Porównanie dokumentów handlowych</div>
+      <div class="section-sub">PO, PI, CI, PL, SAD i inne</div>
+    </div>
+  </div>
+
+  <div class="step-desc" style="margin-bottom:14px">
+    Obsługiwane typy dokumentów:
+    <span class="doc-chip">PO</span>
+    <span class="doc-chip">PI</span>
+    <span class="doc-chip">CI</span>
+    <span class="doc-chip">PL</span>
+    <span class="doc-chip">SAD</span>
+    <span class="doc-chip">CMR</span>
+    <span class="doc-chip">BL</span>
+    <span class="doc-chip">WZ</span>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Przejdź do sekcji „Analizuj" (🔍)</div>
+        <div class="step-desc">Kliknij <strong>Analizuj</strong> w panelu bocznym.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Wgraj Dokument A (PO / CI / główny)</div>
+        <div class="step-desc">Przeciągnij plik PDF na lewą strefę lub kliknij „Wybierz plik". To jest Twój dokument referencyjny (np. zamówienie zakupu PO z SAP).</div>
+        <div class="mockup" style="margin-top:10px">
+          <div class="mockup-bar">
+            <div class="mockup-dot mockup-dot-r"></div>
+            <div class="mockup-dot mockup-dot-y"></div>
+            <div class="mockup-dot mockup-dot-g"></div>
+            <div class="mockup-url">compare.example.com/analyze</div>
+          </div>
+          <div class="mockup-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">DOKUMENT A — referencja</div>
+                <div class="ui-dropzone">
+                  <div class="ui-dropzone-icon">📋</div>
+                  <div class="ui-dropzone-text" style="font-size:11px">PO_4500000169.pdf</div>
+                  <div class="ui-dropzone-sub">✅ Wczytano</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px">DOKUMENT B — do weryfikacji</div>
+                <div class="ui-dropzone">
+                  <div class="ui-dropzone-icon">📄</div>
+                  <div class="ui-dropzone-text" style="font-size:12px">Upuść PI tutaj</div>
+                  <div class="ui-dropzone-sub">PDF, maks. 20 MB</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Wgraj Dokument B (PI / PL / do weryfikacji)</div>
+        <div class="step-desc">Przeciągnij drugi plik na prawą strefę. To dokument porównywany — np. Proforma Invoice od dostawcy.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Wybierz typ dokumentów</div>
+        <div class="step-desc">Użyj listy rozwijanej, aby wybrać typ (lub zostaw <strong>„Wykryj automatycznie"</strong>). System sam rozpozna PO, PI, CI, PL na podstawie treści.</div>
+        <div class="tip">
+          <div class="tip-icon">💡</div>
+          <div>Jeśli dokument jest wielostronicowy (np. CI z 20 stronami), czas analizy może wynosić do 60 sekund. Poczekaj — nie odświeżaj strony.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Kliknij „Porównaj dokumenty"</div>
+        <div class="step-desc">System wyodrębni tabele, znormalizuje liczby i daty, dopasuje pozycje produktów i wygeneruje raport różnic.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 4. WYNIKI ANALIZY -->
+<div class="help-section" id="wyniki">
+  <div class="section-header">
+    <div class="section-icon">📊</div>
+    <div>
+      <div class="section-title">4. Odczytywanie wyników analizy</div>
+      <div class="section-sub">Jak interpretować raport porównania</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">A</div>
+      <div class="step-body">
+        <div class="step-title">Podsumowanie (nagłówek raportu)</div>
+        <div class="step-desc">Na górze raportu zobaczysz liczbę różnic i ocenę ryzyka:
+          <br>🟢 <strong>OK</strong> — brak istotnych różnic
+          <br>🟡 <strong>Ostrzeżenie</strong> — drobne rozbieżności, wymagają weryfikacji
+          <br>🔴 <strong>Błąd / Krytyczny</strong> — poważne niezgodności (ceny, ilości, kody)
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">B</div>
+      <div class="step-body">
+        <div class="step-title">Tabela różnic pozycji</div>
+        <div class="step-desc">Każda linia tabeli to jedna pozycja produktu. Kolumny pokazują wartości z obu dokumentów. Różnice są oznaczone kolorem.</div>
+        <div class="mockup" style="margin-top:10px">
+          <div class="mockup-bar">
+            <div class="mockup-dot mockup-dot-r"></div>
+            <div class="mockup-dot mockup-dot-y"></div>
+            <div class="mockup-dot mockup-dot-g"></div>
+            <div class="mockup-url">compare.example.com/analyze — wyniki</div>
+          </div>
+          <div class="mockup-body" style="padding:0">
+            <div class="ui-result">
+              <div class="ui-result-row" style="background:#f3f4f6;font-weight:700;font-size:10px;color:#6b7280">
+                <div class="col" style="flex:1.5">REF</div>
+                <div class="col">Ilość A</div>
+                <div class="col">Ilość B</div>
+                <div class="col">Cena A</div>
+                <div class="col">Cena B</div>
+                <div class="col">Status</div>
+              </div>
+              <div class="ui-result-row">
+                <div class="col" style="flex:1.5;font-weight:600">NL753-S-40</div>
+                <div class="col">1000</div>
+                <div class="col">1000</div>
+                <div class="col">2.85</div>
+                <div class="col">2.85</div>
+                <div class="col ui-ok">✅ OK</div>
+              </div>
+              <div class="ui-result-row">
+                <div class="col" style="flex:1.5;font-weight:600">NL753-M-40</div>
+                <div class="col">500</div>
+                <div class="col"><span class="ui-diff">600</span></div>
+                <div class="col">2.85</div>
+                <div class="col">2.85</div>
+                <div class="col" style="color:#d97706;font-weight:700">⚠️ RÓŻNICA</div>
+              </div>
+              <div class="ui-result-row">
+                <div class="col" style="flex:1.5;font-weight:600">NL753-L-40</div>
+                <div class="col">300</div>
+                <div class="col">300</div>
+                <div class="col">2.85</div>
+                <div class="col"><span class="ui-diff">3.10</span></div>
+                <div class="col" style="color:#dc2626;font-weight:700">❌ BŁĄD CENY</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">C</div>
+      <div class="step-body">
+        <div class="step-title">Analiza AI</div>
+        <div class="step-desc">Pod tabelą pojawi się sekcja <strong>„Analiza AI"</strong> z oceną ryzyka, komentarzem po polsku oraz sugestią działania. AI używa prawdziwych nazw plików, więc łatwo zidentyfikujesz, którego dokumentu dotyczy opis.</div>
+        <div class="info-box">
+          <div style="flex-shrink:0">ℹ️</div>
+          <div>Analiza AI wymaga aktywnego klucza Anthropic API. Jeśli klucz nie jest skonfigurowany, sekcja AI nie pojawi się.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">D</div>
+      <div class="step-body">
+        <div class="step-title">Eksport raportu</div>
+        <div class="step-desc">Kliknij <strong>„Pobierz PDF"</strong> lub <strong>„Pobierz Excel"</strong>, aby wyeksportować raport do pliku. PDF zawiera pełne formatowanie z logo ACME.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 5. ARTWORK -->
+<div class="help-section" id="artwork">
+  <div class="section-header">
+    <div class="section-icon">🎨</div>
+    <div>
+      <div class="section-title">5. Porównanie artworków i opakowań</div>
+      <div class="section-sub">Weryfikacja graficzna plików PDF</div>
+    </div>
+  </div>
+
+  <div class="step-desc" style="margin-bottom:12px">
+    Moduł Artwork służy do wizualnego porównywania plików PDF opakowań — np. wersja zatwierdzona vs. nowa rewizja od dostawcy.
+  </div>
+
+  <div class="artwork-flow">
+    <div class="aw-box">📄 PDF A<br><small style="color:#6b7280">zatwierdzona</small></div>
+    <div class="aw-arrow">+</div>
+    <div class="aw-box">📄 PDF B<br><small style="color:#6b7280">nowa wersja</small></div>
+    <div class="aw-arrow">→</div>
+    <div class="aw-box">🔍 Analiza<br><small style="color:#6b7280">piksele + OCR</small></div>
+    <div class="aw-arrow">→</div>
+    <div class="aw-box">📊 Raport<br><small style="color:#6b7280">różnice + kody</small></div>
+  </div>
+
+  <div class="steps" style="margin-top:16px">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Przejdź do „Artwork → Porównaj" (🎨)</div>
+        <div class="step-desc">Kliknij <strong>Artwork → Porównaj</strong> w panelu bocznym.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Wgraj pliki PDF</div>
+        <div class="step-desc">Plik A to zatwierdzony wzorzec (baseline), plik B to nowa wersja do weryfikacji. Możesz wgrać <strong>wiele plików A do jednego pliku B</strong> — system automatycznie przeliczy strony sekwencyjnie (np. 2 etykiety ACME → 1 etykieta dostawcy z obu).</div>
+        <div class="tip">
+          <div class="tip-icon">💡</div>
+          <div>Analiza artworku wielostronicowego (np. 8 stron) może trwać 2–3 minuty. Baner ostrzeżenia pojawi się automatycznie — nie zamykaj karty. Próba zamknięcia okna wyświetli potwierdzenie.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Przeglądaj raport</div>
+        <div class="step-desc">
+          Raport zawiera:
+          <br>🔴 <strong>Strefy czerwone</strong> — znaczące różnice wizualne (tekst, grafika)
+          <br>🟡 <strong>Strefy żółte</strong> — drobne różnice (cień, kompresja JPEG)
+          <br>🔵 <strong>Strefy niebieskie</strong> — zmiany tła
+          <br>📦 <strong>Kody EAN/GS1-128</strong> — automatyczna weryfikacja sumy kontrolnej
+          <br>📝 <strong>Pola strukturalne</strong> — REF, Rewizja, Data, Gramatura, Kolor
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Sekcja „Weryfikacja wydruku dostawcy" (2b)</div>
+        <div class="step-desc">
+          Każdy raport zawiera sekcję sprawdzającą dane na etykiecie dostawcy (plik B):
+          <br>✅ <strong>LOT / Partia</strong> — czy numer partii jest uzupełniony
+          <br>✅ <strong>Data ważności (EXP)</strong> — czy data ważności jest naniesiona
+          <br>✅ <strong>EAN-13</strong> — weryfikacja cyfry kontrolnej kodu kreskowego
+          <br>✅ <strong>GS1-128</strong> — sprawdzenie kodu AI (01), (10), (17) na etykiecie
+          <br><br>
+          Jeśli wykryto błędy, pojawi się czerwony baner z komunikatem akcji wymaganej.
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Powiększanie grafik (Lightbox)</div>
+        <div class="step-desc">
+          Kliknij na miniaturę ikony w sekcji porównania grafik, aby otworzyć powiększony podgląd. W lightboxie możesz:
+          <br>🔍 Kołem myszy — zoom (25%–400%)
+          <br>🖱️ Przeciągnij — przesuń obraz po powiększeniu
+          <br>🔄 Przycisk „90°" — obrót obrazu o 90°
+          <br>❌ Kliknij poza obrazem lub naciśnij <kbd>Esc</kbd> — zamknij
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <div class="step-title">Status „Inny układ" dla ikon</div>
+        <div class="step-desc">Jeśli ta sama ikona/grafika jest obecna na obu etykietach, ale w innym miejscu (np. przestawiona o kilka cm), system oznacza ją jako <strong style="color:#7c3aed">„Inny układ"</strong> (fioletowa ramka) zamiast „Brak w B". Pozwala to odróżnić brakujące elementy od przesunięć układu.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 6. SKANY DOSTAW -->
+<div class="help-section" id="skany">
+  <div class="section-header">
+    <div class="section-icon">📦</div>
+    <div>
+      <div class="section-title">6. Ekstrakcja skanów dostaw</div>
+      <div class="section-sub">Automatyczne wyciąganie danych z WZ, CMR, PZ do Excela/SAP</div>
+    </div>
+  </div>
+
+  <div class="step-desc" style="margin-bottom:12px">
+    Moduł <strong>Skany dostaw</strong> pozwala wczytać skany dokumentów magazynowych (WZ, CMR, PZ, faktury) i automatycznie wyciągnąć z nich dane do Excela — z uwzględnieniem zarówno tekstu nadrukowanego, jak i <strong>odręcznych adnotacji</strong> (LOT, ilości, rozbieżności).
+  </div>
+
+  <div class="artwork-flow">
+    <div class="aw-box">📄 Skan<br><small style="color:#6b7280">PDF / JPG</small></div>
+    <div class="aw-arrow">→</div>
+    <div class="aw-box">🤖 Claude AI<br><small style="color:#6b7280">OCR + Vision</small></div>
+    <div class="aw-arrow">→</div>
+    <div class="aw-box">📊 Tabela<br><small style="color:#6b7280">edytowalna</small></div>
+    <div class="aw-arrow">→</div>
+    <div class="aw-box">📥 Excel<br><small style="color:#6b7280">gotowy do SAP</small></div>
+  </div>
+
+  <div class="steps" style="margin-top:16px">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Przejdź do „Skany dostaw" (📦)</div>
+        <div class="step-desc">Kliknij <strong>📦 Ekstrakcja skanów</strong> w sekcji „Skany dostaw" panelu bocznego.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Wgraj pliki skanów</div>
+        <div class="step-desc">Obsługiwane formaty: <strong>PDF</strong> (wielostronicowy — każda strona osobno), <strong>JPG, PNG, TIFF, BMP, WEBP</strong>. Przeciągnij wiele plików jednocześnie lub kliknij „Wybierz pliki".</div>
+        <div class="tip">
+          <div class="tip-icon">💡</div>
+          <div>Dla dokumentów wielostronicowych PDF każda strona jest przetwarzana osobno i trafia jako osobne wiersze. Skany z odręcznymi dopiskami (LOT, ilości odebrane) są obsługiwane przez AI.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Kliknij „Wyciągnij dane"</div>
+        <div class="step-desc">Każdy plik jest analizowany przez Claude AI (Vision). Na ekranie pojawi się dziennik postępu z wynikiem dla każdego pliku. Czas: ok. 5–15 sekund na plik.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Sprawdź i edytuj tabelę</div>
+        <div class="step-desc">Po zakończeniu pojawi się tabela z wyciągniętymi danymi. Każda komórka jest <strong>edytowalna</strong> — kliknij, aby poprawić wartość przed eksportem.
+          <br><br>Wyciągane kolumny:
+          <br><strong>Typ dok.</strong> — WZ / CMR / PZ / faktura / list_przewozowy
+          <br><strong>Nr dokumentu</strong> — numer dokumentu dostawy
+          <br><strong>Dostawca</strong> — nazwa dostawcy
+          <br><strong>Data</strong> — data dokumentu
+          <br><strong>REF / Indeks SAP</strong> — numer katalogowy / SAP material
+          <br><strong>Opis produktu</strong> — nazwa towaru
+          <br><strong>LOT / Partia</strong> — numer partii (ręczny lub nadrukowany)
+          <br><strong>J.m.</strong> — jednostka miary
+          <br><strong>Ilość na dok.</strong> — ilość zamówiona / na dokumencie
+          <br><strong>Ilość odebrana</strong> — faktycznie odebrana (z adnotacji ręcznej)
+          <br><strong>Rozbieżność</strong> — jeśli zaznaczona przez magazyn
+          <br><strong>Uwagi</strong> — ręczne adnotacje, pieczątki, komentarze
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">Pobierz plik Excel</div>
+        <div class="step-desc">Kliknij <strong>„Pobierz Excel"</strong>, aby pobrać plik <code>.xlsx</code> z:
+          <br>— zamrożonym pierwszym wierszem (nagłówek)
+          <br>— auto-filtrem na wszystkich kolumnach
+          <br>— naprzemiennym kolorowaniem wierszy
+          <br>— odpowiednimi szerokościami kolumn do wklejenia do SAP
+        </div>
+        <div class="info-box">
+          <div style="flex-shrink:0">ℹ️</div>
+          <div>Moduł wymaga skonfigurowanego klucza Anthropic API. Jeśli klucz nie jest ustawiony, ekstrakcja zwróci komunikat błędu zamiast danych.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 7. HISTORIA I RAPORTY -->
+<div class="help-section" id="historia">
+  <div class="section-header">
+    <div class="section-icon">📁</div>
+    <div>
+      <div class="section-title">7. Historia i raporty</div>
+      <div class="section-sub">Dostęp do wcześniejszych porównań</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">A</div>
+      <div class="step-body">
+        <div class="step-title">Historia dokumentów handlowych</div>
+        <div class="step-desc">W sekcji <strong>📁 Historia</strong> znajdziesz listę wszystkich swoich porównań z filtrowaniem według daty, typu dokumentu i statusu. Kliknij „Pokaż" aby ponownie wyświetlić wyniki bez przeliczania.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">B</div>
+      <div class="step-body">
+        <div class="step-title">Historia artworków</div>
+        <div class="step-desc">W sekcji <strong>🎨 Artwork → Historia</strong> znajdziesz listę porównań artworków. Kliknij numer raportu, aby przejść do pełnego raportu.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">C</div>
+      <div class="step-body">
+        <div class="step-title">Statystyki KPI</div>
+        <div class="step-desc">Sekcja <strong>📊 KPI</strong> pokazuje wykresy aktywności (porównania dziennie/tygodniowo), rozkład typów dokumentów i statystyki użytkowników.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 8. ZGŁOSZENIA -->
+<div class="help-section" id="zgloszenia">
+  <div class="section-header">
+    <div class="section-icon">📬</div>
+    <div>
+      <div class="section-title">8. Zgłaszanie problemów i sugestii</div>
+      <div class="section-sub">Jak skontaktować się z administratorem systemu</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Skontaktuj się z administratorem</div>
+        <div class="step-desc">Zgłoszenia problemów i sugestii kieruj bezpośrednio do administratora systemu
+        (w module artworku nie ma osobnego rejestru zgłoszeń).</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">Kliknij „➕ Nowe zgłoszenie"</div>
+        <div class="step-desc">Rozwiń formularz klikając na nagłówek „Nowe zgłoszenie".</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Wypełnij formularz</div>
+        <div class="step-desc">
+          <strong>Tytuł</strong> — krótki opis, np. „Błędna ilość dla produktu NL753-S"<br>
+          <strong>Kategoria</strong>:
+          <br>🔴 <em>Niezgodność w dokumencie</em> — błędne dane w raporcie porównania
+          <br>🟡 <em>Błąd aplikacji</em> — awaria, 500, coś nie działa
+          <br>🔵 <em>Sugestia ulepszenia</em> — pomysł na nową funkcję
+          <br>⚪ <em>Inne</em>
+          <br><br>
+          <strong>Opis</strong> — podaj szczegóły: co się stało, które pliki, jaki wynik oczekujesz.
+        </div>
+        <div class="tip">
+          <div class="tip-icon">💡</div>
+          <div>Im dokładniejszy opis, tym szybciej administrator rozwiąże problem. Warto podać nazwy plików i typ dokumentu.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">Śledź status zgłoszenia</div>
+        <div class="step-desc">
+          Na liście zgłoszeń zobaczysz aktualny status:
+          <br>🆕 <strong>Nowe</strong> — zgłoszenie przyjęte, oczekuje na reakcję
+          <br>⏳ <strong>W toku</strong> — administrator analizuje problem
+          <br>✅ <strong>Rozwiązane</strong> — problem naprawiony lub sugestia wdrożona
+          <br>🔒 <strong>Zamknięte</strong> — zgłoszenie zakończone
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 9. ROLE -->
+<div class="help-section" id="role">
+  <div class="section-header">
+    <div class="section-icon">👤</div>
+    <div>
+      <div class="section-title">9. Role użytkowników i uprawnienia</div>
+      <div class="section-sub">Co możesz robić w zależności od swojej roli</div>
+    </div>
+  </div>
+
+  <table class="shortcut-table">
+    <thead>
+      <tr>
+        <th scope="col">Funkcja</th>
+        <th scope="col" class="role-user">User</th>
+        <th scope="col" class="role-manager">Manager</th>
+        <th scope="col" class="role-admin">Admin</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Porównywanie dokumentów</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Porównywanie artworków</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Ekstrakcja skanów dostaw</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Historia własnych porównań</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Historia wszystkich użytkowników</td><td>—</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Eksport PDF / Excel</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Zgłaszanie ticketów</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Zarządzanie zgłoszeniami</td><td>—</td><td>✅</td><td>✅</td></tr>
+      <tr><td>KPI i statystyki</td><td>—</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Profile dostawców</td><td>podgląd</td><td>podgląd</td><td>✅ (edycja)</td></tr>
+      <tr><td>Panel admina / Ustawienia</td><td>—</td><td>—</td><td>✅</td></tr>
+      <tr><td>Zarządzanie użytkownikami</td><td>—</td><td>—</td><td>✅</td></tr>
+    </tbody>
+  </table>
+
+  <div class="info-box" style="margin-top:16px">
+    <div style="flex-shrink:0">ℹ️</div>
+    <div>Twoja rola jest wyświetlana na dole panelu bocznego, pod Twoją nazwą użytkownika. Jeśli potrzebujesz innych uprawnień, skontaktuj się z administratorem.</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px 0 40px">
+  Artwork — ACME<br>
+  {# Link do /tickets usunięty — moduł zgłoszeń nie istnieje w tej aplikacji (404). #}
+  W razie pytań skontaktuj się z administratorem systemu.
+</div>
+
+</div><!-- /help-wrap -->
+{% endblock %}

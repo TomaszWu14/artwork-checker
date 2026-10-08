@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Zarządzanie artworkami — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.am-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:22px}
+.am-kpi{background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.am-kpi .v{font-size:26px;font-weight:800;line-height:1.1}
+.am-kpi .l{font-size:12px;color:var(--muted);margin-top:2px}
+.am-kpi.warn .v{color:#b45309}
+.am-kpi.bad .v{color:var(--error,#dc2626)}
+.am-kpi.ok .v{color:#15803d}
+.am-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.am-tile{display:flex;gap:12px;align-items:flex-start;background:var(--card,#fff);border:1px solid var(--border);
+  border-radius:12px;padding:14px 16px;text-decoration:none;color:inherit;transition:border-color .12s,transform .12s}
+.am-tile:hover{border-color:var(--accent,#2563eb);transform:translateY(-1px)}
+.am-tile i{width:20px;height:20px;color:var(--accent,#2563eb);flex-shrink:0;margin-top:2px}
+.am-tile .t{font-weight:700;font-size:14px}
+.am-tile .d{font-size:12px;color:var(--muted);margin-top:2px}
+.am-tile .pill{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;border-radius:20px;padding:2px 8px;
+  background:#fef3c7;color:#b45309}
+.am-sub{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Zarządzanie artworkami{% endblock %}
+
+{% block content %}
+<div x-data="manageApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🗂️ Zarządzanie artworkami</h1>
+    <p>Jeden pulpit na całą bibliotekę masterów z dysku Z:\ — stan indeksu, pliki do powiązania, przestarzałe rewizje, luki i duplikaty.</p>
+  </div>
+
+  <p class="am-sub">Stan biblioteki
+    <span x-show="kpi.last_scan" style="text-transform:none;font-weight:500">
+      · ostatni skan: <span x-text="kpi.last_scan"></span></span>
+  </p>
+  <div class="am-grid">
+    <div class="am-kpi"><div class="v" x-text="fmt(kpi.total)"></div><div class="l">plików w indeksie</div></div>
+    <div class="am-kpi ok"><div class="v" x-text="fmt(kpi.with_ref)"></div><div class="l">z rozpoznanym REF</div></div>
+    <div class="am-kpi" :class="kpi.unbound ? 'warn' : ''"><div class="v" x-text="fmt(kpi.unbound)"></div><div class="l">bez REF (do powiązania)</div></div>
+    <div class="am-kpi"><div class="v" x-text="fmt(kpi.distinct_refs)"></div><div class="l">unikalnych REF</div></div>
+    <div class="am-kpi" :class="kpi.obsolete ? 'warn' : ''"><div class="v" x-text="fmt(kpi.obsolete)"></div><div class="l">przestarzałych rewizji</div></div>
+    <div class="am-kpi" :class="kpi.gaps ? 'bad' : 'ok'"><div class="v" x-text="fmt(kpi.gaps)"></div><div class="l">produktów bez artworku</div></div>
+    <div class="am-kpi" :class="kpi.duplicates ? 'warn' : ''"><div class="v" x-text="fmt(kpi.duplicates)"></div><div class="l">grup z duplikatami</div></div>
+    <div class="am-kpi"><div class="v" x-text="fmt(kpi.ignored)"></div><div class="l">pominiętych (ignored)</div></div>
+  </div>
+
+  <p class="am-sub">Narzędzia</p>
+  <div class="am-tiles">
+    <a class="am-tile" href="/artwork/index">
+      <i data-lucide="search"></i>
+      <div><div class="t">Przeglądaj indeks</div>
+        <div class="d">Szukaj masterów po REF lub nazwie, filtruj po opakowaniu i rewizji.</div></div>
+    </a>
+    <a class="am-tile" href="/artwork/manage/unbound">
+      <i data-lucide="link"></i>
+      <div><div class="t">Pliki bez REF</div>
+        <div class="d">Powiąż pliki bez REF z produktem — z podpowiedzią i akceptacją.</div>
+        <template x-if="kpi.unbound"><span class="pill" x-text="fmt(kpi.unbound) + ' do powiązania'"></span></template></div>
+    </a>
+    <a class="am-tile" href="/artwork/revisions">
+      <i data-lucide="refresh-cw"></i>
+      <div><div class="t">Zmiany rewizji</div>
+        <div class="d">Potwierdź najnowszą rewizję tam, gdzie pojawił się nowszy plik.</div>
+        <template x-if="kpi.obsolete"><span class="pill" x-text="fmt(kpi.obsolete) + ' przestarzałych'"></span></template></div>
+    </a>
+    <a class="am-tile" href="/artwork/manage/gaps">
+      <i data-lucide="alert-triangle"></i>
+      <div><div class="t">Luki i duplikaty</div>
+        <div class="d">Produkty bez artworku oraz pliki-duplikaty (ten sam REF i poziom).</div>
+        <template x-if="kpi.gaps || kpi.duplicates">
+          <span class="pill" x-text="fmt(kpi.gaps) + ' luk · ' + fmt(kpi.duplicates) + ' dup.'"></span></template></div>
+    </a>
+    <a class="am-tile" href="/artwork/aliases">
+      <i data-lucide="tags"></i>
+      <div><div class="t">Aliasy nazw</div>
+        <div class="d">Reguły „fragment nazwy → REF" stosowane przy każdym skanie.</div></div>
+    </a>
+    <a class="am-tile" href="/artwork/mapping-groups">
+      <i data-lucide="group"></i>
+      <div><div class="t">Grupy mapowań</div>
+        <div class="d">Wiele REF-ów dzielących jeden wspólny plik-wzór.</div></div>
+    </a>
+    <a class="am-tile" href="/artwork/profiles">
+      <i data-lucide="sliders-horizontal"></i>
+      <div><div class="t">Profile / mapowanie pól</div>
+        <div class="d">Status zmapowania pól i aktywność profili masterów.</div></div>
+    </a>
+  </div>
+
+  <p x-show="err" x-text="err" style="color:var(--error);font-size:13px;margin-top:14px"></p>
+</div>
+
+<script>
+function manageApp(){
+  return {
+    kpi:{total:0,with_ref:0,unbound:0,distinct_refs:0,obsolete:0,duplicates:0,gaps:0,ignored:0,last_scan:''},
+    err:'',
+    fmt(n){ return (n||0).toLocaleString('pl-PL'); },
+    async load(){
+      try{
+        const r = await fetch('/api/artwork/manage/kpi');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        this.kpi = await r.json();
+      }catch(e){ this.err = 'Nie udało się wczytać statystyk: '+e.message; }
+      this.$nextTick(()=>window.lucide && window.lucide.createIcons());
+    },
+  };
+}
+</script>
+{% endblock %}

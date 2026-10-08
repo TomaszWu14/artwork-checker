@@ -1,0 +1,660 @@
+{% extends "base.html" %}
+{% block title %}Checklisty dokumentów — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+
+/* .btn i warianty — z app.css (ładowany przez base.html). */
+.btn-danger { background: none; border: 1px solid rgba(220,38,38,.35);
+  color: #dc2626; border-radius: 6px; padding: 4px 10px;
+  font-size: 12px; cursor: pointer; }
+.btn-danger:hover { background: rgba(220,38,38,.07); }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+.tab  { padding: 6px 18px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); transition: all .15s; }
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { background: var(--surface2); padding: 10px 12px;
+  text-align: left; font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 2px solid var(--border); white-space: nowrap; }
+tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border);
+  color: var(--text); vertical-align: middle; }
+tbody tr:hover td { background: var(--surface2); }
+
+/* Progress bar */
+.progress-wrap { display: flex; align-items: center; gap: 8px; }
+.progress-bar  { flex: 1; height: 8px; border-radius: 4px;
+  background: var(--border); min-width: 80px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+.progress-fill.green  { background: #059669; }
+.progress-fill.yellow { background: #d97706; }
+.progress-fill.red    { background: #dc2626; }
+.progress-text { font-size: 12px; font-weight: 600; color: var(--muted);
+  white-space: nowrap; }
+
+/* Status badges */
+.status-badge { display: inline-block; padding: 2px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; }
+.s-brak        { background: #fee2e2; color: #dc2626; }
+.s-oczekuje    { background: #fef3c7; color: #d97706; }
+.s-wgrano      { background: #dbeafe; color: #1d4ed8; }
+.s-zatwierdzono{ background: #d1fae5; color: #059669; }
+
+/* Doc type badge */
+.doc-badge { display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; background: var(--accent-bg);
+  color: var(--accent); }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 500;
+  align-items: center; justify-content: center; padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  width: 100%; max-width: 640px; max-height: 90vh;
+  overflow-y: auto; padding: 28px 32px;
+  position: relative;
+}
+.modal-lg { max-width: 820px; }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+.modal-close {
+  position: absolute; top: 16px; right: 20px;
+  background: none; border: none; font-size: 20px;
+  cursor: pointer; color: var(--muted); line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+
+/* Form elements */
+.form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.form-label { font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 12px; font-size: 13px; background: var(--surface);
+  color: var(--text); font-family: inherit;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(29,78,216,.15);
+}
+.form-textarea { resize: vertical; min-height: 60px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-full { grid-column: 1 / -1; }
+.form-row  { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+
+/* Checkbox group */
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.checkbox-item  { display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-size: 12px; font-weight: 600;
+  background: var(--surface); transition: all .12s; }
+.checkbox-item input { cursor: pointer; }
+.checkbox-item:has(input:checked) { background: var(--accent-bg);
+  border-color: var(--accent); color: var(--accent); }
+
+/* Detail table in modal */
+.detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail-table th { padding: 8px 10px; text-align: left; font-size: 11px;
+  font-weight: 700; color: var(--muted); text-transform: uppercase;
+  border-bottom: 2px solid var(--border); background: var(--surface2); }
+.detail-table td { padding: 8px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: middle; }
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-table select { border: 1px solid var(--border); border-radius: 5px;
+  padding: 4px 8px; font-size: 12px; background: var(--surface);
+  color: var(--text); }
+.detail-table input[type="text"] { border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 8px; font-size: 12px;
+  background: var(--surface); color: var(--text); width: 100%; }
+
+/* Panel */
+.panel { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px; margin-bottom: 18px; }
+
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* Required dot */
+.required-dot { display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: #dc2626; }
+.optional-dot { display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--border); }
+</style>
+{% endblock %}
+
+{% block page_title %}Checklisty dokumentów{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">📋 Checklisty dokumentów</div>
+    <div class="page-sub">Śledzenie kompletności dokumentacji dla dostaw i szablony wymaganych dokumentów per dostawca</div>
+  </div>
+  <button type="button" class="btn btn-primary" onclick="openModal('newDeliveryModal')">
+    ➕ Nowe zamówienie
+  </button>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-deliveries" onclick="switchTab('deliveries')">🚢 Dostawy</div>
+  <div class="tab" id="tab-templates" onclick="switchTab('templates')">📄 Szablony dostawców</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 1: DOSTAWY
+═══════════════════════════════════════════════ -->
+<div id="pane-deliveries">
+<div class="panel">
+  {% if deliveries %}
+  <div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Nr PO</th>
+        <th scope="col">Dostawca</th>
+        <th scope="col">Kontener</th>
+        <th scope="col">Dokumenty</th>
+        <th scope="col">Brakujące</th>
+        <th scope="col">Ostatnia aktualizacja</th>
+        <th scope="col">Akcje</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for d in deliveries %}
+    {% set pct = ((d.approved / d.total_docs) * 100) | int if d.total_docs > 0 else 0 %}
+    {% set color = 'green' if pct == 100 else ('yellow' if d.missing <= (d.total_docs // 2) else 'red') %}
+    <tr>
+      <td><strong>{{ d.po_number }}</strong></td>
+      <td>{{ d.supplier_name or '—' }}</td>
+      <td>{{ d.container_number or '—' }}</td>
+      <td>
+        <div class="progress-wrap">
+          <div class="progress-bar">
+            <div class="progress-fill {{ color }}" style="width:{{ pct }}%"></div>
+          </div>
+          <span class="progress-text">{{ d.approved }}/{{ d.total_docs }}</span>
+        </div>
+      </td>
+      <td>
+        {% if d.missing > 0 %}
+          <span class="status-badge s-brak">{{ d.missing }} brak</span>
+        {% else %}
+          <span class="status-badge s-zatwierdzono">komplet</span>
+        {% endif %}
+      </td>
+      <td style="color:var(--muted);font-size:12px">{{ d.last_update[:16] if d.last_update else '—' }}</td>
+      <td>
+        <button type="button" class="btn btn-outline btn-sm"
+                onclick="openDeliveryDetail({{ d.po_number|tojson }})">
+          Szczegóły
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">📦</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">Brak dostaw</div>
+    <div style="font-size:13px">Utwórz nowe zamówienie, aby rozpocząć śledzenie dokumentów.</div>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 2: SZABLONY DOSTAWCÓW
+═══════════════════════════════════════════════ -->
+<div id="pane-templates" style="display:none">
+<div class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <span style="font-size:14px;font-weight:700;color:var(--text)">Wymagane dokumenty per dostawca</span>
+    {% if role in ['admin','superuser','manager'] %}
+    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('newTemplateModal')">
+      ➕ Dodaj szablon
+    </button>
+    {% endif %}
+  </div>
+  {% if templates %}
+  <div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Dostawca</th>
+        <th scope="col">Typ dokumentu</th>
+        <th scope="col">Wymagany</th>
+        <th scope="col">Notatki</th>
+        {% if role in ['admin','superuser','manager'] %}
+        <th scope="col">Akcje</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for tmpl in templates %}
+    <tr data-tid="{{ tmpl.id }}">
+      <td><strong>{{ tmpl.supplier_name }}</strong></td>
+      <td><span class="doc-badge">{{ tmpl.doc_type }}</span></td>
+      <td>
+        {% if tmpl.required %}
+          <span class="required-dot"></span> <span style="font-size:12px;color:#dc2626;font-weight:600">Wymagany</span>
+        {% else %}
+          <span class="optional-dot"></span> <span style="font-size:12px;color:var(--muted)">Opcjonalny</span>
+        {% endif %}
+      </td>
+      <td style="color:var(--muted);font-size:12px">{{ tmpl.notes or '—' }}</td>
+      {% if role in ['admin','superuser','manager'] %}
+      <td>
+        <button type="button" class="btn-danger btn-sm"
+                onclick="deleteTemplate({{ tmpl.id }}, this)">Usuń</button>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">📄</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">Brak szablonów</div>
+    <div style="font-size:13px">Dodaj wymagane dokumenty per dostawca.</div>
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: NOWE ZAMÓWIENIE
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="newDeliveryModal" role="dialog" aria-modal="true" aria-labelledby="newDeliveryModalTitle">
+  <div class="modal">
+    <button type="button" class="modal-close" onclick="closeModal('newDeliveryModal')" aria-label="Zamknij">&times;</button>
+    <div id="newDeliveryModalTitle" class="modal-title">➕ Nowe zamówienie</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nd-po" class="form-label">Numer PO *</label>
+        <input type="text" id="nd-po" class="form-input" placeholder="np. PO-2024-001" aria-required="true">
+      </div>
+      <div class="form-group">
+        <label for="nd-supplier" class="form-label">Dostawca</label>
+        <select id="nd-supplier" class="form-select" onchange="prefillFromSupplier()">
+          <option value="">— wybierz lub wpisz —</option>
+          {% for s in suppliers %}
+          <option value="{{ s.name }}">{{ s.name }}</option>
+          {% endfor %}
+          {% for po in recent_pos %}
+          {% if po.supplier_code %}
+          <option value="{{ po.supplier_code }}">{{ po.supplier_code }} (ostatnie PO)</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="nd-supplier-text" class="form-label">Nazwa dostawcy (własna)</label>
+        <input type="text" id="nd-supplier-text" class="form-input" placeholder="lub wpisz ręcznie">
+      </div>
+      <div class="form-group">
+        <label for="nd-container" class="form-label">Numer kontenera (opcjonalnie)</label>
+        <input type="text" id="nd-container" class="form-input" placeholder="np. MSCU1234567">
+      </div>
+    </div>
+    <div class="form-group form-full">
+      <label class="form-label">Typy dokumentów</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <button class="btn btn-outline btn-sm" type="button" onclick="checkAllDocs(true)">Zaznacz wszystkie</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="checkAllDocs(false)">Odznacz wszystkie</button>
+        <button class="btn btn-outline btn-sm" type="button" onclick="prefillFromSupplier()" id="prefillBtn" style="display:none">
+          📋 Użyj szablonu dostawcy
+        </button>
+      </div>
+      <div class="checkbox-group" id="nd-docs">
+        <label class="checkbox-item"><input type="checkbox" value="PO" checked> PO</label>
+        <label class="checkbox-item"><input type="checkbox" value="PI" checked> PI</label>
+        <label class="checkbox-item"><input type="checkbox" value="CI" checked> CI</label>
+        <label class="checkbox-item"><input type="checkbox" value="PL" checked> PL</label>
+        <label class="checkbox-item"><input type="checkbox" value="SAD" checked> SAD</label>
+        <label class="checkbox-item"><input type="checkbox" value="BL" checked> BL</label>
+        <label class="checkbox-item"><input type="checkbox" value="CMR"> CMR</label>
+        <label class="checkbox-item"><input type="checkbox" value="COA"> COA</label>
+        <label class="checkbox-item"><input type="checkbox" value="SWIFT"> SWIFT</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button type="button" class="btn btn-primary" onclick="submitNewDelivery()">Utwórz zamówienie</button>
+      <button type="button" class="btn btn-outline" onclick="closeModal('newDeliveryModal')">Anuluj</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: SZCZEGÓŁY DOSTAWY
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="deliveryDetailModal" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+  <div class="modal modal-lg">
+    <button type="button" class="modal-close" onclick="closeModal('deliveryDetailModal')" aria-label="Zamknij">&times;</button>
+    <div class="modal-title" id="detailModalTitle">Szczegóły dostawy</div>
+    <div id="detailModalBody">
+      <div style="text-align:center;padding:40px;color:var(--muted)">Ładowanie...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: DODAJ SZABLON
+═══════════════════════════════════════════════ -->
+{% if role in ['admin','superuser','manager'] %}
+<div class="modal-overlay" id="newTemplateModal" role="dialog" aria-modal="true" aria-labelledby="newTemplateModalTitle">
+  <div class="modal" style="max-width:480px">
+    <button type="button" class="modal-close" onclick="closeModal('newTemplateModal')" aria-label="Zamknij">&times;</button>
+    <div id="newTemplateModalTitle" class="modal-title">📄 Dodaj szablon dokumentu</div>
+    <div class="form-group">
+      <label for="tmpl-supplier" class="form-label">Dostawca *</label>
+      <select id="tmpl-supplier" class="form-select">
+        <option value="">— wybierz dostawcę —</option>
+        {% for s in suppliers %}
+        <option value="{{ s.name }}">{{ s.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" id="tmpl-supplier-text" class="form-input" style="margin-top:6px"
+             placeholder="lub wpisz nazwę dostawcy">
+    </div>
+    <div class="form-group">
+      <label for="tmpl-doctype" class="form-label">Typ dokumentu *</label>
+      <select id="tmpl-doctype" class="form-select">
+        <option value="PO">PO — Purchase Order</option>
+        <option value="PI">PI — Proforma Invoice</option>
+        <option value="CI">CI — Commercial Invoice</option>
+        <option value="PL">PL — Packing List</option>
+        <option value="SAD">SAD — Customs Declaration</option>
+        <option value="BL">BL — Bill of Lading</option>
+        <option value="CMR">CMR — Consignment Note</option>
+        <option value="COA">COA — Certificate of Analysis</option>
+        <option value="SWIFT">SWIFT — Payment Confirmation</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">
+        <input type="checkbox" id="tmpl-required" checked style="margin-right:5px" aria-required="true">
+        Wymagany dokument
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="tmpl-notes" class="form-label">Notatki</label>
+      <textarea id="tmpl-notes" class="form-textarea" placeholder="Dodatkowe wymagania, terminy, uwagi..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button type="button" class="btn btn-primary" onclick="submitTemplate()">Dodaj szablon</button>
+      <button type="button" class="btn btn-outline" onclick="closeModal('newTemplateModal')">Anuluj</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+<script>
+const USER_ROLE = {{ role | tojson }};
+const CAN_EDIT_CHECKLIST = ['manager','superuser','admin'].includes(USER_ROLE);
+// ── Supplier templates data (for prefill) ──────────────────
+const supplierTemplates = {};
+{% for tmpl in templates %}
+const sKey{{ loop.index }} = {{ tmpl.supplier_name | tojson }};
+if (!supplierTemplates[sKey{{ loop.index }}]) supplierTemplates[sKey{{ loop.index }}] = [];
+supplierTemplates[sKey{{ loop.index }}].push({{ tmpl.doc_type | tojson }});
+{% endfor %}
+
+// ── Toast ──────────────────────────────────────────────────
+function showToast(msg, ok=true) { toast(msg, ok ? 'ok' : 'error'); }
+
+// ── Modal helpers ──────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', function(e) {
+    if (e.target === this) closeModal(this.id);
+  });
+});
+
+// ── Tabs ───────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('pane-deliveries').style.display = name === 'deliveries' ? '' : 'none';
+  document.getElementById('pane-templates').style.display  = name === 'templates'  ? '' : 'none';
+}
+
+// ── Doc checkboxes helpers ─────────────────────────────────
+function checkAllDocs(checked) {
+  document.querySelectorAll('#nd-docs input[type=checkbox]').forEach(cb => cb.checked = checked);
+}
+
+function prefillFromSupplier() {
+  const sel  = document.getElementById('nd-supplier').value;
+  const text = document.getElementById('nd-supplier-text').value.trim();
+  const sup  = sel || text;
+  if (!sup) return;
+  const docs = supplierTemplates[sup];
+  if (!docs || docs.length === 0) {
+    showToast('Brak szablonu dla tego dostawcy', false);
+    return;
+  }
+  // Uncheck all, then check only supplier's required docs
+  document.querySelectorAll('#nd-docs input[type=checkbox]').forEach(cb => cb.checked = false);
+  docs.forEach(d => {
+    const cb = document.querySelector(`#nd-docs input[value="${d}"]`);
+    if (cb) cb.checked = true;
+  });
+  showToast(`Załadowano szablon: ${docs.length} dokumentów`);
+}
+
+// Show/hide prefill button when supplier changes
+document.getElementById('nd-supplier').addEventListener('change', function() {
+  const btn = document.getElementById('prefillBtn');
+  const val = this.value || document.getElementById('nd-supplier-text').value.trim();
+  btn.style.display = val ? '' : 'none';
+});
+document.getElementById('nd-supplier-text').addEventListener('input', function() {
+  const btn = document.getElementById('prefillBtn');
+  const val = this.value.trim() || document.getElementById('nd-supplier').value;
+  btn.style.display = val ? '' : 'none';
+});
+
+// ── Submit new delivery ────────────────────────────────────
+async function submitNewDelivery() {
+  const po         = document.getElementById('nd-po').value.trim();
+  const selSup     = document.getElementById('nd-supplier').value;
+  const textSup    = document.getElementById('nd-supplier-text').value.trim();
+  const supplier   = selSup || textSup;
+  const container  = document.getElementById('nd-container').value.trim();
+
+  if (!po) { showToast('Numer PO jest wymagany', false); return; }
+
+  const docs = [];
+  document.querySelectorAll('#nd-docs input[type=checkbox]:checked').forEach(cb => docs.push(cb.value));
+  if (docs.length === 0) { showToast('Zaznacz co najmniej jeden typ dokumentu', false); return; }
+
+  try {
+    const r = await fetch('/api/checklists/delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ po_number: po, supplier_name: supplier,
+                             container_number: container, docs })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      showToast('Zamówienie utworzone!');
+      closeModal('newDeliveryModal');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Błąd ' + r.status, false);
+    }
+  } catch(e) {
+    showToast('Błąd sieci: ' + e.message, false);
+  }
+}
+
+// ── Open delivery detail modal ─────────────────────────────
+async function openDeliveryDetail(po) {
+  openModal('deliveryDetailModal');
+  document.getElementById('detailModalTitle').textContent = 'Dokumenty dostawy: ' + po;
+  document.getElementById('detailModalBody').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--muted)">Ładowanie...</div>';
+
+  let d;
+  try {
+    const r = await fetch('/api/checklists/delivery/' + encodeURIComponent(po));
+    d = await r.json();
+  } catch(e) {
+    document.getElementById('detailModalBody').innerHTML =
+      '<div style="text-align:center;padding:30px;color:#dc2626">Błąd ładowania danych. Spróbuj ponownie.</div>';
+    return;
+  }
+  if (!d.items || d.items.length === 0) {
+    document.getElementById('detailModalBody').innerHTML =
+      '<div style="text-align:center;padding:30px;color:var(--muted)">Brak dokumentów dla tego PO.</div>';
+    return;
+  }
+  renderDetailTable(d.items);
+}
+
+function renderDetailTable(items) {
+  let html = `<table class="detail-table">
+    <thead><tr>
+      <th scope="col">Typ</th>
+      <th scope="col">Status</th>
+      <th scope="col">Notatki</th>
+      <th scope="col">Termin</th>
+      <th scope="col">Powiązane</th>
+      ${CAN_EDIT_CHECKLIST ? '<th scope="col">Zapisz</th>' : ''}
+    </tr></thead><tbody>`;
+
+  items.forEach(item => {
+    const statusOpts = ['brak','oczekuje','wgrano','zatwierdzono']
+      .map(s => `<option value="${s}" ${item.status===s?'selected':''} ${CAN_EDIT_CHECKLIST?'':'disabled'}>${s}</option>`)
+      .join('');
+    const _cid = parseInt(item.comparison_id, 10) || 0;
+    const compLink = _cid
+      ? `<a href="/history/${_cid}" target="_blank" style="color:var(--accent);font-size:12px" rel="noopener noreferrer">🔗 #${_cid}</a>`
+      : '<span style="color:var(--muted);font-size:12px">—</span>';
+    html += `<tr>
+      <td><span class="doc-badge">${escHtml(item.doc_type)}</span></td>
+      <td>
+        <select id="st_${item.id}" class="status-select" data-id="${item.id}">
+          ${statusOpts}
+        </select>
+      </td>
+      <td>
+        <input type="text" id="note_${item.id}" value="${escHtml(item.notes||'')}"
+               placeholder="notatka..." ${CAN_EDIT_CHECKLIST?'':'readonly'}
+               style="width:140px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--surface);color:var(--text)">
+      </td>
+      <td>
+        <input type="date" id="due_${item.id}" value="${escHtml(item.due_date||'')}"
+               ${CAN_EDIT_CHECKLIST?'':'readonly'}
+               style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--surface);color:var(--text)">
+      </td>
+      <td>${compLink}</td>
+      ${CAN_EDIT_CHECKLIST ? `<td><button type="button" class="btn btn-primary btn-sm" onclick="saveItem(${item.id})">Zapisz</button></td>` : ''}
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('detailModalBody').innerHTML = html;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function saveItem(id) {
+  const status  = document.getElementById('st_'   + id).value;
+  const notes   = document.getElementById('note_' + id).value;
+  const due     = document.getElementById('due_'  + id).value;
+  let d;
+  try {
+    const r = await fetch('/api/checklists/delivery/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, notes, due_date: due })
+    });
+    d = await r.json();
+  } catch(e) {
+    showToast('Błąd sieci — zmiany nie zostały zapisane', false);
+    return;
+  }
+  if (d.ok) {
+    showToast('Zapisano!');
+  } else {
+    showToast(d.error || 'Błąd', false);
+  }
+}
+
+// ── Delete template ────────────────────────────────────────
+async function deleteTemplate(tid, btn) {
+  confirmModal('Usunąć ten szablon?', async () => {
+    const r = await fetch('/api/checklists/templates/' + tid, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok) {
+      btn.closest('tr').remove();
+      toast('Szablon usunięty', 'ok');
+    } else {
+      toast(d.error || 'Błąd', 'error');
+    }
+  }, {okLabel: 'Usuń', danger: true});
+}
+
+// ── Submit template ────────────────────────────────────────
+async function submitTemplate() {
+  const selSup  = document.getElementById('tmpl-supplier').value;
+  const textSup = document.getElementById('tmpl-supplier-text').value.trim();
+  const supplier = selSup || textSup;
+  const doc_type = document.getElementById('tmpl-doctype').value;
+  const required = document.getElementById('tmpl-required').checked ? 1 : 0;
+  const notes    = document.getElementById('tmpl-notes').value.trim();
+  if (!supplier) { showToast('Wybierz lub wpisz dostawcę', false); return; }
+  try {
+    const r = await fetch('/api/checklists/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ supplier_name: supplier, doc_type, required, notes })
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      showToast('Szablon dodany!');
+      closeModal('newTemplateModal');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(d.error || 'Błąd ' + r.status, false);
+    }
+  } catch(e) {
+    showToast('Błąd sieci: ' + e.message, false);
+  }
+}
+</script>
+{% endblock %}

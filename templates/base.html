@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'pl') }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<meta name="description" content="Artwork — porównywanie i wizualizacja artworków opakowań ACME">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1d4ed8">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Ctext y='23' x='5' font-size='20' fill='white'%3E⚖%3C/text%3E%3C/svg%3E">
+<title>{% block title %}Artwork{% endblock %} — ACME</title>
+<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="dns-prefetch" href="https://unpkg.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="{{ url_for('static', filename='js/shell.js') }}"></script>
+{% block extra_head %}{% endblock %}
+<script>
+function getCsrf(){return document.querySelector('meta[name="csrf-token"]')?.content||'';}
+(function(){
+  const _orig = window.fetch;
+  window.fetch = function(url, opts){
+    opts = opts || {};
+    const m = (opts.method || 'GET').toUpperCase();
+    if (['POST','PUT','PATCH','DELETE'].includes(m)){
+      const tok = getCsrf();
+      if(tok){
+        if(opts.headers instanceof Headers){
+          if(!opts.headers.has('X-CSRF-Token')) opts.headers.set('X-CSRF-Token', tok);
+        } else {
+          opts.headers = opts.headers || {};
+          if(!opts.headers['X-CSRF-Token'] && !opts.headers['x-csrf-token'])
+            opts.headers['X-CSRF-Token'] = tok;
+        }
+      }
+    }
+    return _orig.call(this, url, opts);
+  };
+})();
+
+// Shared API helper: standardises CSRF (via the override above), JSON bodies,
+// response parsing and error surfacing so call sites stop duplicating fetch
+// boilerplate and silently swallowing failures with empty catch blocks.
+// Usage:  const data = await apiFetch('/api/x', {method:'POST', body:{...}});
+window.apiFetch = async function(url, opts){
+  opts = opts || {};
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)){
+    opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+    opts.body = JSON.stringify(opts.body);
+  }
+  let resp;
+  try {
+    resp = await fetch(url, opts);                 // CSRF injected by the override above
+  } catch (e) {
+    if (window.toast) toast('Błąd połączenia z serwerem', 'error');
+    throw e;
+  }
+  let data = null;
+  if ((resp.headers.get('content-type') || '').includes('application/json')){
+    try { data = await resp.json(); } catch (_e) {}
+  }
+  if (!resp.ok || (data && data.error)){
+    const msg = (data && data.error) || ('Błąd serwera (' + resp.status + ')');
+    if (window.toast) toast(msg, 'error');
+    const err = new Error(msg); err.status = resp.status; err.data = data;
+    throw err;
+  }
+  return data;
+};
+</script>
+<script defer src="https://unpkg.com/@alpinejs/collapse@3.13.0/dist/cdn.min.js"></script>
+<script defer src="https://unpkg.com/alpinejs@3.13.0/dist/cdn.min.js"></script>
+</head>
+<body class="flex min-h-screen" style="background:var(--bg)">
+
+<a href="#main-content" class="skip-link">Przejdź do treści</a>
+
+<div class="app-shell flex h-screen w-full overflow-hidden"
+     x-data="{% block alpine_init %}dcShell(){% endblock %}"
+     :data-rail="rail">
+
+  {# ==================== SIDEBAR ==================== #}
+  <aside class="app-sidebar shrink-0 flex flex-col transition-[width] duration-200 ease-out z-40 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:transition-transform max-md:-translate-x-full w-[248px]"
+         :class="[rail ? 'w-[64px]' : 'w-[248px]', mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full']">
+
+    {# Brand #}
+    <a href="/artwork" class="h-[60px] flex items-center gap-2.5 px-3.5 border-b shrink-0" style="border-color:var(--nav-border);">
+      <div class="w-9 h-9 rounded-[10px] grid place-items-center shrink-0 font-bold text-white text-[15px]"
+           style="background:linear-gradient(135deg,#2563eb,#1d4ed8);box-shadow:0 2px 8px rgba(37,99,235,.35);">Z</div>
+      <div class="rail-hide leading-tight overflow-hidden">
+        <div class="text-white font-bold text-[15px] tracking-tight">ACME</div>
+        <div class="text-[11px] font-medium" style="color:var(--nav-muted);">Artwork&nbsp;v1</div>
+      </div>
+    </a>
+
+    {# Navigation #}
+    <nav class="flex-1 overflow-y-auto nav-scroll px-2.5 py-3">
+
+      {# ARTWORKI #}
+      <div class="mb-1.5">
+        <button type="button" class="nav-section-head" :data-collapsed="isCollapsed('artworki')" @click="toggleSection('artworki')" title="Artworki">
+          <i data-lucide="palette" class="rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+          <span class="rail-hide">Artworki</span>
+          <i data-lucide="chevron-down" class="chev rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+        </button>
+        <div x-show="!isCollapsed('artworki')" x-collapse>
+          <a href="/artwork" class="nav-link {% if request.path=='/artwork' %}is-active{% endif %}" {% if request.path=='/artwork' %}aria-current="page"{% endif %}>
+            <i data-lucide="palette" aria-hidden="true"></i>
+            <span class="label rail-hide">Artwork</span>
+            <span class="tip">Artwork</span>
+          </a>
+          <a href="/artwork/batch" class="nav-link {% if request.path=='/artwork/batch' %}is-active{% endif %}" {% if request.path=='/artwork/batch' %}aria-current="page"{% endif %}>
+            <i data-lucide="layers" aria-hidden="true"></i>
+            <span class="label rail-hide">Masowe porównanie</span>
+            <span class="tip">Masowe porównanie artworków</span>
+          </a>
+          <a href="/artwork/3d" class="nav-link {% if request.path=='/artwork/3d' %}is-active{% endif %}" {% if request.path=='/artwork/3d' %}aria-current="page"{% endif %}>
+            <i data-lucide="box" aria-hidden="true"></i>
+            <span class="label rail-hide">Artwork 3D</span>
+            <span class="tip">Artwork 3D</span>
+          </a>
+          <a href="/artwork/3d/batch" class="nav-link {% if request.path=='/artwork/3d/batch' %}is-active{% endif %}" {% if request.path=='/artwork/3d/batch' %}aria-current="page"{% endif %}>
+            <i data-lucide="boxes" aria-hidden="true"></i>
+            <span class="label rail-hide">Masowe 3D</span>
+            <span class="tip">Masowa generacja modeli 3D</span>
+          </a>
+          <a href="/artwork/3d/marm" class="nav-link {% if request.path=='/artwork/3d/marm' %}is-active{% endif %}" {% if request.path=='/artwork/3d/marm' %}aria-current="page"{% endif %}>
+            <i data-lucide="package" aria-hidden="true"></i>
+            <span class="label rail-hide">3D z MARM</span>
+            <span class="tip">Model 3D z danych MARM (REF + jednostka)</span>
+          </a>
+          <a href="/artwork/palviz" class="nav-link {% if request.path.startswith('/artwork/palviz') %}is-active{% endif %}" {% if request.path.startswith('/artwork/palviz') %}aria-current="page"{% endif %}>
+            <i data-lucide="package" aria-hidden="true"></i>
+            <span class="label rail-hide">PalViz</span>
+            <span class="tip">PalViz — eksport ścianek</span>
+          </a>
+          <a href="/artwork/templates" class="nav-link {% if request.path=='/artwork/templates' %}is-active{% endif %}" {% if request.path=='/artwork/templates' %}aria-current="page"{% endif %}>
+            <i data-lucide="pencil-ruler" aria-hidden="true"></i>
+            <span class="label rail-hide">Szablony</span>
+            <span class="tip">Kreator szablonów wykrojników</span>
+          </a>
+          {% if role in ['manager', 'superuser', 'admin'] %}
+          <a href="/artwork/manage" class="nav-link {% if request.path.startswith('/artwork/manage') %}is-active{% endif %}" {% if request.path.startswith('/artwork/manage') %}aria-current="page"{% endif %}>
+            <i data-lucide="folder-cog" aria-hidden="true"></i>
+            <span class="label rail-hide">Zarządzanie</span>
+            <span class="tip">Zarządzanie artworkami — indeks, powiązania, rewizje, luki</span>
+          </a>
+          {% endif %}
+          <a href="/artwork/library" class="nav-link {% if request.path=='/artwork/library' %}is-active{% endif %}" {% if request.path=='/artwork/library' %}aria-current="page"{% endif %}>
+            <i data-lucide="library" aria-hidden="true"></i>
+            <span class="label rail-hide">Biblioteka 3D</span>
+            <span class="tip">Biblioteka masterów — render 3D / grupy / z listy REF</span>
+          </a>
+          <a href="/artwork/render-coverage" class="nav-link {% if request.path=='/artwork/render-coverage' %}is-active{% endif %}" {% if request.path=='/artwork/render-coverage' %}aria-current="page"{% endif %}>
+            <i data-lucide="list-checks" aria-hidden="true"></i>
+            <span class="label rail-hide">Pokrycie 3D</span>
+            <span class="tip">Które artworki mają już model 3D — i jakim wariantem</span>
+          </a>
+          <a href="/history" class="nav-link {% if request.path=='/history' %}is-active{% endif %}" {% if request.path=='/history' %}aria-current="page"{% endif %}>
+            <i data-lucide="history" aria-hidden="true"></i>
+            <span class="label rail-hide">Historia porównań</span>
+            <span class="tip">Historia porównań</span>
+          </a>
+          <a href="/artwork/kpi" class="nav-link {% if request.path=='/artwork/kpi' %}is-active{% endif %}" {% if request.path=='/artwork/kpi' %}aria-current="page"{% endif %}>
+            <i data-lucide="chart-column" aria-hidden="true"></i>
+            <span class="label rail-hide">KPI artworków</span>
+            <span class="tip">KPI artworków</span>
+          </a>
+        </div>
+      </div>
+
+      {# CENTRUM DANYCH #}
+      <div class="mb-1.5">
+        <button type="button" class="nav-section-head" :data-collapsed="isCollapsed('bazawiedzy')" @click="toggleSection('bazawiedzy')" title="Centrum danych">
+          <i data-lucide="database" class="rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+          <span class="rail-hide">Centrum danych</span>
+          <i data-lucide="chevron-down" class="chev rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+        </button>
+        <div x-show="!isCollapsed('bazawiedzy')" x-collapse>
+          {# Tylko link do Centrum danych — Produkty / Dostawcy / Słownik tłumaczeń
+             są kaflami WEWNĄTRZ Centrum danych, więc nie powielamy ich w menu. #}
+          <a href="/data" class="nav-link {% if request.path=='/data' %}is-active{% endif %}" {% if request.path=='/data' %}aria-current="page"{% endif %}>
+            <i data-lucide="database" aria-hidden="true"></i>
+            <span class="label rail-hide">Centrum danych</span>
+            <span class="tip">Centrum danych</span>
+          </a>
+        </div>
+      </div>
+
+      {# ADMIN #}
+      {% if role in ['admin', 'superuser', 'manager'] %}
+      <div class="mb-1.5">
+        <button type="button" class="nav-section-head" :data-collapsed="isCollapsed('admin')" @click="toggleSection('admin')" title="Admin">
+          <i data-lucide="shield-check" class="rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+          <span class="rail-hide">Admin</span>
+          <i data-lucide="chevron-down" class="chev rail-hide" style="width:13px;height:13px;" aria-hidden="true"></i>
+        </button>
+        <div x-show="!isCollapsed('admin')" x-collapse>
+          {# Sekcja ADMIN odchudzona na życzenie: Scorecard, Duplikaty, Wersje,
+             Taryfa CN, Koszty API, Logi aktywności i Ustawienia e-mail usunięte
+             z menu (strony nadal istnieją pod swoimi adresami). Biblioteka plików
+             wróciła — to narzędzie codzienne, a nie administracyjne, i bez linku
+             była osiągalna wyłącznie przez wpisanie adresu z pamięci. #}
+          <a href="/library" class="nav-link {% if request.path=='/library' %}is-active{% endif %}" {% if request.path=='/library' %}aria-current="page"{% endif %}>
+            <i data-lucide="library" aria-hidden="true"></i>
+            <span class="label rail-hide">Biblioteka plików</span>
+            <span class="tip">Biblioteka plików (masterów)</span>
+          </a>
+          {% if role == 'admin' %}
+          <a href="/admin" class="nav-link {% if request.path=='/admin' %}is-active{% endif %}" {% if request.path=='/admin' %}aria-current="page"{% endif %}>
+            <i data-lucide="settings-2" aria-hidden="true"></i>
+            <span class="label rail-hide">Panel admina</span>
+            <span class="tip">Panel admina</span>
+          </a>
+          <a href="/admin/palviz-push" class="nav-link {% if request.path=='/admin/palviz-push' %}is-active{% endif %}" {% if request.path=='/admin/palviz-push' %}aria-current="page"{% endif %}>
+            <i data-lucide="send" aria-hidden="true"></i>
+            <span class="label rail-hide">Push PalViz</span>
+            <span class="tip">Push do PalViz — dostawy</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mt-1" style="border-top:1px solid var(--nav-border);padding-top:6px;">
+        <a href="/help" class="nav-link {% if request.path=='/help' %}is-active{% endif %}" {% if request.path=='/help' %}aria-current="page"{% endif %}>
+          <i data-lucide="circle-help" aria-hidden="true"></i>
+          <span class="label rail-hide">Pomoc</span>
+          <span class="tip">Pomoc</span>
+        </a>
+        <a href="/logout" class="nav-link">
+          <i data-lucide="log-out" aria-hidden="true"></i>
+          <span class="label rail-hide">Wyloguj</span>
+          <span class="tip">Wyloguj</span>
+        </a>
+      </div>
+
+    </nav>
+
+    {# User footer #}
+    <div class="border-t px-2.5 py-2.5 shrink-0" style="border-color:var(--nav-border);">
+      <a href="/profile" class="flex items-center gap-2.5 px-1.5 py-1.5 rounded-[10px] hover:bg-[rgba(148,163,184,.06)] transition">
+        <div class="w-8 h-8 rounded-full grid place-items-center text-white text-[12px] font-bold shrink-0"
+             style="background:#334155;">{{ (username or '?')[0]|upper }}</div>
+        <div class="rail-hide leading-tight min-w-0 flex-1">
+          <div class="text-[12.5px] font-semibold text-slate-200 truncate">{{ username }}</div>
+          <div class="text-[11px] truncate" style="color:var(--nav-muted);">
+            <span class="role-{{ role }}">{{ role }}</span>
+          </div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  {# Mobile overlay #}
+  <div x-show="mobileOpen" x-transition.opacity @click="mobileOpen=false"
+       class="fixed inset-0 z-30 bg-slate-900/40 md:hidden" x-cloak></div>
+
+  {# ==================== MAIN AREA ==================== #}
+  <div class="flex-1 flex flex-col min-w-0">
+
+    {# TOPBAR #}
+    <header class="h-[60px] shrink-0 bg-white border-b flex items-center gap-3 px-4 md:px-5" style="border-color:var(--line);">
+      <button type="button" class="btn-icon btn-subtle md:hidden" @click="mobileOpen=true" aria-label="Menu">
+        <i data-lucide="menu" style="width:18px;height:18px;" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="btn-icon btn-subtle max-md:hidden" @click="toggleRail()" :aria-label="rail ? 'Rozwiń sidebar' : 'Zwiń sidebar'">
+        <i :data-lucide="rail ? 'panel-left-open' : 'panel-left-close'" style="width:18px;height:18px;" aria-hidden="true"></i>
+      </button>
+
+      {% block breadcrumb %}
+      <div class="min-w-0">
+        <span class="text-[15px] font-semibold text-slate-900">{% block page_title %}Artwork{% endblock %}</span>
+      </div>
+      {% endblock %}
+
+      {# Global search #}
+      <form action="/search" method="get" class="flex-1 max-w-md mx-auto max-md:hidden" role="search">
+        <div class="relative">
+          <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" style="width:15px;height:15px;" aria-hidden="true"></i>
+          <input type="search" name="q" value="{{ request.args.get('q','') if request.path == '/search' else '' }}"
+                 placeholder="Szukaj: REF, rewizja, nazwa pliku, dostawca…"
+                 class="w-full pl-9 pr-3 py-1.5 text-[13px] rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-400 focus:outline-none"
+                 aria-label="Szukaj globalnie">
+        </div>
+      </form>
+
+      {# Language toggle #}
+      <div class="flex items-center gap-1.5 max-md:hidden">
+        {% if _lang == 'pl' %}
+          <a href="/set-language/en" class="btn btn-ghost btn-sm text-[11px]">🇬🇧 EN</a>
+          <span class="btn btn-subtle btn-sm text-[11px]">🇵🇱 PL</span>
+        {% else %}
+          <span class="btn btn-subtle btn-sm text-[11px]">🇬🇧 EN</span>
+          <a href="/set-language/pl" class="btn btn-ghost btn-sm text-[11px]">🇵🇱 PL</a>
+        {% endif %}
+      </div>
+
+      {# Notifications bell #}
+      <button type="button" class="btn-icon btn-subtle relative" onclick="toggleNotifPanel()" aria-label="Powiadomienia" id="notifBellBtn">
+        <i data-lucide="bell" style="width:18px;height:18px;" aria-hidden="true"></i>
+        <span class="notif-dot-badge absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white hidden" id="notifDot"></span>
+      </button>
+
+      {# Profile link #}
+      <a href="/profile" class="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full border border-slate-200 hover:bg-slate-50 transition max-md:hidden">
+        <div class="w-6 h-6 rounded-full grid place-items-center text-white text-[11px] font-bold"
+             style="background:#334155;">{{ (username or '?')[0]|upper }}</div>
+        <span class="text-[13px] font-medium text-slate-700 max-lg:hidden">{{ username }}</span>
+        <i data-lucide="chevron-down" class="text-slate-400" style="width:14px;height:14px;" aria-hidden="true"></i>
+      </a>
+    </header>
+
+    {# CONTENT #}
+    <main id="main-content" class="flex-1 overflow-y-auto scroll-thin {% block main_class %}p-4 md:p-6{% endblock %}" tabindex="-1">
+      {# Komunikaty flash() z backendu — renderowane CENTRALNIE, bo wcześniej
+         get_flashed_messages() wołał dokładnie jeden szablon z 50. Każdy
+         `flash(...) + redirect(...)` na pozostałych stronach przepadał bez śladu
+         (np. „Brak danych porównania" przy wejściu w /artwork/zone-select bez
+         cache_id — użytkownik wracał na /artwork bez żadnego wyjaśnienia). #}
+      {% with _flashes = get_flashed_messages(with_categories=true) %}
+        {% if _flashes %}
+        <script>
+          window.addEventListener('DOMContentLoaded', function(){
+            {% for _cat, _msg in _flashes %}
+            toast({{ _msg|tojson }}, {{ ('error' if _cat in ('error','danger') else ('ok' if _cat == 'success' else 'info'))|tojson }}, 6000);
+            {% endfor %}
+          });
+        </script>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  {# Page modals #}
+  {% block modals %}{% endblock %}
+
+</div>{# /app-shell #}
+
+{# Toast container (vanilla JS — works with all pages) #}
+<div id="toastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+{# Notification panel #}
+<div id="notifPanel" class="hidden fixed bottom-5 right-5 w-[360px] max-h-[480px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[500] flex flex-col overflow-hidden" style="box-shadow:var(--shadow-pop);" role="dialog" aria-modal="false" aria-label="Powiadomienia">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 text-[13px] font-bold text-slate-800">
+    <span>🔔 Powiadomienia</span>
+    <button type="button" onclick="markAllRead()" class="text-[12px] text-blue-600 font-semibold hover:text-blue-700" aria-label="Oznacz wszystkie jako przeczytane">Oznacz jako przeczytane</button>
+  </div>
+  <div class="overflow-y-auto flex-1 scroll-thin" id="notifList">
+    <div class="p-10 text-center text-[13px] text-slate-400">Ładowanie…</div>
+  </div>
+</div>
+
+{# Confirm modal #}
+<div id="confirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;align-items:center;justify-content:center;" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
+  <div style="background:#fff;border:1px solid #e6e9f0;border-radius:16px;padding:24px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.18);">
+    <h3 id="confirmTitle" style="font-size:15px;font-weight:700;margin-bottom:8px;color:#0f172a;"></h3>
+    <p id="confirmMsg" style="font-size:13px;color:#64748b;line-height:1.5;margin-bottom:20px;"></p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" onclick="confirmCancel()" style="padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid #d4dae6;background:#fff;color:#64748b;">Anuluj</button>
+      <button type="button" id="confirmOkBtn" onclick="confirmDo()" style="padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#dc2626;color:#fff;">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+var _TOAST_ICONS = {ok:'✓', error:'✕', warn:'⚠', info:'ℹ'};
+var _TOAST_COLORS = {ok:'#f0fdf4,#86efac,#15803d', error:'#fef2f2,#fca5a5,#b91c1c', warn:'#fffbeb,#fcd34d,#92400e', info:'#eff6ff,#93c5fd,#1d4ed8'};
+function toast(msg, type, dur){
+  type = type || 'info'; dur = dur || 4000;
+  var c = (_TOAST_COLORS[type]||_TOAST_COLORS.info).split(',');
+  var el = document.createElement('div');
+  el.style.cssText = 'display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:11px;font-size:13px;font-weight:500;min-width:240px;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,.18);pointer-events:all;cursor:pointer;border:1px solid '+c[1]+';background:'+c[0]+';color:'+c[2]+';animation:dcToastIn .2s ease;';
+  var safeMsg = String(msg||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  el.innerHTML = '<span style="font-size:15px;flex-shrink:0">'+_TOAST_ICONS[type]+'</span>'
+    + '<span style="flex:1">'+safeMsg+'</span>'
+    + '<span role="button" aria-label="Zamknij powiadomienie" tabindex="0" style="font-size:16px;opacity:.5;cursor:pointer" onclick="dismissToast(this.parentElement)" onkeydown="if(event.key===\'Enter\'||event.key===\' \')dismissToast(this.parentElement)">×</span>';
+  el.onclick = function(){ dismissToast(el); };
+  var c2 = document.getElementById('toastContainer');
+  c2.style.pointerEvents = 'all';
+  c2.appendChild(el);
+  setTimeout(function(){ dismissToast(el); }, dur);
+}
+function dismissToast(el){
+  if(!el||el._removing) return;
+  el._removing = true;
+  el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='all .2s';
+  setTimeout(function(){ el&&el.parentNode&&el.parentNode.removeChild(el); }, 220);
+}
+
+// ── CONFIRM MODAL ─────────────────────────────────────────────────────────────
+var _confirmCb = null;
+function confirmModal(msg, cb, opts){
+  opts = opts || {};
+  document.getElementById('confirmTitle').textContent = opts.title || 'Potwierdź';
+  document.getElementById('confirmMsg').textContent   = msg;
+  var okBtn = document.getElementById('confirmOkBtn');
+  okBtn.textContent = opts.okLabel || 'OK';
+  okBtn.style.background = opts.danger !== false ? '#dc2626' : '#1d4ed8';
+  _confirmCb = cb;
+  var ov = document.getElementById('confirmOverlay');
+  ov.style.display = 'flex';
+}
+function confirmDo(){ document.getElementById('confirmOverlay').style.display='none'; if(_confirmCb) _confirmCb(); _confirmCb=null; }
+function confirmCancel(){ document.getElementById('confirmOverlay').style.display='none'; _confirmCb=null; }
+document.getElementById('confirmOverlay').addEventListener('click', function(e){ if(e.target===this) confirmCancel(); });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && document.getElementById('confirmOverlay').style.display==='flex') confirmCancel(); });
+
+// ── RELATIVE TIME ─────────────────────────────────────────────────────────────
+function timeAgo(dateStr){
+  if(!dateStr) return '';
+  var d = new Date(dateStr.replace(' ','T').replace(/(\.\d{3})\d+/,'$1'));
+  if(isNaN(d)) return dateStr.slice(0,16).replace('T',' ');
+  var diff = Math.floor((Date.now()-d.getTime())/1000);
+  if(diff<60) return 'przed chwilą';
+  if(diff<3600) return Math.floor(diff/60)+' min temu';
+  if(diff<86400) return Math.floor(diff/3600)+' godz. temu';
+  if(diff<604800) return Math.floor(diff/86400)+' dni temu';
+  return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+// UX-05: wspólne formatowanie daty PL (dd.mm.rrrr [gg:mm]) — jedno źródło dla całej suity.
+window.dataPL = function(v, withTime){
+  if(!v) return '—';
+  var d = new Date(String(v).replace(' ','T').replace(/(\.\d{3})\d+/,'$1'));
+  if(isNaN(d)) return String(v).slice(0,10);
+  var s = d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'});
+  if(withTime) s += ' ' + d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+  return s;
+};
+// UX-05: mapa kod→etykieta PL dla enumów wyciekających do UI (statusy/warianty).
+window.enumPL = function(kind, code){
+  var M = {
+    variant:  {dieline:'Wykrojnik', marm:'MARM', photo:'Zdjęcia'},
+    push:     {pending:'oczekuje', sent:'wysłane', failed:'błąd'},
+    file:     {active:'aktywny', ignored:'pominięty', archived:'zarchiwizowany'}
+  };
+  return (M[kind] && M[kind][code]) || code || '—';
+};
+function initTimeAgo(){
+  document.querySelectorAll('.ts-rel').forEach(function(el){
+    var raw=el.dataset.ts||el.textContent;
+    if(raw){el.title=raw;el.textContent=timeAgo(raw);}
+  });
+}
+document.addEventListener('DOMContentLoaded', initTimeAgo);
+
+// ── TICKET BADGE ──────────────────────────────────────────────────────────────
+// ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+var _notifOpen=false, _notifData=[];
+function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function notifTimeAgo(ts){
+  if(!ts) return '';
+  const d=new Date((ts+'').replace(' ','T')+'Z');
+  const diff=Math.floor((Date.now()-d.getTime())/1000);
+  if(diff<60) return 'przed chwilą';
+  if(diff<3600) return Math.floor(diff/60)+' min temu';
+  if(diff<86400) return Math.floor(diff/3600)+' godz. temu';
+  return Math.floor(diff/86400)+' dni temu';
+}
+function renderNotifList(items){
+  const el=document.getElementById('notifList');
+  if(!items||!items.length){el.innerHTML='<div class="p-10 text-center text-[13px] text-slate-400">Brak nowych powiadomień 🎉</div>';return;}
+  el.innerHTML=items.map(n=>`
+    <div class="flex gap-3 px-4 py-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition ${n.is_read?'':'bg-blue-50/40'}"
+         onclick="openNotif(${parseInt(n.id)||0})">
+      <div class="w-2 h-2 rounded-full mt-2 shrink-0 ${n.is_read?'bg-transparent border border-slate-200':'bg-blue-500'}"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-[13px] font-semibold text-slate-800 leading-snug">${escHtml(n.title)}</div>
+        ${n.message?`<div class="text-[12px] text-slate-500 mt-0.5">${escHtml(n.message)}</div>`:''}
+        <div class="text-[11px] text-slate-400 mt-1">${notifTimeAgo(n.created_at)}</div>
+      </div>
+    </div>`).join('');
+}
+async function fetchNotifications(){
+  try{
+    const res=await fetch('/api/notifications');
+    const data=await res.json();
+    _notifData=data.notifications||[];
+    const dot=document.getElementById('notifDot');
+    if(dot){ if(data.unread>0) dot.classList.remove('hidden'); else dot.classList.add('hidden'); }
+    if(_notifOpen) renderNotifList(_notifData);
+  }catch(e){}
+}
+function toggleNotifPanel(){
+  _notifOpen=!_notifOpen;
+  const panel=document.getElementById('notifPanel');
+  if(_notifOpen){ panel.classList.remove('hidden'); renderNotifList(_notifData); fetchNotifications(); }
+  else panel.classList.add('hidden');
+}
+async function openNotif(id){
+  // Link czytamy z _notifData (nie z atrybutu onclick) — bez wstrzykiwania JSON do HTML.
+  const item=_notifData.find(n=>n.id===id);
+  const link=item&&item.link?String(item.link):'';
+  try{await fetch(`/api/notifications/${id}/read`,{method:'POST'});}catch(e){}
+  if(link && (link.startsWith('/') || link.startsWith('https://') || link.startsWith('http://'))) window.location.href=link;
+  else{ if(item) item.is_read=1; renderNotifList(_notifData); fetchNotifications(); }
+}
+async function markAllRead(){
+  try{
+    await fetch('/api/notifications/read-all',{method:'POST'});
+    _notifData.forEach(n=>n.is_read=1);
+    renderNotifList(_notifData);
+    const dot=document.getElementById('notifDot'); if(dot) dot.classList.add('hidden');
+  }catch(e){}
+}
+document.addEventListener('click',function(e){
+  if(!_notifOpen) return;
+  const panel=document.getElementById('notifPanel');
+  const btn=document.getElementById('notifBellBtn');
+  if(panel&&btn&&!panel.contains(e.target)&&!btn.contains(e.target)){
+    _notifOpen=false; panel.classList.add('hidden');
+  }
+});
+document.addEventListener('DOMContentLoaded',function(){ fetchNotifications(); setInterval(fetchNotifications,60000); });
+
+// ── CSS for toast animation ───────────────────────────────────────────────────
+var _s=document.createElement('style');
+_s.textContent='@keyframes dcToastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}';
+document.head.appendChild(_s);
+</script>
+
+<script>window.addEventListener('load',function(){ if(window.lucide) lucide.createIcons(); });</script>
+{% block body_scripts %}{% endblock %}
+
+{# Maintenance / update-in-progress overlay #}
+<div id="maintOverlay" style="display:none;position:fixed;inset:0;z-index:99999;pointer-events:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);" aria-live="polite" aria-label="Aktualizacja aplikacji">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:40px 48px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.35);">
+    <div id="maintSpinner" style="width:36px;height:36px;border:3px solid rgba(255,255,255,.25);border-top-color:#93c5fd;border-radius:50%;animation:maintSpin 0.8s linear infinite;"></div>
+    <div style="color:#e2e8f0;font-size:17px;font-weight:700;letter-spacing:.01em;">Aktualizacja w toku&hellip;</div>
+    <div style="color:#94a3b8;font-size:13px;text-align:center;max-width:280px;line-height:1.5;">Aplikacja zostanie automatycznie wznowiona<br>po zakończeniu wdrożenia.</div>
+  </div>
+</div>
+<style>@keyframes maintSpin{to{transform:rotate(360deg)}}</style>
+<script>
+(function(){
+  var _failCount = 0;
+  var _FAIL_THRESHOLD = 2;
+  var _reloading = false;
+  var _ov = document.getElementById('maintOverlay');
+  function checkHealth(){
+    if(_reloading) return;
+    fetch('/health', {method:'GET', cache:'no-store'})
+      .then(function(r){
+        if(r.ok){
+          if(_failCount >= _FAIL_THRESHOLD && !_reloading){
+            _reloading = true;
+            setTimeout(function(){ window.location.reload(); }, 1200);
+          }
+          _failCount = 0;
+          if(_ov) _ov.style.display = 'none';
+        } else {
+          _failCount++;
+          if(_failCount >= _FAIL_THRESHOLD && _ov) _ov.style.display = 'flex';
+        }
+      })
+      .catch(function(){
+        _failCount++;
+        if(_failCount >= _FAIL_THRESHOLD && _ov) _ov.style.display = 'flex';
+      });
+  }
+  setInterval(checkHealth, 5000);
+})();
+</script>
+</body>
+</html>

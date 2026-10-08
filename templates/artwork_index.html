@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Indeks artworków — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.ai-cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.ai-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;min-width:150px}
+.ai-card .v{font-size:24px;font-weight:800;font-family:var(--mono);color:var(--text)}
+.ai-card .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.ai-card.warn{border-color:#fde68a;background:#fffbeb}
+.ai-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.ai-box h3{font-size:14px;font-weight:800;margin:0 0 8px}
+.ai-box p,.ai-box li{font-size:13px;color:var(--muted);line-height:1.55}
+.ai-box code{font-family:var(--mono);background:var(--accent-bg,#eff6ff);padding:1px 5px;border-radius:4px;color:var(--text)}
+.ai-msg{font-size:12px;margin-top:8px}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Indeks artworków{% endblock %}
+
+{% block content %}
+<div x-data="artIndexApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🗂️ Indeks artworków (mastery z Z:\)</h1>
+    <p>Chmura trzyma tylko metadane (nazwa pliku, ścieżka, rewizja) — pliki zostają na Z:\. Indeks zasila skaner albo import listy ścieżek. Po zasileniu dobór master↔REF zacznie działać.</p>
+  </div>
+
+  <div class="ai-cards">
+    <div class="ai-card" :class="stats.total===0 ? 'warn' : ''">
+      <div class="v" x-text="stats.total ?? '…'"></div><div class="l">Plików w indeksie</div></div>
+    <div class="ai-card"><div class="v" x-text="stats.with_ref ?? '…'"></div><div class="l">Z rozpoznanym REF</div></div>
+    <div class="ai-card"><div class="v" x-text="stats.distinct_refs ?? '…'"></div><div class="l">Unikalnych REF</div></div>
+    <div class="ai-card"><div class="v" style="font-size:14px" x-text="(stats.last_scan||'—').slice(0,16) || '—'"></div><div class="l">Ostatni skan</div></div>
+  </div>
+
+  <template x-if="loaded && stats.total===0">
+    <div class="ai-box" style="border-color:#fde68a;background:#fffbeb">
+      <h3>⚠ Indeks jest pusty — nic do mapowania</h3>
+      <p>Zasil indeks jednym z dwóch sposobów:</p>
+    </div>
+  </template>
+
+  <div class="ai-box" x-show="stats.total>0" x-cloak>
+    <h3>🔎 Przeglądaj bibliotekę masterów</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 14px">
+      <input type="text" x-model="bq" @keydown.enter="bpage=1;loadBrowse()"
+             placeholder="REF lub fragment nazwy pliku…"
+             style="flex:1;min-width:220px;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+      <select x-model="bpack" @change="bpage=1;loadBrowse()"
+              style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        <option value="">— opakowanie (wszystkie) —</option>
+        <template x-for="p in ptypes" :key="p"><option :value="p" x-text="p"></option></template>
+      </select>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;white-space:nowrap">
+        <input type="checkbox" x-model="bcurrent" @change="bpage=1;loadBrowse()"> tylko najnowsze rewizje</label>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;white-space:nowrap">
+        <input type="checkbox" x-model="bhide" @change="bpage=1;loadBrowse()"> ukryj pominięte</label>
+      <select x-model="bvariant" @change="bpage=1;loadBrowse()"
+              title="Filtr po wariancie modelu 3D"
+              style="padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        <option value="">— wariant 3D (wszystkie) —</option>
+        <option value="dieline">ma wykrojnik</option>
+        <option value="marm">ma MARM</option>
+        <option value="photo">ma zdjęcia</option>
+      </select>
+      <label style="display:flex;gap:5px;align-items:center;font-size:13px;white-space:nowrap">
+        <input type="checkbox" x-model="bmarm" @change="bpage=1;loadBrowse()"> ma powiązanie MARM</label>
+      <button class="btn btn-sm btn-primary" @click="bpage=1;loadBrowse()">Szukaj</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px"
+         x-text="btotal+' plików · strona '+bpage+' / '+Math.max(bpages,1)"></div>
+    <div style="overflow-x:auto">
+    <table style="font-size:12px;margin-bottom:8px">
+      <thead><tr>
+        <th scope="col">REF</th><th scope="col">Nazwa pliku</th>
+        <th scope="col">Opak.</th><th scope="col">Rew.</th><th scope="col">EAN</th>
+        <th scope="col">Status</th><th scope="col">3D</th>{% if role in ['manager','superuser','admin'] %}<th scope="col"></th>{% endif %}
+      </tr></thead>
+      <tbody>
+        <template x-for="r in brows" :key="r.rel_path">
+          <tr :style="r.status && r.status!=='active' ? 'opacity:.55' : ''">
+            <td class="mono" x-text="r.ref_code||'—'"></td>
+            <td x-text="r.filename" :title="r.rel_path" style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></td>
+            <td x-text="r.packaging_type||'—'"></td>
+            <td x-text="r.revision||'—'"></td>
+            <td class="mono" x-text="r.ean||'—'"></td>
+            <td>
+              <span x-show="r.status==='ignored'" style="font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;background:#f1f5f9;color:#64748b">pominięty</span>
+              <span x-show="r.status==='archived'" style="font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;background:#f1f5f9;color:#64748b">zarchiwizowany</span>
+              <span x-show="!r.status || r.status==='active'" style="color:var(--muted)">—</span>
+            </td>
+            <td>
+              <template x-if="r.has_dieline"><span class="badge badge-info">Wykrojnik</span></template>
+              <template x-if="r.has_marm"><span class="badge badge-info">MARM</span></template>
+              <template x-if="r.has_photo"><span class="badge badge-info">Zdjęcia</span></template>
+              <template x-if="!r.has_dieline && !r.has_marm && !r.has_photo"><span class="badge badge-neutral">Brak 3D</span></template>
+              <template x-if="r.ref_code">
+                <a :href="'/artwork/3d/marm?artwork='+encodeURIComponent(r.ref_code)"
+                   style="font-size:11px;margin-left:6px;text-decoration:underline;color:var(--muted)"
+                   title="Generuj/otwórz model 3D z MARM dla tego REF">3D z MARM →</a>
+              </template>
+            </td>
+            {% if role in ['manager','superuser','admin'] %}
+            <td style="white-space:nowrap">
+              <button type="button" class="btn btn-sm btn-ghost" x-show="!r.status || r.status==='active'"
+                      @click="setStatus(r,'ignored')" title="Ukryj z doboru/wyszukiwania">Pomiń</button>
+              <button type="button" class="btn btn-sm btn-ghost" x-show="r.status && r.status!=='active'"
+                      @click="setStatus(r,'active')" title="Przywróć jako aktywny">Przywróć</button>
+            </td>
+            {% endif %}
+          </tr>
+        </template>
+        {# „Brak wyników" tylko gdy zapytanie NAPRAWDĘ nic nie zwróciło. Przy błędzie
+           pokazujemy błąd — wcześniej padnięty request wyglądał jak pusty indeks. #}
+        <template x-if="brows.length===0 && !browseErr">
+          <tr><td colspan="{{ 8 if role in ['manager','superuser','admin'] else 7 }}" style="text-align:center;color:var(--muted);padding:16px">Brak wyników</td></tr>
+        </template>
+        <template x-if="browseErr">
+          <tr><td colspan="{{ 8 if role in ['manager','superuser','admin'] else 7 }}" style="text-align:center;color:#b91c1c;padding:16px">
+            ⚠ Nie udało się pobrać listy (<span x-text="browseErr"></span>).
+            <button type="button" @click="loadBrowse()" style="margin-left:8px;text-decoration:underline">Spróbuj ponownie</button>
+          </td></tr>
+        </template>
+      </tbody>
+    </table>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" :disabled="bpage<=1" @click="bpage--;loadBrowse()">← Poprzednia</button>
+      <button class="btn btn-sm" :disabled="bpage>=bpages" @click="bpage++;loadBrowse()">Następna →</button>
+    </div>
+  </div>
+
+  {% if role in ['manager','superuser','admin'] %}
+  <div class="ai-box">
+    <h3>① Najszybciej: import listy ścieżek z Z:\</h3>
+    <p>Na komputerze z dostępem do Z:\ uruchom w wierszu poleceń (jeden plik na linię):</p>
+    <p><code>dir /s /b "Z:\ISO\WZORY ETYKIET I INSTRUKCJI\*.pdf" &gt; lista_artworkow.txt</code></p>
+    <p>…i wgraj <code>lista_artworkow.txt</code> tutaj (akceptuje też .csv/.xlsx z kolumną ścieżek). Wysyłane są tylko nazwy i ścieżki — bez treści plików.</p>
+    <label class="btn btn-sm btn-primary" style="cursor:pointer;margin-top:6px">⬆ Wgraj listę ścieżek
+      <input type="file" accept=".txt,.csv,.xlsx" style="display:none" @change="doImport($event)"></label>
+    <span class="ai-msg" x-show="msg" x-text="msg" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+  </div>
+
+  <div class="ai-box">
+    <h3>② Automatycznie (cyklicznie): skaner agenta</h3>
+    <p>Na maszynie ACME (widzi Z:\), z Pythonem + <code>pip install requests</code>:</p>
+    <p><code>python tools/scan_artwork_index.py --base-url {{ request.url_root.rstrip('/') }} --user &lt;login_managera&gt; --root "Z:\ISO\WZORY ETYKIET I INSTRUKCJI"</code></p>
+    <p>Dodaj do Harmonogramu zadań Windows (np. co godzinę), by indeks był zawsze aktualny — nowe rewizje pojawią się automatycznie.</p>
+  </div>
+  {% endif %}
+
+  <div class="ai-box">
+    <h3>Jak działa dobór master↔REF</h3>
+    <p>Po zasileniu indeksu: REF z pozycji PO → (1) dokładne dopasowanie po nazwie/<code>ref_norm</code> → (2) alias nazwa-pliku→REF → (3) propozycje po opisie materiału (gdy nazwa nie zawiera REF, np. <code>easycare_nitrile_carton_S_a100</code> = RNBS10001). Powiązania edytujesz w <a href="/artwork/aliases" target="_blank">Aliasach</a>.</p>
+  </div>
+</div>
+
+<script>
+function artIndexApp(){
+  return {
+    stats:{total:null,with_ref:null,distinct_refs:null,last_scan:''}, loaded:false, msg:'', ok:false,
+    // Biblioteka (przeglądanie/wyszukiwanie)
+    bq:'', bpack:'', bcurrent:false, bhide:false, bvariant:'', bmarm:false, bpage:1, bpages:1, btotal:0, brows:[], ptypes:[],
+    statusErr:'', browseErr:'',
+    async load(){ try{ const r=await fetch('/api/artwork/index/status');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        this.stats=await r.json(); this.statusErr=''; }
+      catch(e){ this.statusErr=e.message; if(window.toast) toast('Nie udało się pobrać stanu indeksu: '+e.message,'error'); }
+      finally{ this.loaded=true; if((this.stats.total||0)>0) this.loadBrowse(); } },
+    async loadBrowse(){
+      const p=new URLSearchParams({q:this.bq, packaging:this.bpack, current:this.bcurrent?'1':'0', hide_ignored:this.bhide?'1':'0', variant:this.bvariant, marm_linked:this.bmarm?'1':'0', page:this.bpage});
+      try{ const r=await fetch('/api/artwork/index/browse?'+p.toString());
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const d=await r.json();
+        this.brows=d.rows||[]; this.btotal=d.total||0; this.bpages=d.pages||1; this.bpage=d.page||1;
+        if(this.ptypes.length===0) this.ptypes=d.packaging_types||[];
+        this.browseErr='';
+      }catch(e){ this.brows=[]; this.browseErr=e.message; } },
+    async setStatus(r, status){
+      try{
+        await apiFetch('/api/artwork/manage/file-status',{method:'POST',body:{rel_path:r.rel_path,status:status}});
+        r.status = status;
+        if(window.toast) toast(status==='active'?'Przywrócono':'Oznaczono jako pominięty','success');
+        if(this.bhide && status!=='active') this.loadBrowse();   // zniknie z widoku „ukryj pominięte"
+      }catch(e){/* toast w apiFetch */}
+    },
+    async doImport(ev){ const f=ev.target.files[0]; if(!f)return; this.msg='Wgrywam i indeksuję…'; this.ok=false;
+      const fd=new FormData(); fd.append('file',f);
+      try{ const r=await fetch('/api/artwork/index/import',{method:'POST',body:fd}); const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Zindeksowano: '+(d.indexed||0)+' z '+(d.candidates||0)+' plików .pdf (linii w pliku: '+(d.total_lines||0)+')';
+        this.ok = (d.indexed||0) > 0;
+        if(!(d.candidates>0)) this.msg += ' — nie wykryto ścieżek .pdf. Sprawdź, czy to wynik `dir /s /b *.pdf` (jedna ścieżka na linię).';
+        this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; } finally{ ev.target.value=''; } },
+  };
+}
+</script>
+{% endblock %}

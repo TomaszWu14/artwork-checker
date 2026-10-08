@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}KPI Artworków — Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1100px;margin:28px auto;padding:0 20px}
+.page-header h1{font-size:20px;font-weight:700;color:#1a1a2e}
+.page-header p{color:#6b7280;margin-top:3px;font-size:13px}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.kpi-grid{grid-template-columns:1fr}}
+.kpi-card{background:#fff;border-radius:10px;padding:20px 18px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center;border-top:3px solid #e5e7eb}
+.kpi-card.blue{border-top-color:#1d4ed8}
+.kpi-card.red{border-top-color:#dc2626}
+.kpi-card.green{border-top-color:#16a34a}
+.kpi-card.orange{border-top-color:#d97706}
+.kpi-card.purple{border-top-color:#7c3aed}
+.kpi-num{font-size:36px;font-weight:700;line-height:1;margin-bottom:6px}
+.kpi-card.blue .kpi-num{color:#1d4ed8}
+.kpi-card.red .kpi-num{color:#dc2626}
+.kpi-card.green .kpi-num{color:#16a34a}
+.kpi-card.orange .kpi-num{color:#d97706}
+.kpi-card.purple .kpi-num{color:#7c3aed}
+.kpi-lbl{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.4px}
+.kpi-sub{font-size:11px;color:#9ca3af;margin-top:4px}
+
+.section-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.panel{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+
+.user-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.user-table th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280}
+.user-table td{padding:9px 12px;border-bottom:1px solid #f3f4f6}
+.user-table tr:last-child td{border-bottom:none}
+.user-table tr:hover td{background:#f0f7ff}
+
+.bar-wrap{background:#e5e7eb;border-radius:4px;height:10px;width:100%;min-width:80px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;background:#1d4ed8;transition:width .4s}
+
+.weekly-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day-cell{background:#e0e7ff;border-radius:4px;display:flex;flex-direction:column;align-items:center;padding:8px 4px;font-size:11px}
+.day-cell .day-n{font-size:17px;font-weight:700;color:#1d4ed8}
+.day-cell .day-l{color:#6b7280;font-size:10px;margin-top:2px}
+.day-cell.empty{background:#f9fafb;color:#d1d5db}
+.day-cell.empty .day-n{color:#d1d5db}
+</style>{% endblock %}
+{% block page_title %}KPI — Artwork{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>📊 KPI — Porównania artworków</h1>
+    <p>Statystyki i metryki systemu porównania artworków ACME</p>
+  </div>
+
+  <!-- ── GLOWNE KPI ──────────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-num">{{ kpi.total }}</div>
+      <div class="kpi-lbl">Wszystkich porównań</div>
+      <div class="kpi-sub">od uruchomienia systemu</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-num">{{ kpi.this_month }}</div>
+      <div class="kpi-lbl">W tym miesiącu</div>
+      <div class="kpi-sub">{{ kpi.month_name }}</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-num">{{ kpi.total_errors }}</div>
+      <div class="kpi-lbl">Błędów krytycznych</div>
+      <div class="kpi-sub">łącznie</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-num">{{ kpi.ok_rate }}%</div>
+      <div class="kpi-lbl">Bez błędów</div>
+      <div class="kpi-sub">wskaźnik jakości</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+
+    <!-- ── TABELA UZYTKOWNIKOW ─────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="section-title">Aktywność użytkowników</div>
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th scope="col">Użytkownik</th>
+            <th scope="col">Rola</th>
+            <th scope="col">Porównania</th>
+            <th scope="col">Ostatnie</th>
+            <th scope="col">Aktywność</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in kpi.user_stats %}
+          <tr>
+            <td style="font-weight:600">{{ u.username }}</td>
+            <td><span style="background:#e0e7ff;color:#3730a3;border-radius:10px;padding:2px 8px;font-size:11px">{{ u.role }}</span></td>
+            <td style="font-weight:700;color:#1d4ed8">{{ u.count }}</td>
+            <td style="color:#6b7280;font-size:11px">{{ u.last_activity[:10] if u.last_activity else '—' }}</td>
+            <td style="width:100px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:{{ u.pct }}%"></div></div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:20px">Brak danych</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── STATUS BREAKDOWN ────────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="section-title">Rozkład statusów</div>
+      {% for s in kpi.status_breakdown %}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="min-width:70px;font-size:12px;font-weight:600;color:{{ '#dc2626' if s.status == 'critical' else '#d97706' if s.status in ('error','warning') else '#16a34a' }}">{{ s.status|upper }}</span>
+        <div class="bar-wrap" style="flex:1"><div class="bar-fill" style="width:{{ s.pct }}%;background:{{ '#dc2626' if s.status == 'critical' else '#d97706' if s.status in ('error','warning') else '#16a34a' }}"></div></div>
+        <span style="min-width:28px;text-align:right;font-weight:700;font-size:12px">{{ s.count }}</span>
+      </div>
+      {% else %}
+      <p style="color:#9ca3af">Brak danych</p>
+      {% endfor %}
+
+      {% if kpi.total > 0 %}
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f3f4f6">
+        <div class="section-title" style="margin-bottom:8px">Ostatnie 7 dni</div>
+        <div class="weekly-grid">
+          {% for d in kpi.weekly %}
+          <div class="day-cell {{ 'empty' if d.count == 0 else '' }}">
+            <span class="day-n">{{ d.count }}</span>
+            <span class="day-l">{{ d.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

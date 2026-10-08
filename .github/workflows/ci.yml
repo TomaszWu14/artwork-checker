@@ -1,0 +1,52 @@
+name: CI — testy jednostkowe
+
+# Bramka jakości: uruchamia zestaw testów pytest na każdym pushu do main / claude-*
+# oraz na pull requestach. Pokrywa czystą logikę biznesową (normalizer, barcode_validator).
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+# Seria pushy na ten sam ref → biegnie tylko najnowszy, poprzednie anulowane.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Najmniejsze uprawnienia — ten workflow tylko czyta repo (nie mergu­je, nie
+# pushuje).
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Konfiguracja Pythona
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Kompilacja składni całego repo
+        # Łapie błędy składni w KAŻDYM module (nie tylko importowanym przez testy),
+        # więc np. literówka w app.py nie przejdzie przez bramkę na produkcję.
+        run: python -m compileall -q . -x 'static/design|\.git'
+
+      - name: Instalacja zależności testowych
+        # Lekki zestaw — testy obejmują wyłącznie czyste funkcje i nie wymagają
+        # ciężkich zależności ML (torch / paddleocr / transformers) z requirements.txt,
+        # dzięki czemu CI kończy się w kilka sekund.
+        run: pip install pytest python-dateutil dateparser babel flask werkzeug "rapidfuzz>=3.0,<4.0"
+
+      - name: Uruchomienie testów
+        run: python -m pytest tests/ -q
+
+  # pip-audit usunięty stąd — był doradczy i dublował się z security.yml (miesięczny
+  # cron: bandit + gitleaks + trivy + pip-audit). Palił minuty przy każdym pushu.

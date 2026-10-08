@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Duplikaty faktur — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:20px;position:relative;overflow:hidden;transition:border-color .2s}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.blue::before{background:linear-gradient(90deg,var(--accent),#7c3aed)}
+.kpi-card.yellow::before{background:linear-gradient(90deg,var(--warn),#d97706)}
+.kpi-card.red::before{background:linear-gradient(90deg,var(--error),#dc2626)}
+.kpi-num{font-size:36px;font-weight:800;line-height:1;letter-spacing:-1px;font-family:var(--mono)}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;opacity:.7}
+.blue .kpi-num{color:var(--accent)}.yellow .kpi-num{color:var(--warn)}.red .kpi-num{color:var(--error)}
+
+.cluster{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.cluster.mismatch{border-color:rgba(220,38,38,.45)}
+.cluster-hdr{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cluster-hdr .po{font-weight:700;font-family:var(--mono);font-size:14px}
+.cluster-hdr .sup{color:var(--muted);font-size:12px}
+.pill{font-size:11px;padding:2px 9px;border-radius:10px;font-weight:700;font-family:var(--mono)}
+.pill.count{background:var(--bg);color:var(--muted)}
+.pill.warn{background:rgba(217,119,6,.16);color:#fbbf24}
+.pill.bad{background:rgba(220,38,38,.16);color:#f87171}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 16px;background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 16px;border-bottom:1px solid rgba(42,45,58,.35);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--mono)}
+.text-gray{color:var(--muted);font-size:12px}
+.fname{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+.pdf-link{font-size:11px;color:var(--accent);text-decoration:none;font-weight:600}
+.pdf-link:hover{text-decoration:underline}
+.empty{padding:48px;text-align:center;color:var(--muted);font-size:14px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.st-ok{color:var(--ok)}.st-warn{color:var(--warn)}.st-err{color:var(--error)}
+.lead{color:var(--muted);font-size:13px;margin:-8px 0 18px}
+</style>
+{% endblock %}
+
+{% block page_title %}Duplikaty faktur{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🧾 Wykrywanie duplikatów</h1>
+  <p>Ta sama para (dostawca + numer PO) przetworzona wielokrotnie{% if not can_see_all %} — Twoje porównania{% endif %}</p>
+</div>
+<p class="lead">Wykrywa potencjalne podwójne fakturowanie/płatność, gdy ta sama faktura wraca jako inny plik PDF (re-skan, ponowny eksport) i omija dedup po haszu pliku. Klastry z <b style="color:#f87171">różną kwotą</b> wymagają szczególnej uwagi.</p>
+
+{% set s = summary %}
+<div class="kpi-grid">
+  <div class="kpi-card blue">
+    <div class="kpi-num">{{ s.clusters or 0 }}</div>
+    <div class="kpi-lbl">Klastrów duplikatów</div>
+    <div class="kpi-sub">unikalnych par dostawca+PO</div>
+  </div>
+  <div class="kpi-card yellow">
+    <div class="kpi-num">{{ s.dup_docs or 0 }}</div>
+    <div class="kpi-lbl">Dokumentów w klastrach</div>
+    <div class="kpi-sub">łącznie zduplikowanych raportów</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-num">{{ s.mismatch or 0 }}</div>
+    <div class="kpi-lbl">Z różną kwotą</div>
+    <div class="kpi-sub">najwyższe ryzyko — do weryfikacji</div>
+  </div>
+</div>
+
+{% if clusters %}
+  {% for c in clusters %}
+  <div class="cluster {% if c.amount_mismatch %}mismatch{% endif %}">
+    <div class="cluster-hdr">
+      <i data-lucide="{{ 'alert-triangle' if c.amount_mismatch else 'copy' }}" style="width:16px;height:16px;{% if c.amount_mismatch %}color:#f87171{% endif %}"></i>
+      <span class="po">PO {{ c.po }}</span>
+      <span class="sup">{{ c.supplier }}</span>
+      <span class="pill count">{{ c.count }}×</span>
+      {% if c.amount_mismatch %}
+        <span class="pill bad">RÓŻNE KWOTY: {{ c.amounts|join(' · ') }}</span>
+      {% else %}
+        <span class="pill warn">ta sama kwota</span>
+      {% endif %}
+    </div>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Data</th><th>Użytkownik</th><th>Typ</th><th>Status</th>
+            <th>Total A</th><th>Total B</th><th>Pliki</th><th>Raport</th></tr>
+      </thead>
+      <tbody>
+        {% for m in c.members %}
+        <tr>
+          <td class="mono">#{{ m.id }}</td>
+          <td class="text-gray mono">{{ m.date }}</td>
+          <td>{{ m.user }}</td>
+          <td class="text-gray">{{ m.doc_type }}</td>
+          <td>
+            {% set st = m.status %}
+            <span class="{{ 'st-err' if st in ['blad','error','critical'] else 'st-warn' if st in ['ostrzezenie','warning'] else 'st-ok' }}">{{ st }}</span>
+          </td>
+          <td class="mono">{{ m.total_a or '—' }}</td>
+          <td class="mono">{{ m.total_b or '—' }}</td>
+          <td class="text-gray"><span class="fname" title="{{ m.file_a }} ↔ {{ m.file_b }}">{{ m.file_a }}</span></td>
+          <td><a class="pdf-link" href="/api/export/pdf/{{ m.id }}" target="_blank" rel="noopener">PDF ↗</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty">✓ Nie wykryto zduplikowanych faktur/zamówień{% if not can_see_all %} w Twoich porównaniach{% endif %}.</div>
+{% endif %}
+{% endblock %}
+
+{% block body_scripts %}
+<script>document.addEventListener('DOMContentLoaded',()=>{if(typeof lucide!=='undefined')lucide.createIcons();});</script>
+{% endblock %}

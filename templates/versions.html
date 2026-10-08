@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Wersje dokumentów — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:20px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.blue::before{background:linear-gradient(90deg,var(--accent),#7c3aed)}
+.kpi-card.green::before{background:linear-gradient(90deg,var(--ok),#059669)}
+.kpi-card.red::before{background:linear-gradient(90deg,var(--error),#dc2626)}
+.kpi-num{font-size:36px;font-weight:800;line-height:1;letter-spacing:-1px;font-family:var(--mono)}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;opacity:.7}
+.blue .kpi-num{color:var(--accent)}.green .kpi-num{color:var(--ok)}.red .kpi-num{color:var(--error)}
+
+.tl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.tl-hdr{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tl-hdr .po{font-weight:700;font-family:var(--mono);font-size:14px}
+.tl-hdr .sup{color:var(--muted);font-size:12px}
+.pill{font-size:11px;padding:2px 9px;border-radius:10px;font-weight:700;font-family:var(--mono)}
+.pill.count{background:var(--bg);color:var(--muted)}
+.pill.improving{background:rgba(5,150,105,.16);color:#34d399}
+.pill.regressing{background:rgba(220,38,38,.16);color:#f87171}
+.pill.flat{background:var(--bg);color:var(--muted)}
+
+.tl{padding:8px 18px 16px}
+.tl-row{display:flex;gap:14px;padding:10px 0;position:relative}
+.tl-rail{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:18px}
+.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);z-index:1;margin-top:3px}
+.tl-dot.ok{background:var(--ok)}.tl-dot.warn{background:var(--warn)}.tl-dot.err{background:var(--error)}
+.tl-line{flex:1;width:2px;background:var(--border)}
+.tl-row:last-child .tl-line{display:none}
+.tl-body{flex:1;min-width:0}
+.tl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tl-ver{font-weight:700;font-size:13px}
+.tl-meta{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.tl-deltas{display:flex;gap:8px;margin-top:5px;flex-wrap:wrap}
+.delta{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600}
+.delta.good{background:rgba(5,150,105,.14);color:#34d399}
+.delta.bad{background:rgba(220,38,38,.14);color:#f87171}
+.delta.info{background:var(--bg);color:var(--muted)}
+.st{font-weight:700}.st.ok{color:var(--ok)}.st.warn{color:var(--warn)}.st.err{color:var(--error)}
+.pdf-link{font-size:11px;color:var(--accent);text-decoration:none;font-weight:600;margin-left:auto}
+.pdf-link:hover{text-decoration:underline}
+.empty{padding:48px;text-align:center;color:var(--muted);font-size:14px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.lead{color:var(--muted);font-size:13px;margin:-8px 0 18px}
+</style>
+{% endblock %}
+
+{% block page_title %}Wersje dokumentów{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🕘 Śledzenie rewizji</h1>
+  <p>Jak zmieniały się kolejne wersje tego samego PO{% if not can_see_all %} — Twoje porównania{% endif %}</p>
+</div>
+<p class="lead">Pokazuje wyłącznie pary (dostawca + PO) zgłoszone wielokrotnie, które się <b>zmieniły</b> między wersjami (status, liczba różnic lub kwota). Identyczne ponowienia trafiają do <a href="/duplicates" style="color:var(--accent)">Duplikatów</a>.</p>
+
+{% set s = summary %}
+<div class="kpi-grid">
+  <div class="kpi-card blue">
+    <div class="kpi-num">{{ s.tracked or 0 }}</div>
+    <div class="kpi-lbl">Śledzonych dokumentów</div>
+    <div class="kpi-sub">PO z ewoluującymi wersjami</div>
+  </div>
+  <div class="kpi-card green">
+    <div class="kpi-num">{{ s.improving or 0 }}</div>
+    <div class="kpi-lbl">Poprawiających się</div>
+    <div class="kpi-sub">mniej różnic w najnowszej wersji</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-num">{{ s.regressing or 0 }}</div>
+    <div class="kpi-lbl">Pogarszających się</div>
+    <div class="kpi-sub">więcej różnic niż na starcie</div>
+  </div>
+</div>
+
+{% if timelines %}
+  {% for t in timelines %}
+  <div class="tl-card">
+    <div class="tl-hdr">
+      <i data-lucide="git-branch" style="width:16px;height:16px"></i>
+      <span class="po">PO {{ t.po }}</span>
+      <span class="sup">{{ t.supplier }}</span>
+      <span class="pill count">{{ t.count }} wersji</span>
+      {% if t.trend == 'improving' %}<span class="pill improving">▲ poprawa ({{ t.first_diffs }}→{{ t.last_diffs }} różnic)</span>
+      {% elif t.trend == 'regressing' %}<span class="pill regressing">▼ regresja ({{ t.first_diffs }}→{{ t.last_diffs }} różnic)</span>
+      {% else %}<span class="pill flat">bez zmiany liczby różnic</span>{% endif %}
+    </div>
+    <div class="tl">
+      {% for v in t.versions %}
+      {% set sk = 'err' if v.status in ['blad','error','critical'] else 'warn' if v.status in ['ostrzezenie','warning'] else 'ok' %}
+      <div class="tl-row">
+        <div class="tl-rail"><span class="tl-dot {{ sk }}"></span><span class="tl-line"></span></div>
+        <div class="tl-body">
+          <div class="tl-top">
+            <span class="tl-ver">v{{ loop.index }} · {{ v.doc_type or '—' }}</span>
+            <span class="st {{ sk }}">{{ v.status }}</span>
+            <span class="tl-meta">{{ v.date }} · {{ v.user }} · #{{ v.id }}</span>
+            <a class="pdf-link" href="/api/export/pdf/{{ v.id }}" target="_blank" rel="noopener">PDF ↗</a>
+          </div>
+          <div class="tl-deltas">
+            <span class="delta info">{{ v.diff_count }} różnic{% if v.amount %} · kwota {{ v.amount }}{% endif %}</span>
+            {% if v.delta %}
+              {% if v.delta.d_diffs < 0 %}<span class="delta good">▼ {{ v.delta.d_diffs }} różnic</span>
+              {% elif v.delta.d_diffs > 0 %}<span class="delta bad">▲ +{{ v.delta.d_diffs }} różnic</span>{% endif %}
+              {% if v.delta.amount_changed %}<span class="delta bad">zmiana kwoty</span>{% endif %}
+              {% if v.delta.status_changed %}<span class="delta info">zmiana statusu</span>{% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty">Brak dokumentów z wieloma, zmieniającymi się wersjami{% if not can_see_all %} w Twoich porównaniach{% endif %}.</div>
+{% endif %}
+{% endblock %}
+
+{% block body_scripts %}
+<script>document.addEventListener('DOMContentLoaded',()=>{if(typeof lucide!=='undefined')lucide.createIcons();});</script>
+{% endblock %}

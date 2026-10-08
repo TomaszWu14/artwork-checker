@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Pliki bez REF — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.ub-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.ub-input{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;min-width:260px}
+table.ub{width:100%;border-collapse:collapse;font-size:13px}
+table.ub th,table.ub td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+table.ub th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.ub-mono{font-family:var(--mono);font-size:12px}
+.ub-path{color:var(--muted);font-size:11px}
+.ub-sugg{display:flex;flex-wrap:wrap;gap:6px}
+.ub-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:20px;
+  padding:3px 10px;font-size:12px;cursor:pointer;background:var(--card,#fff)}
+.ub-chip:hover{border-color:var(--accent,#2563eb)}
+.ub-chip .src{font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px}
+.ub-chip .src.ean{background:#dcfce7;color:#15803d}
+.ub-chip .src.text{background:#fef3c7;color:#b45309}
+.ub-loading{color:var(--muted);font-style:italic;font-size:12px}
+.ub-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+.ub-manual{display:flex;gap:6px;margin-top:6px}
+.ub-manual input{border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;width:120px}
+.ub-pager{display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13px}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Pliki bez REF{% endblock %}
+
+{% block content %}
+<div x-data="unboundApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🔗 Pliki bez rozpoznanego REF</h1>
+    <p>Pliki, których nazwa nie zawiera REF produktu. Wskaż właściwy produkt — z podpowiedzi lub ręcznie. Akceptacja tworzy alias, który zadziała też przy kolejnych skanach. <a href="/artwork/manage">← pulpit</a></p>
+  </div>
+
+  <div class="ub-bar">
+    <input class="ub-input" type="search" placeholder="Filtruj po nazwie pliku…"
+           x-model="q" @keydown.enter="page=1;load()">
+    <button class="btn btn-sm" @click="page=1;load()">Szukaj</button>
+    <span class="ub-loading" x-show="loading">Wczytuję…</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--muted)" x-text="total+' plików bez REF'"></span>
+  </div>
+
+  <template x-if="loaded && rows.length===0">
+    <div class="ub-empty">Brak plików bez REF w tym widoku. ✓</div>
+  </template>
+
+  <template x-if="rows.length">
+    <table class="ub">
+      <thead><tr><th style="width:32%">Plik</th><th style="width:10%">Opak.</th><th>Propozycja produktu (kliknij, aby powiązać)</th></tr></thead>
+      <tbody>
+        <template x-for="r in rows" :key="r.rel_path">
+          <tr>
+            <td>
+              <div class="ub-mono" x-text="r.filename"></div>
+              <div class="ub-path" :title="r.rel_path" x-text="r.rel_path"></div>
+              <div class="ub-path" x-show="r.ean" x-text="'EAN: '+r.ean"></div>
+            </td>
+            <td x-text="r.packaging_type||'—'"></td>
+            <td>
+              <template x-if="!r._sugg">
+                <button class="btn btn-sm btn-ghost" @click="suggest(r)">Pokaż podpowiedzi</button>
+              </template>
+              <template x-if="r._loadingSugg"><span class="ub-loading">Szukam produktu…</span></template>
+              <div class="ub-sugg" x-show="r._sugg">
+                <template x-for="s in (r._sugg||[])" :key="s.ref_code">
+                  <span class="ub-chip" @click="bind(r, s.ref_code)">
+                    <b class="ub-mono" x-text="s.ref_code"></b>
+                    <span x-text="s.opis ? (s.opis.length>40 ? s.opis.slice(0,40)+'…' : s.opis) : ''"></span>
+                    <span class="src" :class="s.source" x-text="s.source==='ean'?'EAN':(Math.round(s.score*100)+'%')"></span>
+                  </span>
+                </template>
+                <template x-if="r._sugg && r._sugg.length===0">
+                  <span class="ub-loading">Brak trafnej podpowiedzi — wpisz REF ręcznie.</span>
+                </template>
+              </div>
+              <div class="ub-manual">
+                <input type="text" placeholder="REF ręcznie" x-model="r._manual"
+                       @keydown.enter="r._manual && bind(r, r._manual)">
+                <button class="btn btn-sm" :disabled="!r._manual" @click="bind(r, r._manual)">Powiąż</button>
+              </div>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </template>
+
+  <div class="ub-pager" x-show="pages>1">
+    <button class="btn btn-sm btn-ghost" :disabled="page<=1" @click="page--;load()">← poprzednia</button>
+    <span x-text="'strona '+page+' z '+pages"></span>
+    <button class="btn btn-sm btn-ghost" :disabled="page>=pages" @click="page++;load()">następna →</button>
+  </div>
+</div>
+
+<script>
+function unboundApp(){
+  return {
+    rows:[], total:0, page:1, pages:1, q:'', loading:false, loaded:false,
+    async load(){
+      this.loading = true;
+      try{
+        const d = await apiFetch('/api/artwork/manage/unbound?q='+encodeURIComponent(this.q)+'&page='+this.page);
+        this.rows = (d.rows||[]).map(r=>({...r,_sugg:null,_loadingSugg:false,_manual:''}));
+        this.total = d.total||0; this.pages = d.pages||1; this.loaded = true;
+      }catch(e){/* toast handled by apiFetch */}
+      this.loading = false;
+    },
+    async suggest(r){
+      r._loadingSugg = true;
+      try{
+        const d = await apiFetch('/api/artwork/manage/suggest?rel_path='+encodeURIComponent(r.rel_path));
+        r._sugg = d.suggestions||[];
+      }catch(e){ r._sugg = []; }
+      r._loadingSugg = false;
+    },
+    async bind(r, ref){
+      ref = (ref||'').trim(); if(!ref || r._binding) return;   // blokada podwójnego submitu
+      r._binding = true;
+      try{
+        await apiFetch('/api/artwork/manage/bind',{method:'POST',body:{rel_path:r.rel_path,ref_code:ref}});
+        if(window.toast) toast('Powiązano '+r.filename+' → '+ref,'success');
+        this.rows = this.rows.filter(x=>x.rel_path!==r.rel_path);
+        this.total = Math.max(0,this.total-1);
+      }catch(e){/* toast handled */}
+      finally{ r._binding = false; }
+    },
+  };
+}
+</script>
+{% endblock %}

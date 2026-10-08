@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Grupy mapowań artworków — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.gr-form{display:flex;flex-direction:column;gap:12px;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px}
+.gr-form .fg{display:flex;flex-direction:column;gap:4px}
+.gr-form label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase}
+.gr-form input,.gr-form textarea{padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg,#fff);color:var(--text);font-size:13px;width:100%}
+.gr-form textarea{min-height:70px;font-family:var(--mono);resize:vertical}
+table.gr{width:100%;border-collapse:collapse;font-size:13px}
+table.gr th,table.gr td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+table.gr th{background:var(--accent-bg,#eff6ff);font-size:11px;font-weight:700}
+.gr-mono{font-family:var(--mono)}
+.gr-chip{display:inline-block;background:rgba(147,51,234,.10);color:#9333ea;border-radius:6px;
+  padding:1px 7px;margin:2px 3px 0 0;font-size:11px;font-family:var(--mono)}
+.gr-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+.gr-cand{display:flex;gap:10px;align-items:center;padding:4px 0}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Grupy mapowań artworków{% endblock %}
+
+{% block content %}
+<div x-data="groupApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🗂️ Grupy mapowań artworków (grupa → REF-y + master)</h1>
+    <p>Grupuj produkty o wspólnym wzorcu (np. <b>Rękawice A100</b>, <b>Rękawice A200</b>):
+       przypisz do grupy <b>listę REF-ów</b> i <b>jeden master</b>. Każdy REF z grupy
+       dziedziczy master grupy, gdy nie ma własnego potwierdzonego wzorca
+       (bezpośredni master REF-a ma pierwszeństwo).</p>
+  </div>
+
+  {% if role in ['manager','superuser','admin'] %}
+  <div class="gr-form">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fg" style="flex:1;min-width:220px">
+        <label x-text="form.id ? 'Edytujesz grupę' : 'Nazwa grupy'"></label>
+        <input x-model="form.group_name" placeholder="np. Rękawice A100">
+      </div>
+      <button class="btn btn-primary" @click="save()" :disabled="!form.group_name" x-text="form.id?'Zapisz zmiany':'Utwórz grupę'"></button>
+      <button class="btn btn-ghost" @click="reset()" x-show="form.id">Anuluj</button>
+      <span x-show="msg" x-text="msg" style="font-size:12px" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+    </div>
+
+    <div class="fg">
+      <label>Master grupy (najnowsza rewizja pliku)</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input x-model="masterQuery" placeholder="szukaj pliku artworku…" @keydown.enter.prevent="searchMaster()" style="flex:1;min-width:220px">
+        <button class="btn btn-ghost btn-sm" @click="searchMaster()" :disabled="!masterQuery">🔍 Szukaj</button>
+        <span x-show="form.master_filename" class="gr-mono" style="font-size:12px;color:#16a34a">✓ <span x-text="form.master_filename"></span></span>
+      </div>
+      <template x-if="cands.length">
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+          <template x-for="c in cands" :key="c.rel_path">
+            <div class="gr-cand">
+              <span class="gr-mono" style="font-size:12px;flex:1" x-text="c.filename"></span>
+              <span style="font-size:11px;color:var(--muted)" x-show="c.revision" x-text="'rew. '+c.revision"></span>
+              <button class="btn btn-sm btn-ghost" @click="pickMaster(c)">Wybierz</button>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <div class="fg">
+      <label>REF-y w grupie (po jednym w wierszu lub po przecinku)</label>
+      <textarea x-model="form.refsText" placeholder="RNBKM10003&#10;RNBKM10004&#10;…"></textarea>
+    </div>
+  </div>
+  {% endif %}
+
+  <template x-if="items.length === 0">
+    <div class="gr-empty">Brak grup. Utwórz pierwszą powyżej.</div>
+  </template>
+  <template x-if="items.length">
+    <table class="gr">
+      <thead><tr><th>Grupa</th><th>Master</th><th>REF-y</th>{% if role in ['manager','superuser','admin'] %}<th style="width:120px"></th>{% endif %}</tr></thead>
+      <tbody>
+        <template x-for="g in items" :key="g.id">
+          <tr>
+            <td><b x-text="g.group_name"></b><div style="font-size:11px;color:var(--muted)" x-text="g.refs_count+' REF'"></div></td>
+            <td class="gr-mono" style="font-size:12px">
+              <span x-text="g.master_filename || '—'"></span>
+              <span x-show="g.master_revision" style="color:var(--muted)" x-text="' (rew. '+g.master_revision+')'"></span>
+              <div x-show="g.master_rel_path && !g.master_in_index" style="color:var(--error,#dc2626);font-size:11px;font-family:var(--font)">⚠️ pliku brak w indeksie</div>
+            </td>
+            <td><template x-for="r in g.refs" :key="r"><span class="gr-chip" x-text="r"></span></template></td>
+            {% if role in ['manager','superuser','admin'] %}
+            <td>
+              <button class="btn btn-sm btn-ghost" @click="edit(g)">Edytuj</button>
+              <button class="btn btn-sm btn-ghost" @click="del(g.id)" style="color:var(--error,#dc2626)">✕</button>
+            </td>
+            {% endif %}
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </template>
+</div>
+
+<script>
+function groupApp(){
+  return {
+    items:[], msg:'', ok:false, masterQuery:'', cands:[],
+    form:{ id:null, group_name:'', master_rel_path:'', master_filename:'', refsText:'' },
+    async load(){ try{ const r=await fetch('/api/artwork/mapping-group'); if(!r.ok) throw 0; const d=await r.json(); this.items=d.items||[]; }catch(e){ if(window.toast) toast('Nie udało się wczytać grup','error'); } },
+    async searchMaster(){
+      this.cands=[]; if(!this.masterQuery) return;
+      try{
+        const r=await fetch('/api/artwork/alias/suggest?text='+encodeURIComponent(this.masterQuery));
+        const d=await r.json(); this.cands=d.candidates||[];
+        if(!this.cands.length){ this.msg='Brak plików — sprawdź indeks artworków.'; this.ok=false; }
+      }catch(e){ this.msg='Błąd wyszukiwania'; this.ok=false; }
+    },
+    pickMaster(c){ this.form.master_rel_path=c.rel_path; this.form.master_filename=c.filename; this.cands=[]; this.masterQuery=''; },
+    _refs(){ return (this.form.refsText||'').split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean); },
+    async save(){
+      if(this._saving) return;                 // blokada podwójnego submitu
+      this._saving=true; this.msg='';
+      try{
+        const r=await fetch('/api/artwork/mapping-group',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ id:this.form.id, group_name:this.form.group_name,
+            master_rel_path:this.form.master_rel_path, refs:this._refs() })});
+        const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Zapisano.'; this.ok=true; this.reset(); this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+      finally{ this._saving=false; }
+    },
+    edit(g){ this.form={ id:g.id, group_name:g.group_name, master_rel_path:g.master_rel_path,
+      master_filename:g.master_filename, refsText:(g.refs||[]).join('\n') };
+      window.scrollTo({top:0,behavior:'smooth'}); },
+    reset(){ this.form={ id:null, group_name:'', master_rel_path:'', master_filename:'', refsText:'' }; this.cands=[]; this.masterQuery=''; },
+    async del(id){ if(!confirm('Usunąć grupę?')) return;
+      try{ await fetch('/api/artwork/mapping-group/'+id,{method:'DELETE'}); this.load(); }catch(e){} },
+  };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Master data dostawców — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.sm-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.sm-toolbar input[type=search]{flex:1;min-width:240px;padding:9px 13px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px}
+.sm-layout{display:grid;grid-template-columns:1fr 1.1fr;gap:18px}
+@media(max-width:900px){.sm-layout{grid-template-columns:1fr}}
+.sm-list{display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow:auto}
+.sm-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;cursor:pointer;transition:border-color .12s}
+.sm-row:hover{border-color:var(--accent)}
+.sm-row.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg,#eff6ff)}
+.sm-name{font-weight:800;font-size:14px;color:var(--text)}
+.sm-code{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px}
+.sm-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.sm-tag{font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;
+  background:var(--accent-bg,#eff6ff);color:var(--accent);border:1px solid var(--border)}
+.sm-detail{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;position:sticky;top:12px}
+.sm-detail h3{margin:0 0 4px}
+.sm-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:12px 0}
+.sm-kv dt{color:var(--muted);font-weight:600}
+.sm-kv dd{margin:0;color:var(--text)}
+.sm-empty{color:var(--muted);font-style:italic;padding:24px;text-align:center}
+[x-cloak]{display:none!important}
+</style>
+{% endblock %}
+
+{% block page_title %}Master data dostawców{% endblock %}
+
+{% block content %}
+<div x-data="supMasterApp()" x-init="load()" x-cloak>
+  <div class="page-header">
+    <h1>🏭 Master data dostawców</h1>
+    <p>Dostawcy + kod producenta (łącznik z materiałami), waluta, incoterms, warunki płatności, lead time, kontakt. <span x-show="total" x-text="'(' + total + ')'"></span></p>
+  </div>
+
+  <div class="sm-toolbar">
+    <input type="search" placeholder="Szukaj: kod, nazwa, producent…" x-model="q" @input.debounce.350="load()">
+    {% if role in ['manager','superuser','admin'] %}
+    <label class="btn btn-sm btn-primary" style="cursor:pointer">
+      ⬆ Import (XLSX/CSV)
+      <input type="file" accept=".xlsx,.csv" style="display:none" @change="doImport($event)">
+    </label>
+    {% endif %}
+    <a class="btn btn-sm btn-ghost" href="/suppliers">Profile / mapowanie kolumn →</a>
+    <span x-show="msg" x-text="msg" style="font-size:12px" :style="ok?'color:#16a34a':'color:var(--error)'"></span>
+  </div>
+
+  <div class="sm-layout">
+    <div class="sm-list">
+      <template x-if="items.length === 0">
+        <div class="sm-empty">Brak dostawców. Zaimportuj plik master data.</div>
+      </template>
+      <template x-for="s in items" :key="s.code">
+        <div class="sm-row" :class="sel && sel.code===s.code ? 'active':''" @click="open(s.code)">
+          <div class="sm-name" x-text="s.name"></div>
+          <div class="sm-code" x-text="s.code"></div>
+          <div class="sm-tags">
+            <span class="sm-tag" x-show="s.producer_code" x-text="'Producent: ' + s.producer_code"></span>
+            <span class="sm-tag" x-show="s.country" x-text="s.country"></span>
+            <span class="sm-tag" x-show="s.currency" x-text="s.currency"></span>
+            <span class="sm-tag" x-show="s.incoterms" x-text="s.incoterms"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div>
+      <template x-if="!sel"><div class="sm-detail sm-empty">Wybierz dostawcę z listy.</div></template>
+      <template x-if="sel">
+        <div class="sm-detail">
+          <h3 x-text="sel.name"></h3>
+          <div class="sm-code" x-text="sel.code"></div>
+          <dl class="sm-kv">
+            <dt>Kod producenta</dt><dd x-text="sel.producer_code || '—'"></dd>
+            <dt>Kraj</dt><dd x-text="sel.country || '—'"></dd>
+            <dt>Waluta</dt><dd x-text="sel.currency || '—'"></dd>
+            <dt>Incoterms</dt><dd x-text="sel.incoterms || '—'"></dd>
+            <dt>Warunki płatności</dt><dd x-text="sel.payment_terms_default || '—'"></dd>
+            <dt>Lead time (dni)</dt><dd x-text="sel.lead_time_days || '—'"></dd>
+            <dt>Kontakt</dt><dd x-text="sel.contact_person || '—'"></dd>
+            <dt>E-mail (odbiorca zamówień)</dt>
+            <dd>
+              <template x-if="!editingEmail">
+                <span style="display:inline-flex;align-items:center;gap:8px">
+                  <span x-text="sel.email || '— (brak)'"></span>
+                  {% if role in ['manager','superuser','admin'] %}
+                  <button type="button" @click="emailDraft = sel.email || ''; editingEmail = true"
+                          style="font-size:11px;padding:2px 8px;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;cursor:pointer">edytuj</button>
+                  {% endif %}
+                </span>
+              </template>
+              <template x-if="editingEmail">
+                <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <input type="email" x-model="emailDraft" placeholder="np. tomasz.wierzbowski@example.com"
+                         style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:5px;font-size:13px;min-width:240px">
+                  <button type="button" @click="saveEmail()" :disabled="emailSaving"
+                          style="font-size:12px;padding:4px 10px;border:none;border-radius:5px;background:var(--accent,#1d4ed8);color:#fff;cursor:pointer">
+                    <span x-show="!emailSaving">Zapisz</span><span x-show="emailSaving">…</span>
+                  </button>
+                  <button type="button" @click="editingEmail=false"
+                          style="font-size:12px;padding:4px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer">Anuluj</button>
+                </span>
+              </template>
+            </dd>
+            <dt>Telefon</dt><dd x-text="sel.phone || '—'"></dd>
+            <dt>Słowa kluczowe</dt><dd x-text="(sel.keywords||[]).join(', ') || '—'"></dd>
+            <dt>Uwagi</dt><dd x-text="sel.notes || '—'"></dd>
+          </dl>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script>
+function supMasterApp(){
+  return {
+    q:'', items:[], total:0, sel:null, msg:'', ok:false,
+    editingEmail:false, emailDraft:'', emailSaving:false,
+    async saveEmail(){
+      this.emailSaving=true;
+      try{
+        const r=await fetch('/api/sup-master/'+encodeURIComponent(this.sel.code)+'/contact',{
+          method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({email: (this.emailDraft||'').trim()})
+        });
+        const d=await r.json();
+        if(!r.ok){ if(window.toast) toast(d.error||'Błąd zapisu','error'); this.emailSaving=false; return; }
+        this.sel.email=(this.emailDraft||'').trim();
+        this.editingEmail=false;
+        if(window.toast) toast('Zapisano e-mail dostawcy','ok');
+      }catch(e){ if(window.toast) toast('Błąd połączenia','error'); }
+      this.emailSaving=false;
+    },
+    async load(){
+      try{ const r=await fetch('/api/sup-master?q='+encodeURIComponent(this.q)); const d=await r.json();
+        this.items=d.items||[]; this.total=d.total||0; }catch(e){ if(window.toast) toast('Nie udało się wczytać dostawców','error'); }
+    },
+    async open(code){
+      try{ const r=await fetch('/api/sup-master/'+encodeURIComponent(code)); if(!r.ok)return;
+        this.sel=await r.json(); this.editingEmail=false; }catch(e){ if(window.toast) toast('Nie udało się wczytać szczegółów','error'); }
+    },
+    async doImport(ev){
+      const f=ev.target.files[0]; if(!f)return;
+      this.msg='Importuję…'; this.ok=false;
+      const fd=new FormData(); fd.append('file',f);
+      try{ const r=await fetch('/api/sup-master/import',{method:'POST',body:fd}); const d=await r.json();
+        if(!r.ok){ this.msg=d.error||'Błąd'; this.ok=false; return; }
+        this.msg='Zaimportowano: '+d.imported; this.ok=true; this.load();
+      }catch(e){ this.msg='Błąd połączenia'; this.ok=false; }
+      finally{ ev.target.value=''; }
+    },
+  };
+}
+</script>
+{% endblock %}

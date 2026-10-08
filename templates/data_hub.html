@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Centrum danych — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+
+/* Kafle o ~połowę mniejsze (gęstsze: więcej w rzędzie, mniejszy padding/ikona),
+   ale rozmiary czcionek tytułu/opisu zostają bez zmian — czytelność jak była. */
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 7px;
+}
+.hub-section {
+  grid-column: 1 / -1;
+  font-size: 11px; font-weight: 800; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .6px;
+  margin: 12px 0 1px; padding-bottom: 3px; border-bottom: 1px solid var(--border);
+}
+.hub-section:first-child { margin-top: 0; }
+
+.hub-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: box-shadow .18s, transform .18s, border-color .18s;
+  text-decoration: none;
+  color: inherit;
+}
+.hub-card:hover {
+  box-shadow: 0 8px 32px rgba(0,0,0,.10);
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.hub-card-icon {
+  font-size: 17px;
+  line-height: 1;
+  width: 28px; height: 28px;
+  background: var(--accent-bg);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hub-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
+/* Opis przycięty do 2 linii — kafel niski, czcionka bez zmian. */
+.hub-card-desc  {
+  font-size: 13px; color: var(--muted); line-height: 1.4; flex: 1;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.hub-card-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  align-self: flex-start;
+  transition: opacity .12s;
+}
+.hub-card:hover .hub-card-btn { opacity: .88; }
+</style>
+{% endblock %}
+
+{% block page_title %}Centrum danych{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🗄️ Centrum danych ACME</h1>
+  <p>Centralne miejsce danych referencyjnych — produkty, dostawcy, artworki, śledzenie i słowniki. &nbsp;<span style="font-size:11px;background:var(--accent-bg);color:var(--accent);border:1px solid var(--border);border-radius:20px;padding:2px 9px;font-weight:600;vertical-align:middle">🎨 Artworki + dane referencyjne</span></p>
+</div>
+
+<div class="hub-grid">
+
+  <div class="hub-section">Dane podstawowe</div>
+
+  <a href="/materials" class="hub-card">
+    <div class="hub-card-icon">📦</div>
+    <div class="hub-card-title">Master data materiałów</div>
+    <div class="hub-card-desc">REF, opisy PL/EN, EAN, taryfy CN, producent, dostawcy, jednostki i przeliczniki opakowań (SZT/OP/KAR/PAZ/PPA). Import XLSX/CSV. (Scalona „Baza produktów".)</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/suppliers/master" class="hub-card">
+    <div class="hub-card-icon">🏭</div>
+    <div class="hub-card-title">Master data dostawców</div>
+    <div class="hub-card-desc">Dostawcy + kod producenta (łącznik z materiałami), waluta, incoterms, warunki płatności, lead time, kontakt. Import XLSX/CSV.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/suppliers" class="hub-card">
+    <div class="hub-card-icon">🔧</div>
+    <div class="hub-card-title">Profile dostawców</div>
+    <div class="hub-card-desc">Profile porównania artworków per dostawca: synonimy produktów, tolerancje, ustawienia.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <div class="hub-section">Artwork — dane</div>
+
+  <a href="/artwork/profiles" class="hub-card">
+    <div class="hub-card-icon">🎨</div>
+    <div class="hub-card-title">Mapowanie mastera</div>
+    <div class="hub-card-desc">Profile artworków — strefy kadrowania, rotacja, słownik pól i mapowanie obszarów na masterze.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/artwork/aliases" class="hub-card">
+    <div class="hub-card-icon">🔗</div>
+    <div class="hub-card-title">Aliasy artworków</div>
+    <div class="hub-card-desc">Powiązanie nazwy pliku artworku z REF, gdy nazwa go nie zawiera (np. easycare_nitrile_carton_S → RNBS10001).</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/artwork/revisions" class="hub-card">
+    <div class="hub-card-icon">♻️</div>
+    <div class="hub-card-title">Zmiany rewizji artworków</div>
+    <div class="hub-card-desc">REF-y z potwierdzonym starym masterem, dla których pojawiła się nowsza rewizja — do ponownego potwierdzenia.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/artwork/mapping-groups" class="hub-card">
+    <div class="hub-card-icon">🗂️</div>
+    <div class="hub-card-title">Grupy mapowań artworków</div>
+    <div class="hub-card-desc">Grupuj produkty o wspólnym wzorcu (np. Rękawice A100/A200): lista REF + jeden master. REF z grupy dziedziczy master, gdy nie ma własnego.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <a href="/artwork/index" class="hub-card">
+    <div class="hub-card-icon">🗂️</div>
+    <div class="hub-card-title">Indeks artworków (Z:\)</div>
+    <div class="hub-card-desc">Stan indeksu masterów (ile plików / REF-ów / ostatni skan) + zasilanie: import listy ścieżek z Z:\ albo skaner agenta. Bez tego dobór master↔REF nie ma danych.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+  <div class="hub-section">Słowniki</div>
+
+  <a href="/translation-dictionary" class="hub-card">
+    <div class="hub-card-icon">📖</div>
+    <div class="hub-card-title">Słownik tłumaczeń</div>
+    <div class="hub-card-desc">Tłumaczenia terminów PL/EN. Zarządzanie słownikiem terminologii interfejsu.</div>
+    <span class="hub-card-btn">Otwórz →</span>
+  </a>
+
+</div>
+<script>
+  // Opis jest przycięty do 2 linii — pełna treść w dymku (title) po najechaniu.
+  document.querySelectorAll('.hub-card-desc').forEach(function(el){
+    if(!el.getAttribute('title')) el.setAttribute('title', el.textContent.trim());
+  });
+</script>
+{% endblock %}

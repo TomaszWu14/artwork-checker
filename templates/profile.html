@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% block title %}Mój profil — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.profile-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 960px) { .profile-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-meta { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.meta-label { color: var(--muted); font-size: 12px; }
+.meta-val { color: var(--text); font-weight: 600; }
+
+/* Form */
+.form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.form-group label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.form-group input, .form-group select {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 14px;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+.pw-wrap { position: relative; }
+.pw-wrap input { width: 100%; padding-right: 40px; }
+.pw-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  font-size: 16px; padding: 2px; line-height: 1;
+}
+.pw-strength { display: flex; gap: 3px; margin-top: 5px; }
+.pw-strength-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background .2s; }
+.pw-strength-label { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+.btn-save {
+  padding: 10px 24px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .12s;
+}
+.btn-save:hover { opacity: .88; }
+
+/* Activity mini-log */
+.activity-list { display: flex; flex-direction: column; gap: 6px; }
+.activity-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface2);
+  font-size: 12px;
+}
+.activity-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.activity-event { font-weight: 700; color: var(--text); }
+.activity-detail { color: var(--muted); }
+.activity-time { font-family: var(--mono); color: var(--muted); font-size: 11px; margin-left: auto; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block page_title %}Mój profil{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Mój profil</h1>
+  <p class="sub">Dane konta, ustawienia i aktywność</p>
+</div>
+
+<div class="profile-grid">
+
+  <!-- LEFT COLUMN: profile card + stats -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Profile card -->
+    <div class="card" style="text-align:center">
+      <div class="user-avatar xl" style="margin:0 auto 16px">{{ (user.username or 'U')[:2] }}</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text)">{{ user.username }}</div>
+      <div style="margin-top:6px">
+        <span class="badge role-{{ user.role | lower }}">{{ user.role | upper }}</span>
+      </div>
+      {% if user.department %}
+      <div style="margin-top:6px;font-size:12px;color:var(--muted)">🏢 {{ user.department }}</div>
+      {% endif %}
+
+      <div class="profile-meta">
+        <div class="meta-row">
+          <span class="meta-label">Email</span>
+          <span class="meta-val">{{ user.email or '—' }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Telefon</span>
+          <span class="meta-val">{{ user.phone or '—' }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Język</span>
+          <span class="meta-val">{% if user.language == 'en' %}🇬🇧 English{% else %}🇵🇱 Polski{% endif %}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Ostatnie logowanie</span>
+          <span class="meta-val" style="font-family:var(--mono);font-size:11px">{{ (user.last_login or '—')[:16] }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Konto od</span>
+          <span class="meta-val" style="font-family:var(--mono);font-size:11px">{{ (user.created_at or '—')[:10] }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Moje statystyki</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div class="stat-pill" style="flex:1">
+          <div class="num">{{ comp_count }}</div>
+          <div class="lbl">Porównania</div>
+        </div>
+        <div class="stat-pill" style="flex:1">
+          <div class="num">{{ activity | length }}</div>
+          <div class="lbl">Zdarzenia (50 ost.)</div>
+        </div>
+      </div>
+      <a href="/set-language/{% if user.language == 'en' %}pl{% else %}en{% endif %}"
+         style="display:block;padding:9px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;color:var(--text);text-align:center;text-decoration:none;background:var(--surface2)">
+        {% if user.language == 'en' %}🇵🇱 Przełącz na Polski{% else %}🇬🇧 Switch to English{% endif %}
+      </a>
+    </div>
+
+  </div><!-- /left column -->
+
+  <!-- RIGHT COLUMN: edit forms + activity -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Edit profile -->
+    <div class="card">
+      <div class="card-title">Edytuj dane</div>
+      <div id="profileMsg" style="display:none;margin-bottom:14px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label for="fEmail">Email</label>
+          <input type="email" id="fEmail" value="{{ user.email or '' }}" placeholder="adres@firma.pl" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="fPhone">Telefon</label>
+          <input type="tel" id="fPhone" value="{{ user.phone or '' }}" placeholder="+48 600 000 000" autocomplete="tel">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label for="fDept">Dział</label>
+          <select id="fDept">
+            <option value="">— brak —</option>
+            {% for d in ['Zakupy','Logistyka','Magazyn','Finanse','IT','Zarząd'] %}
+            <option value="{{ d }}" {% if user.department == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:6px">
+        <button type="button" class="btn-save" onclick="saveProfile()">Zapisz zmiany</button>
+      </div>
+    </div>
+
+    <!-- Change password -->
+    <div class="card">
+      <div class="card-title">Zmiana hasła</div>
+      <div id="pwdMsg" style="display:none;margin-bottom:14px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label for="fCurrent">Obecne hasło</label>
+          <div class="pw-wrap">
+            <input type="password" id="fCurrent" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="pw-toggle" aria-label="Pokaż/ukryj obecne hasło" onclick="togglePw('fCurrent',this)">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="fNew">Nowe hasło</label>
+          <div class="pw-wrap">
+            <input type="password" id="fNew" placeholder="min. 8 znaków + cyfra" oninput="updateStrength(this.value)" autocomplete="new-password">
+            <button type="button" class="pw-toggle" aria-label="Pokaż/ukryj nowe hasło" onclick="togglePw('fNew',this)">👁</button>
+          </div>
+          <div class="pw-strength" id="strengthBars">
+            <div class="pw-strength-bar" id="sb1"></div>
+            <div class="pw-strength-bar" id="sb2"></div>
+            <div class="pw-strength-bar" id="sb3"></div>
+            <div class="pw-strength-bar" id="sb4"></div>
+          </div>
+          <div class="pw-strength-label" id="strengthLabel"></div>
+        </div>
+        <div class="form-group">
+          <label for="fConfirm">Potwierdź nowe</label>
+          <div class="pw-wrap">
+            <input type="password" id="fConfirm" placeholder="••••••••" autocomplete="new-password">
+            <button type="button" class="pw-toggle" aria-label="Pokaż/ukryj potwierdzenie hasła" onclick="togglePw('fConfirm',this)">👁</button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn-save" onclick="changePassword()">Zmień hasło</button>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        Moja aktywność
+        <span style="font-size:11px;color:var(--muted);font-weight:400">ostatnie 50 zdarzeń</span>
+      </div>
+      {% if activity %}
+      <div class="activity-list" id="activityList">
+        {% for ev in activity[:20] %}
+        <div class="activity-item">
+          <div class="activity-dot"></div>
+          <div style="flex:1;min-width:0">
+            <div class="activity-event">{{ ev.event }}</div>
+            {% if ev.detail %}<div class="activity-detail">{{ ev.detail[:80] }}</div>{% endif %}
+          </div>
+          <div class="activity-time">{{ (ev.created_at or '')[:16] }}</div>
+        </div>
+        {% endfor %}
+        {% if activity | length > 20 %}
+        <div id="actMore" style="display:none;flex-direction:column;gap:6px">
+          {% for ev in activity[20:] %}
+          <div class="activity-item">
+            <div class="activity-dot" style="background:var(--muted)"></div>
+            <div style="flex:1;min-width:0">
+              <div class="activity-event">{{ ev.event }}</div>
+              {% if ev.detail %}<div class="activity-detail">{{ ev.detail[:80] }}</div>{% endif %}
+            </div>
+            <div class="activity-time">{{ (ev.created_at or '')[:16] }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" onclick="var m=document.getElementById('actMore');m.style.display='flex';m.style.flexDirection='column';m.style.gap='6px';this.style.display='none'"
+                style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:6px 0">
+          Pokaż wszystkie ({{ activity | length }}) →
+        </button>
+        {% endif %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:30px;color:var(--muted);font-size:13px">Brak zarejestrowanej aktywności</div>
+      {% endif %}
+    </div>
+
+  </div><!-- /right column -->
+</div>
+
+<script>
+function togglePw(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+function updateStrength(val) {
+  const bars = [document.getElementById('sb1'), document.getElementById('sb2'),
+                document.getElementById('sb3'), document.getElementById('sb4')];
+  const label = document.getElementById('strengthLabel');
+  let score = 0;
+  if (val.length >= 8)  score++;
+  if (val.length >= 12) score++;
+  if (/[0-9]/.test(val)) score++;
+  if (/[^a-zA-Z0-9]/.test(val)) score++;
+  const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
+  const labels = ['','Słabe','Średnie','Dobre','Silne'];
+  bars.forEach((b, i) => { b.style.background = i < score ? colors[score - 1] : ''; });
+  label.textContent = labels[score] || '';
+  label.style.color = score > 0 ? colors[score - 1] : '';
+}
+
+function showMsg(id, text, isOk) {
+  const el = document.getElementById(id);
+  el.className = 'alert ' + (isOk ? 'alert-ok' : 'alert-err');
+  el.innerHTML = (isOk ? '✅ ' : '⚠ ') + escHtml(text);
+  el.style.display = 'flex';
+  if (isOk) setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+async function saveProfile() {
+  const payload = {
+    email: document.getElementById('fEmail').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    department: document.getElementById('fDept').value,
+  };
+  const res = await fetch('/api/profile/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf()},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showMsg('profileMsg', 'Dane zostały zapisane.', true);
+    toast('Profil zaktualizowany', 'ok');
+  } else {
+    showMsg('profileMsg', data.error || 'Błąd zapisu', false);
+  }
+}
+
+async function changePassword() {
+  const current = document.getElementById('fCurrent').value;
+  const newPwd  = document.getElementById('fNew').value;
+  const confirm = document.getElementById('fConfirm').value;
+  if (newPwd !== confirm) {
+    showMsg('pwdMsg', 'Nowe hasła nie są identyczne', false);
+    return;
+  }
+  if (newPwd.length < 8) {
+    showMsg('pwdMsg', 'Nowe hasło musi mieć co najmniej 8 znaków', false);
+    return;
+  }
+  const res = await fetch('/api/profile/change-password', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf()},
+    body: JSON.stringify({ current_password: current, new_password: newPwd })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showMsg('pwdMsg', 'Hasło zostało zmienione.', true);
+    toast('Hasło zmienione', 'ok');
+    ['fCurrent','fNew','fConfirm'].forEach(id => document.getElementById(id).value = '');
+    updateStrength('');
+  } else {
+    showMsg('pwdMsg', data.error || 'Błąd zmiany hasła', false);
+  }
+}
+</script>
+{% endblock %}

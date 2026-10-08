@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#334155"/>
+    </marker>
+    <style>
+      .lbl{font-size:13px;fill:#0f172a}
+      .sub{font-size:11px;fill:#475569}
+      .box-t{font-size:15px;font-weight:700}
+      .num{font-size:12px;font-weight:700;fill:#fff}
+      .arrlbl{font-size:11px;fill:#1e293b}
+      .h{font-size:20px;font-weight:800;fill:#0f172a}
+      .h2{font-size:14px;font-weight:800;fill:#0f172a}
+    </style>
+  </defs>
+
+  <rect width="1280" height="900" fill="#ffffff"/>
+  <text x="40" y="44" class="h">Kolejkowanie zadań (RQ + Redis) — mapa procesu DocCompare</text>
+  <text x="40" y="66" class="sub">Web tylko przyjmuje żądanie i wrzuca zadanie do kolejki. Ciężką pracę (PDF/OCR/porównania) robi osobny proces „worker". Postęp w PostgreSQL (async_jobs).</text>
+
+  <!-- ARCHITEKTURA -->
+  <text x="40" y="100" class="h2">ARCHITEKTURA</text>
+
+  <!-- Browser -->
+  <rect x="40" y="120" width="170" height="90" rx="12" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="125" y="150" text-anchor="middle" class="box-t" fill="#334155">🌐 Przeglądarka</text>
+  <text x="125" y="172" text-anchor="middle" class="sub">użytkownik</text>
+  <text x="125" y="190" text-anchor="middle" class="sub">odpytuje o postęp</text>
+
+  <!-- Web / APP container -->
+  <rect x="270" y="108" width="220" height="150" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="380" y="130" text-anchor="middle" class="sub" fill="#2563eb">KONTENER „APP"</text>
+  <text x="380" y="160" text-anchor="middle" class="box-t" fill="#1d4ed8">⚙️ Web (gunicorn)</text>
+  <text x="380" y="184" text-anchor="middle" class="lbl">przyjmuje POST</text>
+  <text x="380" y="202" text-anchor="middle" class="lbl">tworzy job + enqueue</text>
+  <text x="380" y="220" text-anchor="middle" class="lbl">zwraca job_id (ms)</text>
+  <text x="380" y="240" text-anchor="middle" class="sub">— nie liczy nic ciężkiego —</text>
+
+  <!-- Redis -->
+  <rect x="560" y="120" width="160" height="120" rx="14" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+  <text x="640" y="150" text-anchor="middle" class="box-t" fill="#b91c1c">🧾 Redis</text>
+  <text x="640" y="174" text-anchor="middle" class="lbl">KOLEJKA zadań</text>
+  <text x="640" y="194" text-anchor="middle" class="sub">„do zrobienia"</text>
+  <text x="640" y="214" text-anchor="middle" class="sub">+ kolejka „failed"</text>
+
+  <!-- Worker container -->
+  <rect x="790" y="108" width="230" height="150" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="905" y="130" text-anchor="middle" class="sub" fill="#16a34a">KONTENER „WORKER" (osobny proces)</text>
+  <text x="905" y="160" text-anchor="middle" class="box-t" fill="#15803d">🛠️ rq worker</text>
+  <text x="905" y="184" text-anchor="middle" class="lbl">bierze zadanie z kolejki</text>
+  <text x="905" y="202" text-anchor="middle" class="lbl">liczy: PDF / OCR / porównanie</text>
+  <text x="905" y="220" text-anchor="middle" class="lbl">aktualizuje postęp + wynik</text>
+  <text x="905" y="240" text-anchor="middle" class="sub">współbieżność = liczba workerów</text>
+
+  <!-- PostgreSQL -->
+  <rect x="1050" y="120" width="190" height="120" rx="14" fill="#eef2ff" stroke="#4338ca" stroke-width="2"/>
+  <text x="1145" y="150" text-anchor="middle" class="box-t" fill="#3730a3">🗄️ PostgreSQL</text>
+  <text x="1145" y="174" text-anchor="middle" class="lbl">tabela async_jobs</text>
+  <text x="1145" y="194" text-anchor="middle" class="sub">status / pct / result</text>
+  <text x="1145" y="214" text-anchor="middle" class="sub">(„tablica postępu")</text>
+
+  <!-- ML engine (future #2) -->
+  <rect x="790" y="285" width="230" height="78" rx="14" fill="#faf5ff" stroke="#9333ea" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="905" y="310" text-anchor="middle" class="box-t" fill="#7e22ce">🧠 artwork-engine (opcja #2)</text>
+  <text x="905" y="332" text-anchor="middle" class="sub">osobny serwis z modelami CV (PyTorch)</text>
+  <text x="905" y="350" text-anchor="middle" class="sub">worker woła go zamiast ładować modele u siebie</text>
+
+  <!-- ARROWS architektura -->
+  <!-- 1 browser -> web -->
+  <line x1="210" y1="150" x2="268" y2="150" stroke="#334155" stroke-width="1.6" marker-end="url(#arr)"/>
+  <circle cx="240" cy="135" r="9" fill="#2563eb"/><text x="240" y="139" text-anchor="middle" class="num">1</text>
+  <text x="239" y="118" text-anchor="middle" class="arrlbl">POST</text>
+  <!-- 2 web -> redis enqueue -->
+  <line x1="492" y1="170" x2="558" y2="170" stroke="#334155" stroke-width="1.6" marker-end="url(#arr)"/>
+  <circle cx="525" cy="155" r="9" fill="#dc2626"/><text x="525" y="159" text-anchor="middle" class="num">2</text>
+  <text x="525" y="190" text-anchor="middle" class="arrlbl">enqueue</text>
+  <!-- 1b web -> browser job_id -->
+  <line x1="268" y1="200" x2="212" y2="200" stroke="#334155" stroke-width="1.4" marker-end="url(#arr)" stroke-dasharray="4 3"/>
+  <text x="240" y="216" text-anchor="middle" class="arrlbl">job_id</text>
+  <!-- 3 redis -> worker -->
+  <line x1="722" y1="165" x2="788" y2="165" stroke="#334155" stroke-width="1.6" marker-end="url(#arr)"/>
+  <circle cx="755" cy="150" r="9" fill="#16a34a"/><text x="755" y="154" text-anchor="middle" class="num">3</text>
+  <text x="755" y="188" text-anchor="middle" class="arrlbl">weź zadanie</text>
+  <!-- 4 worker -> postgres (write progress/result) -->
+  <line x1="1022" y1="175" x2="1048" y2="175" stroke="#334155" stroke-width="1.6" marker-end="url(#arr)"/>
+  <circle cx="1035" cy="150" r="9" fill="#4338ca"/><text x="1035" y="154" text-anchor="middle" class="num">4</text>
+  <text x="1035" y="138" text-anchor="middle" class="arrlbl">pct / wynik</text>
+  <!-- 5 web reads postgres for polling (curved under) -->
+  <path d="M380,258 C380,420 1145,420 1145,242" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#arr)" stroke-dasharray="5 4"/>
+  <circle cx="762" cy="416" r="9" fill="#475569"/><text x="762" y="420" text-anchor="middle" class="num">5</text>
+  <text x="762" y="438" text-anchor="middle" class="arrlbl">web czyta status (GET job/&lt;id&gt;) → odpowiada przeglądarce</text>
+  <!-- worker -> ML (dashed, future) -->
+  <line x1="905" y1="258" x2="905" y2="284" stroke="#9333ea" stroke-width="1.6" marker-end="url(#arr)" stroke-dasharray="5 4"/>
+  <text x="980" y="276" text-anchor="middle" class="arrlbl" fill="#7e22ce">(z #2)</text>
+
+  <!-- SEKWENCJA -->
+  <text x="40" y="500" class="h2">PRZEBIEG (krok po kroku) — przykład: „Porównaj artwork"</text>
+  <g class="lbl">
+    <rect x="40" y="514" width="1200" height="206" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+    <circle cx="62" cy="540" r="9" fill="#2563eb"/><text x="62" y="544" text-anchor="middle" class="num">1</text>
+    <text x="82" y="544">Użytkownik klika „Porównaj". Web tworzy wpis w <tspan font-weight="700">async_jobs</tspan> (status=queued, pct=0) i <tspan font-weight="700">wrzuca zadanie do Redis</tspan>.</text>
+
+    <circle cx="62" cy="566" r="9" fill="#2563eb"/><text x="62" y="570" text-anchor="middle" class="num">2</text>
+    <text x="82" y="570">Web <tspan font-weight="700">natychmiast</tspan> zwraca <tspan font-family="monospace">job_id</tspan> (milisekundy) — worker webowy jest od razu wolny dla innych stron.</text>
+
+    <circle cx="62" cy="592" r="9" fill="#16a34a"/><text x="62" y="596" text-anchor="middle" class="num">3</text>
+    <text x="82" y="596"><tspan font-weight="700">Worker</tspan> pobiera zadanie z kolejki i zaczyna liczyć (ekstrakcja PDF → OCR → porównanie wzorzec ↔ fabryczny).</text>
+
+    <circle cx="62" cy="618" r="9" fill="#4338ca"/><text x="62" y="622" text-anchor="middle" class="num">4</text>
+    <text x="82" y="622">W trakcie worker <tspan font-weight="700">aktualizuje postęp</tspan> w async_jobs (np. pct=40 „OCR", pct=80 „porównanie kodów").</text>
+
+    <circle cx="62" cy="644" r="9" fill="#475569"/><text x="62" y="648" text-anchor="middle" class="num">5</text>
+    <text x="82" y="648">Przeglądarka co ~1–2 s pyta <tspan font-family="monospace">GET /…/job/&lt;id&gt;</tspan>; web czyta async_jobs i zwraca aktualny postęp (pasek %).</text>
+
+    <circle cx="62" cy="670" r="9" fill="#16a34a"/><text x="62" y="674" text-anchor="middle" class="num">6</text>
+    <text x="82" y="674">Worker kończy → zapisuje <tspan font-weight="700">status=done + wynik</tspan> (raport). Błąd → status=failed + opis (kolejka „failed").</text>
+
+    <circle cx="62" cy="696" r="9" fill="#2563eb"/><text x="62" y="700" text-anchor="middle" class="num">7</text>
+    <text x="82" y="700">Następny <tspan font-family="monospace">GET job/&lt;id&gt;</tspan> zwraca <tspan font-weight="700">done</tspan> → front pokazuje raport. Wpis async_jobs jest sprzątany po pobraniu.</text>
+  </g>
+
+  <!-- 3 callouty -->
+  <g>
+    <rect x="40" y="740" width="390" height="130" rx="12" fill="#ecfeff" stroke="#06b6d4"/>
+    <text x="58" y="766" class="h2" fill="#0e7490">⚖️ Współbieżność</text>
+    <text x="58" y="790" class="lbl">Ile zadań naraz = <tspan font-weight="700">liczba workerów</tspan>.</text>
+    <text x="58" y="810" class="lbl">Nadmiar <tspan font-weight="700">czeka w kolejce</tspan> — serwer się nie</text>
+    <text x="58" y="828" class="lbl">przeciąża. Zastępuje semafor _HEAVY_SEM.</text>
+    <text x="58" y="850" class="sub">Więcej równolegle → dokładasz worker.</text>
+
+    <rect x="445" y="740" width="390" height="130" rx="12" fill="#fff7ed" stroke="#f59e0b"/>
+    <text x="463" y="766" class="h2" fill="#b45309">🛟 Awaria / Deploy</text>
+    <text x="463" y="790" class="lbl">Deploy „APP" w trakcie liczenia: zadanie</text>
+    <text x="463" y="810" class="lbl"><tspan font-weight="700">czeka w Redis</tspan>, worker je dokończy / ponowi.</text>
+    <text x="463" y="828" class="lbl">Brak timeoutu 300 s na web; limit per zadanie</text>
+    <text x="463" y="846" class="lbl">ustawiasz w workerze. Błędy widoczne („failed").</text>
+
+    <rect x="850" y="740" width="390" height="130" rx="12" fill="#f0fdf4" stroke="#16a34a"/>
+    <text x="868" y="766" class="h2" fill="#15803d">✅ Co już macie</text>
+    <text x="868" y="790" class="lbl">Tabela <tspan font-weight="700">async_jobs</tspan> + postęp + polling.</text>
+    <text x="868" y="810" class="lbl">UI postępu <tspan font-weight="700">bez zmian</tspan>.</text>
+    <text x="868" y="828" class="lbl">Dochodzi: Redis, biblioteka rq, proces worker,</text>
+    <text x="868" y="846" class="lbl">zamiana „licz teraz" → „enqueue".</text>
+  </g>
+</svg>

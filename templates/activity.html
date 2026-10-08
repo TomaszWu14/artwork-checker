@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Logi aktywności — Artwork{% endblock %}
+
+{% block extra_head %}
+<style>
+.act-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (max-width: 700px) { .act-stats { grid-template-columns: 1fr; } }
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.stat-box .sn { font-size: 28px; font-weight: 800; color: var(--text); }
+.stat-box .sl { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.toolbar input, .toolbar select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+.toolbar input { flex: 1; min-width: 180px; }
+
+.log-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.log-table th {
+  background: var(--surface2);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  border-bottom: 1px solid var(--border);
+}
+.log-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.log-table tr:last-child td { border-bottom: none; }
+.log-table tr:hover td { background: var(--surface2); }
+
+.event-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+.event-pill.login     { background:#dbeafe; color:#1e3a8a; }
+.event-pill.compare   { background:#dcfce7; color:#166534; }
+.event-pill.upload    { background:#fef3c7; color:#92400e; }
+.event-pill.delete    { background:#fee2e2; color:#991b1b; }
+.event-pill.admin     { background:#ede9fe; color:#5b21b6; }
+.event-pill.warehouse { background:#ccfbf1; color:#0f766e; }
+[data-theme="dark"] .event-pill.login     { background:rgba(30,58,138,.2);   color:#93c5fd; }
+[data-theme="dark"] .event-pill.compare   { background:rgba(22,101,52,.2);   color:#86efac; }
+[data-theme="dark"] .event-pill.upload    { background:rgba(146,64,14,.2);   color:#fcd34d; }
+[data-theme="dark"] .event-pill.delete    { background:rgba(153,27,27,.2);   color:#fca5a5; }
+[data-theme="dark"] .event-pill.admin     { background:rgba(91,33,182,.2);   color:#c4b5fd; }
+[data-theme="dark"] .event-pill.warehouse { background:rgba(15,118,110,.2);  color:#5eead4; }
+
+.top-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.top-ev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.top-ev-chip .cnt {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.top-ev-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.export-btn {
+  padding: 8px 18px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+}
+.export-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block page_title %}Logi aktywności{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <h1>Logi aktywności</h1>
+    <p class="sub">Pełna historia zdarzeń w aplikacji</p>
+  </div>
+  <a href="/api/admin/activity-log?limit=10000" class="export-btn">⬇ Eksport JSONL</a>
+</div>
+
+<!-- STATS -->
+<div class="act-stats">
+  <div class="stat-box">
+    <div class="sn">{{ total_today }}</div>
+    <div class="sl">Zdarzeń dzisiaj</div>
+  </div>
+  <div class="stat-box">
+    <div class="sn">{{ total_week }}</div>
+    <div class="sl">Zdarzeń (7 dni)</div>
+  </div>
+  <div class="stat-box">
+    <div class="sn">{{ active_users }}</div>
+    <div class="sl">Aktywnych użytkowników (7 dni)</div>
+  </div>
+</div>
+
+<!-- TOP EVENTS -->
+{% if top_events %}
+<div style="margin-bottom:6px;font-size:12px;font-weight:700;color:var(--muted)">NAJCZĘSTSZE ZDARZENIA — kliknij aby filtrować</div>
+<div class="top-events">
+  {% for ev in top_events %}
+  <button type="button" class="top-ev-chip" onclick="filterByEvent({{ ev.event|tojson }})">
+    {{ ev.event }}
+    <span class="cnt">{{ ev.cnt }}</span>
+  </button>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <label for="searchBox" class="sr-only">Szukaj aktywności</label>
+  <input type="search" id="searchBox" placeholder="Szukaj zdarzenia, użytkownika, szczegółu…" oninput="filterRows()" autocomplete="off">
+  <select id="userFilter" onchange="filterRows()">
+    <option value="">Wszyscy użytkownicy</option>
+    {% for u in users_list %}
+    <option value="{{ u }}">{{ u }}</option>
+    {% endfor %}
+  </select>
+  <select id="eventFilter" onchange="filterRows()">
+    <option value="">Wszystkie zdarzenia</option>
+    {% for ev in event_types %}
+    <option value="{{ ev }}">{{ ev }}</option>
+    {% endfor %}
+  </select>
+  <button type="button" onclick="clearFilters()" class="export-btn">✕ Wyczyść</button>
+</div>
+
+<!-- TABLE -->
+<div class="log-wrap">
+  <table class="log-table">
+    <thead>
+      <tr>
+        <th scope="col">Zdarzenie</th>
+        <th scope="col">Użytkownik</th>
+        <th scope="col">Szczegóły</th>
+        <th scope="col">IP</th>
+        <th scope="col">Czas</th>
+      </tr>
+    </thead>
+    <tbody id="logBody">
+      {% for ev in recent %}
+      {% set e = ev.event | lower %}
+      {% if 'login' in e %}{% set cls = 'login' %}
+      {% elif 'compare' in e or 'comparison' in e %}{% set cls = 'compare' %}
+      {% elif 'upload' in e or 'create' in e or 'add' in e %}{% set cls = 'upload' %}
+      {% elif 'delete' in e or 'remove' in e %}{% set cls = 'delete' %}
+      {% elif 'user' in e or 'role' in e or 'admin' in e or 'password' in e %}{% set cls = 'admin' %}
+      {% elif 'warehouse' in e or 'receipt' in e %}{% set cls = 'warehouse' %}
+      {% else %}{% set cls = '' %}{% endif %}
+      <tr data-search="{{ (ev.event or '') ~ ' ' ~ (ev.username or '') ~ ' ' ~ (ev.detail or '') }}"
+          data-user="{{ ev.username or '' }}"
+          data-event="{{ ev.event or '' }}"
+          {% if loop.index0 >= 50 %}class="act-hidden-row" style="display:none"{% endif %}>
+        <td><span class="event-pill {{ cls }}">{{ ev.event }}</span></td>
+        <td style="font-weight:600;color:var(--text)">{{ ev.username or '—' }}</td>
+        <td style="color:var(--muted);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="{{ ev.detail or '' }}">{{ ev.detail or '—' }}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">{{ ev.ip or '—' }}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">{{ (ev.created_at or '')[:16] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted)">Brak zdarzeń</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if recent | length > 50 %}
+<div id="actLoadMoreWrap" style="margin-top:12px;text-align:center">
+  <button type="button" id="actLoadMoreBtn" onclick="actLoadMore()"
+    style="padding:8px 20px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer">
+    Załaduj więcej ({{ recent|length - 50 }} ukrytych)
+  </button>
+</div>
+{% endif %}
+<div id="rowCount" style="margin-top:10px;font-size:12px;color:var(--muted)">Wyświetlono: {{ [recent|length, 50]|min }} z {{ recent|length }} wierszy</div>
+
+<script>
+function getEventClass(event) {
+  const e = event.toLowerCase();
+  if (e.includes('login')) return 'login';
+  if (e.includes('compare') || e.includes('comparison')) return 'compare';
+  if (e.includes('upload') || e.includes('create') || e.includes('add')) return 'upload';
+  if (e.includes('delete') || e.includes('remove')) return 'delete';
+  if (e.includes('user') || e.includes('role') || e.includes('admin') || e.includes('password')) return 'admin';
+  if (e.includes('warehouse') || e.includes('receipt')) return 'warehouse';
+  return '';
+}
+
+var _actShowAll = false;
+function actLoadMore() {
+  _actShowAll = true;
+  document.querySelectorAll('.act-hidden-row').forEach(function(tr) {
+    tr.style.display = '';
+    tr.classList.remove('act-hidden-row');
+  });
+  var wrap = document.getElementById('actLoadMoreWrap');
+  if (wrap) wrap.style.display = 'none';
+  filterRows(); // recount
+}
+
+function filterRows() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  const u = document.getElementById('userFilter').value;
+  const ev = document.getElementById('eventFilter').value;
+  let visible = 0;
+  document.querySelectorAll('#logBody tr').forEach(row => {
+    if (!row.dataset.search) return;
+    const matchQ  = !q  || row.dataset.search.toLowerCase().includes(q);
+    const matchU  = !u  || row.dataset.user === u;
+    const matchEv = !ev || row.dataset.event === ev;
+    const show = matchQ && matchU && matchEv;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const total = document.querySelectorAll('#logBody tr[data-search]').length;
+  document.getElementById('rowCount').textContent = `Wyświetlono: ${visible} z ${total} wierszy`;
+}
+
+function filterByEvent(ev) {
+  document.getElementById('eventFilter').value = ev;
+  filterRows();
+}
+
+function clearFilters() {
+  document.getElementById('searchBox').value = '';
+  document.getElementById('userFilter').value = '';
+  document.getElementById('eventFilter').value = '';
+  filterRows();
+}
+</script>
+{% endblock %}

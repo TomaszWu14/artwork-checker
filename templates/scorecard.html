@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Scorecard dostawców — Artwork{% endblock %}
+{% block extra_head %}
+<style>
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:20px;position:relative;overflow:hidden;transition:border-color .2s}
+.kpi-card:hover{border-color:rgba(79,142,247,.3)}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.blue::before{background:linear-gradient(90deg,var(--accent),#7c3aed)}
+.kpi-card.green::before{background:linear-gradient(90deg,var(--ok),#059669)}
+.kpi-card.red::before{background:linear-gradient(90deg,var(--error),#dc2626)}
+.kpi-card.purple::before{background:linear-gradient(90deg,#8b5cf6,#7c3aed)}
+.kpi-num{font-size:36px;font-weight:800;line-height:1;letter-spacing:-1px;font-family:var(--mono)}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;opacity:.7}
+.blue .kpi-num{color:var(--accent)}
+.green .kpi-num{color:var(--ok)}
+.red .kpi-num{color:var(--error)}
+.purple .kpi-num{color:#a78bfa}
+
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden}
+.section-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.section-hdr h2{font-size:14px;font-weight:600;flex:1}
+.sec-badge{background:var(--bg);color:var(--muted);font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;font-family:var(--mono)}
+.chart-wrap{padding:18px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 16px;background:var(--bg);color:var(--muted);font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:9px 16px;border-bottom:1px solid rgba(42,45,58,.35);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.012)}
+.num{font-weight:700;font-size:14px;font-family:var(--mono)}
+.text-gray{color:var(--muted);font-size:12px}
+.empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+
+/* Oceny literowe */
+.grade{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;
+  font-weight:800;font-size:13px;font-family:var(--mono);color:#fff}
+.grade.A{background:#059669}.grade.B{background:#0d9488}.grade.C{background:#d97706}
+.grade.D{background:#ea580c}.grade.F{background:#dc2626}.grade.x{background:#475569}
+.score-num{font-family:var(--mono);font-weight:800;font-size:15px}
+
+/* Mini-pasek rozkładu statusów */
+.dist{display:flex;height:7px;width:120px;border-radius:4px;overflow:hidden;background:var(--bg)}
+.dist span{display:block;height:100%}
+.d-ok{background:var(--ok)}.d-warn{background:var(--warn)}.d-err{background:var(--error)}.d-crit{background:#7f1d1d}
+
+.trend-up{color:var(--ok);font-weight:700}.trend-down{color:var(--error);font-weight:700}.trend-flat{color:var(--muted)}
+.sup-code{font-weight:700}.sup-name{color:var(--muted);font-size:11px}
+.flag{font-size:11px;color:var(--muted);font-family:var(--mono)}
+</style>
+{% endblock %}
+
+{% block page_title %}Scorecard dostawców{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🏅 Scorecard dostawców</h1>
+  <p>Ranking jakości dokumentów per dostawca — wynik 0–100 ważony wg severity raportów{% if not can_see_all %} (Twoje porównania){% endif %}</p>
+</div>
+
+{% set s = summary %}
+<div class="kpi-grid">
+  <div class="kpi-card blue">
+    <div class="kpi-num">{{ s.suppliers or 0 }}</div>
+    <div class="kpi-lbl">Dostawców</div>
+    <div class="kpi-sub">{{ s.total_docs or 0 }} dokumentów</div>
+  </div>
+  <div class="kpi-card green">
+    <div class="kpi-num">{{ s.avg_score if s.avg_score is not none else '—' }}</div>
+    <div class="kpi-lbl">Średni wynik</div>
+    <div class="kpi-sub">średnia ocen wszystkich dostawców</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-num">{{ s.at_risk or 0 }}</div>
+    <div class="kpi-lbl">Dostawców ryzyka</div>
+    <div class="kpi-sub">ocena D lub F</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-num" style="font-size:22px;padding-top:8px">{{ s.best or '—' }}</div>
+    <div class="kpi-lbl">Najlepszy dostawca</div>
+    <div class="kpi-sub">najwyższy wynik jakości</div>
+  </div>
+</div>
+
+{% if cards %}
+<div class="section">
+  <div class="section-hdr">
+    <i data-lucide="trophy" style="width:16px;height:16px"></i>
+    <h2>Ranking wyników</h2>
+    <span class="sec-badge">TOP {{ 15 if summary.scored > 15 else summary.scored }}</span>
+  </div>
+  <div class="chart-wrap"><canvas id="scoreBar" height="120"></canvas></div>
+</div>
+
+<div class="section">
+  <div class="section-hdr">
+    <i data-lucide="list" style="width:16px;height:16px"></i>
+    <h2>Wszyscy dostawcy</h2>
+    <span class="sec-badge">{{ cards|length }}</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Dostawca</th><th>Dok.</th><th>Wynik</th><th>Ocena</th>
+        <th>Rozkład (OK / ostrz. / błąd / kryt.)</th><th>Śr. różnic</th>
+        <th>Akceptacja</th><th>Trend 90d</th><th>Ostatnio</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in cards %}
+      <tr>
+        <td class="text-gray">{{ loop.index }}</td>
+        <td>
+          <div class="sup-code">{{ c.code }}{% if c.country %} <span class="flag">{{ c.country }}</span>{% endif %}</div>
+          {% if c.name %}<div class="sup-name">{{ c.name }}</div>{% endif %}
+        </td>
+        <td class="num">{{ c.total }}</td>
+        <td><span class="score-num">{{ c.score if c.score is not none else '—' }}</span></td>
+        <td><span class="grade {{ c.grade if c.grade != '—' else 'x' }}">{{ c.grade }}</span></td>
+        <td>
+          {% set tot = c.total or 1 %}
+          <div class="dist" title="OK {{ c.ok }} · ostrzeżenia {{ c.warnings }} · błędy {{ c.errors }} · krytyczne {{ c.critical }}">
+            <span class="d-ok"   style="width:{{ (c.ok/tot*100)|round(1) }}%"></span>
+            <span class="d-warn" style="width:{{ (c.warnings/tot*100)|round(1) }}%"></span>
+            <span class="d-err"  style="width:{{ (c.errors/tot*100)|round(1) }}%"></span>
+            <span class="d-crit" style="width:{{ (c.critical/tot*100)|round(1) }}%"></span>
+          </div>
+        </td>
+        <td class="num">{{ c.avg_diffs }}</td>
+        <td>{% if c.approval_rate is not none %}<span class="num">{{ c.approval_rate }}%</span>{% else %}<span class="text-gray">—</span>{% endif %}</td>
+        <td>
+          {% if c.trend is none %}<span class="trend-flat">—</span>
+          {% elif c.trend > 0 %}<span class="trend-up">▲ +{{ c.trend }}</span>
+          {% elif c.trend < 0 %}<span class="trend-down">▼ {{ c.trend }}</span>
+          {% else %}<span class="trend-flat">→ 0</span>{% endif %}
+        </td>
+        <td class="text-gray">{{ (c.last_at or '')[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% else %}
+<div class="section"><div class="empty">Brak danych — wykonaj porównania, aby zbudować scorecard dostawców.</div></div>
+{% endif %}
+{% endblock %}
+
+{% block body_scripts %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+  const SC_CARDS = {{ cards|tojson }};
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    const el = document.getElementById('scoreBar');
+    if (!el || typeof Chart === 'undefined') return;
+    Chart.defaults.color = '#9ba3af';
+    Chart.defaults.font.family = "Inter, 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 11;
+    const gradeColor = g => ({A:'#059669',B:'#0d9488',C:'#d97706',D:'#ea580c',F:'#dc2626'}[g] || '#475569');
+    const top = SC_CARDS.filter(c => c.score !== null).slice(0, 15);
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: top.map(c => c.code),
+        datasets: [{
+          label: 'Wynik jakości',
+          data: top.map(c => c.score),
+          backgroundColor: top.map(c => gradeColor(c.grade)),
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: ctx => {
+              const c = top[ctx.dataIndex];
+              return `Wynik ${c.score} (ocena ${c.grade}) · ${c.total} dok.`;
+            }
+          } }
+        },
+        scales: {
+          x: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}

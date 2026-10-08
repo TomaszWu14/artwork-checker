@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Admin — Artwork Artwork{% endblock %}
+{% block extra_head %}<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.container{max-width:1100px;margin:28px auto;padding:0 20px}
+
+.panel{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px}
+.section-title{font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+.admin-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.admin-table th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:2px solid #e5e7eb;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280}
+.admin-table td{padding:10px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.admin-table tr:hover td{background:#f0f7ff}
+.admin-table tr:last-child td{border-bottom:none}
+
+
+.action-btn{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;border:none;cursor:pointer}
+.btn-del{background:#fee2e2;color:#991b1b}
+.btn-del:hover{background:#fecaca}
+.btn-reset{background:#fef3c7;color:#92400e;margin-left:4px}
+
+.log-row{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:12px}
+.log-row:last-child{border-bottom:none}
+.log-time{color:#9ca3af;flex-shrink:0;min-width:120px}
+.log-user{font-weight:600;min-width:80px;flex-shrink:0}
+.log-event{color:#374151;flex:1}
+
+.stat-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.sm-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;text-align:center}
+.sm-num{font-size:22px;font-weight:700;color:#1d4ed8}
+.sm-lbl{font-size:10px;color:#6b7280;text-transform:uppercase}
+
+.msg-flash{padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:13px}
+.msg-ok{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.msg-err{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+</style>{% endblock %}
+{% block page_title %}Admin — Artwork{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>⚙️ Panel administratora — Artwork</h1>
+    <p>Zarządzanie użytkownikami i ustawieniami modułu artworków</p>
+  </div>
+
+  {# Flash renderuje teraz base.html centralnie (dla WSZYSTKICH stron). Ta pętla
+     i tak dostawałaby pustą listę — get_flashed_messages() konsumuje komunikaty,
+     a base wykonuje się wcześniej. #}
+
+  <div class="stat-mini">
+    <div class="sm-card"><div class="sm-num">{{ admin.total_users }}</div><div class="sm-lbl">Użytkowników</div></div>
+    <div class="sm-card"><div class="sm-num">{{ admin.total_comparisons }}</div><div class="sm-lbl">Porównań</div></div>
+    <div class="sm-card"><div class="sm-num">{{ admin.active_today }}</div><div class="sm-lbl">Aktywnych dziś</div></div>
+  </div>
+
+  <div class="grid-2">
+
+    <!-- ── UZYTKOWNICY ────────────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="section-title">Użytkownicy systemu</div>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">Użytkownik</th>
+            <th scope="col">Rola</th>
+            <th scope="col">Porównań</th>
+            <th scope="col">Rejestracja</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in admin.users %}
+          <tr>
+            <td style="font-weight:600">{{ u.username }}<br><small style="color:#9ca3af;font-weight:400">{{ u.email or '' }}</small></td>
+            <td>
+              <span class="badge role-{{ u.role | lower }}">{{ u.role }}</span>
+            </td>
+            <td style="font-weight:700;color:#1d4ed8">{{ u.cmp_count }}</td>
+            <td style="color:#6b7280;font-size:11px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:16px">Brak użytkowników</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:12px;font-size:12px;color:#6b7280">
+        Aby dodać/usunąć użytkowników, przejdź do
+        <a href="/admin" style="color:#1d4ed8">głównego panelu admina</a>.
+      </div>
+    </div>
+
+    <!-- ── OSTATNIA AKTYWNOSC ──────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="section-title">Ostatnia aktywność (audit log)</div>
+      {% if admin.audit_log %}
+      {% for entry in admin.audit_log %}
+      <div class="log-row">
+        <span class="log-time">{{ entry.created_at[:16] if entry.created_at else '—' }}</span>
+        <span class="log-user">{{ entry.username or '—' }}</span>
+        <span class="log-event">{{ entry.event }}{% if entry.detail %} — <em style="color:#6b7280">{{ entry.detail[:60] }}</em>{% endif %}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="color:#9ca3af;text-align:center;padding:20px">Brak wpisow w logu audytowym</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- ── OSTATNIE POROWNANIA ────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="section-title">
+      Ostatnie porównania artworków
+      <a href="/artwork/history" style="font-size:12px;font-weight:400;color:#1d4ed8">Zobacz wszystkie →</a>
+    </div>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">Data</th><th scope="col">Użytkownik</th><th scope="col">Plik A</th><th scope="col">Plik B</th><th scope="col">Status</th><th scope="col">Błędy</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in admin.recent %}
+        <tr>
+          <td style="color:#555;white-space:nowrap">{{ r.created_at[:16] if r.created_at else '—' }}</td>
+          <td style="font-weight:600">{{ r.username }}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.file_a }}">{{ r.file_a }}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.file_b }}">{{ r.file_b }}</td>
+          <td>
+            {% set rl = r.status|lower %}
+            <span style="font-weight:700;color:{{ '#dc2626' if rl == 'critical' else '#d97706' if rl in ('error','warning') else '#16a34a' }}">{{ r.status|upper }}</span>
+          </td>
+          <td style="font-weight:700;color:#dc2626">{{ r.diff_count or 0 }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:16px">Brak porównań</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}
