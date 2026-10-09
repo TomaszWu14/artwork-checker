@@ -818,16 +818,18 @@ def build_report_from_comparison(result) -> ArtworkReport:
         # Ustal status z AI, pól lub heurystyki
         if key == "barcode_checksum":
             eans_a_bc = barcode_rep.get("eans_a", [])
-            eans_b_bc = barcode_rep.get("eans_b", [])
-            ean_msgs = [m for m in bc_msgs if m.get("code_type") == "EAN-13"]
+            # Tylko komunikaty o sumie kontrolnej — zgodność A↔B i kod↔tekst
+            # ocenia osobno pozycja „barcode_consistency”.
+            sum_msgs = [m for m in bc_msgs if m.get("check") == "checksum"]
+            bad = [m for m in sum_msgs if m.get("level") != "OK"]
             if not bc_msgs:
                 status, note = "info", "Brak danych — biblioteka odczytu nie zainstalowana"
-            elif not ean_msgs:
-                status, note = "info", "Brak kodów EAN-13 — nie przeprowadzono walidacji sumy"
-            elif all(m.get("level") == "OK" for m in ean_msgs):
+            elif not sum_msgs:
+                status, note = "info", "Brak kodów EAN — nie przeprowadzono walidacji sumy"
+            elif not bad:
                 status, note = "ok", f"EAN-13: {', '.join(eans_a_bc[:2]) or '—'}"
             else:
-                status, note = "error", "Błąd sumy kontrolnej EAN"
+                status, note = "error", "Błąd sumy kontrolnej: " + "; ".join(m.get("text", "") for m in bad)
 
         elif key == "barcode_consistency":
             if not bc_msgs:

@@ -624,13 +624,13 @@ def validate_artwork_barcodes(
             _ct = v.get("type", "EAN")
             if v["valid"]:
                 messages.append({
-                    "level": "OK", "source": src, "code_type": _ct,
+                    "level": "OK", "source": src, "code_type": _ct, "check": "checksum",
                     "text": (f"{_ct} ({ean}): cyfra kontrolna "
                              f"{v['check_digit_actual']} — poprawna."),
                 })
             else:
                 messages.append({
-                    "level": "KRYTYCZNY", "source": src, "code_type": _ct,
+                    "level": "KRYTYCZNY", "source": src, "code_type": _ct, "check": "checksum",
                     "text": f"{_ct} ({ean}): {v['error']}",
                 })
 
@@ -730,7 +730,7 @@ def _check_barcodes_vs_text(barcodes: list, ocr_text: str, source: str) -> list:
             ean = v.get("ean", bc.get("raw_data", ""))
             if not v.get("valid"):
                 messages.append({
-                    "level": "KRYTYCZNY", "source": source, "code_type": "EAN-13",
+                    "level": "KRYTYCZNY", "source": source, "code_type": "EAN-13", "check": "checksum",
                     "text": f"EAN-13 z kodu ({ean}): {v.get('error', 'błąd')}",
                 })
                 continue
@@ -752,7 +752,7 @@ def _check_barcodes_vs_text(barcodes: list, ocr_text: str, source: str) -> list:
             code = v.get("ean", bc.get("raw_data", ""))
             if not v.get("valid"):
                 messages.append({
-                    "level": "KRYTYCZNY", "source": source, "code_type": code_type,
+                    "level": "KRYTYCZNY", "source": source, "code_type": code_type, "check": "checksum",
                     "text": f"{code_type} z kodu ({code}): {v.get('error', 'błąd')}",
                 })
                 continue
@@ -798,7 +798,8 @@ def _check_barcodes_vs_text(barcodes: list, ocr_text: str, source: str) -> list:
                     msg = (f"GS1-128 GTIN (01){gtin}: EAN-13={ean13} — poprawny."
                            if v["valid"] else
                            f"GS1-128 GTIN (01){gtin}: {v['error']}")
-                    messages.append({"level": level, "source": source, "code_type": bc_type, "text": msg})
+                    messages.append({"level": level, "source": source, "code_type": bc_type,
+                                     "check": "checksum", "text": msg})
 
                 if ean13 is not None and eans_in_text and ean13 not in eans_in_text:
                     messages.append({
